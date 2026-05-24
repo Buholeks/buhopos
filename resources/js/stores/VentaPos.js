@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import http from "@/lib/http";
 
-export const useVentaPosStore = defineStore("ventaPos", () => {
+export const useVentaPosStore = defineStore("VentaPos", () => {
     const guardando = ref(false);
 
     const cliente = ref(null);

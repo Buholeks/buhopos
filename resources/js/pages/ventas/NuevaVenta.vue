@@ -140,7 +140,7 @@ import Swal from "sweetalert2";
 import http from "@/lib/http";
 import { toastSuccess, toastError, toastWarning } from "@/lib/alert";
 
-import { useVentaPosStore } from "@/stores/ventaPos";
+import { useVentaPosStore } from "@/stores/VentaPos";
 
 import PosTopbar from "@/components/ventas/PosTopbar.vue";
 import PosSearch from "@/components/ventas/PosSearch.vue";

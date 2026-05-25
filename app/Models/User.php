@@ -19,6 +19,8 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'empresa_id',
+        'sucursal_id',
         'name',
         'email',
         'password',
@@ -69,12 +71,12 @@ class User extends Authenticatable
     }
 
     public function ventasRegistradas()
-{
-    return $this->hasMany(Venta::class, 'user_id');
-}
+    {
+        return $this->hasMany(Venta::class, 'user_id');
+    }
 
-public function ventasComoVendedor()
-{
-    return $this->hasMany(Venta::class, 'vendedor_id');
-}
+    public function ventasComoVendedor()
+    {
+        return $this->hasMany(Venta::class, 'vendedor_id');
+    }
 }

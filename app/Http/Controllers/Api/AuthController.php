@@ -26,17 +26,17 @@ class AuthController extends Controller
             'password' => $validated['password'],
         ];
 
-        if (!Auth::attempt($credentials, $remember)) {
+        if (!Auth::guard('web')->attempt($credentials, $remember)) {
             return response()->json([
                 'message' => 'Credenciales inválidas'
             ], 422);
         }
 
-        $user = $request->user();
+        $user = Auth::guard('web')->user();
 
         // 🔒 BLOQUEO: usuario sin empresa o sucursal
         if (!$user->empresa_id || !$user->sucursal_id) {
-            Auth::logout();
+            Auth::guard('web')->logout();
 
             return response()->json([
                 'message' => 'Tu usuario no tiene empresa o sucursal asignada. Contacta al administrador.'
@@ -47,7 +47,7 @@ class AuthController extends Controller
         $permitida = $user->sucursales()->where('sucursales.id', $user->sucursal_id)->exists();
 
         if (!$permitida) {
-            Auth::logout();
+            Auth::guard('web')->logout();
 
             return response()->json([
                 'message' => 'Tu sucursal activa no está asignada a tu usuario. Contacta al administrador.'
@@ -66,10 +66,12 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        Auth::logout();
+        Auth::guard('web')->logout();
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(['ok' => true]);
     }

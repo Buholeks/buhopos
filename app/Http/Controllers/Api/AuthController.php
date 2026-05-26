@@ -43,8 +43,6 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $request->session()->regenerate();
-
         // ✅ validar que la sucursal activa esté permitida al usuario
         $permitida = $user->sucursales()->where('sucursales.id', $user->sucursal_id)->exists();
 
@@ -56,8 +54,7 @@ class AuthController extends Controller
             ], 403);
         }
 
-
-        // ✅ regenerar sesión SOLO cuando ya pasó todo
+        // Regenerar sesión UNA sola vez, al final de todas las validaciones
         $request->session()->regenerate();
 
         return $user->load([

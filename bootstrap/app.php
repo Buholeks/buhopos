@@ -13,13 +13,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->group('api', [
+            // EnsureFrontendRequestsAreStateful ya agrega internamente
+            // EncryptCookies, StartSession, VerifyCsrfToken para requests stateful.
+            // Tenerlos también aquí los ejecutaba dos veces y corrompía la sesión.
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-
-            // esto es lo que evita "Session store not set on request"
-            \Illuminate\Cookie\Middleware\EncryptCookies::class,
-            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-            \Illuminate\Session\Middleware\StartSession::class,
-
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ]);

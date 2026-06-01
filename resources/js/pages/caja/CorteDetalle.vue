@@ -4,7 +4,7 @@
         <div
             class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur"
         >
-            <div class="mx-auto flex max-w-7xl items-center gap-4 px-6 py-4">
+            <div class="mx-auto flex max-w-7xl items-center gap-4 px-3 sm:px-6 py-3 sm:py-4">
                 <button
                     type="button"
                     @click="goBack"
@@ -44,7 +44,7 @@
             <Loader2 class="h-7 w-7 animate-spin" />
         </div>
 
-        <div v-else-if="corte" class="mx-auto max-w-7xl space-y-6 px-6 py-6">
+        <div v-else-if="corte" class="mx-auto max-w-7xl space-y-6 px-3 sm:px-6 py-4 sm:py-6">
             <!-- RESUMEN TOTALES -->
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <TarjetaResumen
@@ -366,7 +366,7 @@
 
         <div
             v-else
-            class="mx-auto max-w-7xl px-6 py-10 text-center text-sm text-slate-500"
+            class="mx-auto max-w-7xl px-3 sm:px-6 py-10 text-center text-sm text-slate-500"
         >
             No se encontró el corte.
         </div>

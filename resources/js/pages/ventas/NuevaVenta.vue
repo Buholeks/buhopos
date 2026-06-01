@@ -34,7 +34,7 @@
     @delete="eliminarVentaEnEspera"
 />
 
-        <div class="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-6">
+        <div class="mx-auto flex max-w-7xl flex-col gap-3 sm:gap-4 px-3 sm:px-6 py-3 sm:py-6">
             <VentaClienteSelector
                 :cliente="cliente"
                 @select="store.setCliente"

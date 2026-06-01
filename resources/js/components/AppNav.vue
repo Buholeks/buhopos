@@ -1,13 +1,32 @@
 <template>
+    <!-- Mobile backdrop -->
+    <Transition name="nav-fade">
+        <div
+            v-if="open"
+            class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+            @click="$emit('update:open', false)"
+        />
+    </Transition>
+
+    <!-- Sidebar -->
     <aside
-        class="hidden md:flex md:flex-col w-64 shrink-0 bg-slate-900 text-slate-200 border-r border-slate-800"
+        :class="[
+            'flex flex-col w-64 shrink-0 bg-slate-900 text-slate-200 border-r border-slate-800',
+            'fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out',
+            'md:relative md:translate-x-0',
+            open ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        ]"
     >
         <!-- Brand -->
-        <div class="h-16 px-4 flex items-center justify-between border-b border-slate-800">
+        <div
+            class="h-16 px-4 flex items-center justify-between border-b border-slate-800 shrink-0"
+        >
             <div class="flex items-center gap-3">
                 <!-- Owl badge -->
                 <div class="relative">
-                    <div class="absolute inset-0 rounded-2xl bg-emerald-600/20 blur-xl"></div>
+                    <div
+                        class="absolute inset-0 rounded-2xl bg-emerald-600/20 blur-xl"
+                    ></div>
 
                     <div
                         class="relative h-10 w-10 rounded-2xl bg-emerald-600/10 ring-1 ring-emerald-500/30 grid place-items-center owl-float"
@@ -53,25 +72,45 @@
 
                 <div class="leading-tight">
                     <div class="text-sm font-semibold text-white">BuhoPOS</div>
-                    <div class="text-xs text-slate-400">BuhoSoft · Inventario y ventas</div>
+                    <div class="text-xs text-slate-400">
+                        BuhoSoft · Inventario y ventas
+                    </div>
                 </div>
             </div>
 
-            <span class="text-[11px] px-2 py-1 rounded-full bg-emerald-600/10 ring-1 ring-emerald-500/30 text-emerald-300">
-                v1
-            </span>
+            <div class="flex items-center gap-2">
+                <span
+                    class="text-[11px] px-2 py-1 rounded-full bg-emerald-600/10 ring-1 ring-emerald-500/30 text-emerald-300"
+                >
+                    v1
+                </span>
+                <!-- Close button – mobile only -->
+                <button
+                    class="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                    @click="$emit('update:open', false)"
+                >
+                    <X class="h-4 w-4" />
+                </button>
+            </div>
         </div>
 
         <!-- Nav -->
-        <nav class="px-3 py-4 space-y-6 overflow-y-auto">
+        <nav class="px-3 py-4 space-y-6 overflow-y-auto flex-1">
             <!-- Principal -->
             <div>
-                <p class="px-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+                <p
+                    class="px-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase"
+                >
                     Principal
                 </p>
 
                 <div class="mt-2 space-y-1">
-                    <RouterLink to="/" class="nav-item" exact-active-class="nav-item--active">
+                    <RouterLink
+                        to="/"
+                        class="nav-item"
+                        exact-active-class="nav-item--active"
+                        @click="$emit('update:open', false)"
+                    >
                         <LayoutDashboard class="nav-ic" />
                         <span>Inicio</span>
                     </RouterLink>
@@ -80,13 +119,20 @@
 
             <!-- Acción rápida -->
             <div>
-                <p class="px-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+                <p
+                    class="px-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase"
+                >
                     Acción rápida
                 </p>
 
                 <div class="mt-2 space-y-1">
-                    <RouterLink to="/ventas" class="nav-item nav-item--quick" active-class="nav-item--active">
-                        <Workflow class="nav-ic" />
+                    <RouterLink
+                        to="/ventas"
+                        class="nav-item nav-item--quick"
+                        active-class="nav-item--active"
+                        @click="$emit('update:open', false)"
+                    >
+                        <ShoppingCart class="nav-ic" />
                         <span>Ventas</span>
                     </RouterLink>
                 </div>
@@ -94,40 +140,67 @@
 
             <!-- Operación -->
             <div>
-                <p class="px-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+                <p
+                    class="px-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase"
+                >
                     Operación
                 </p>
 
                 <div class="mt-2 space-y-1">
-                    <RouterLink to="/procesos" class="nav-item" active-class="nav-item--active">
+                    <RouterLink
+                        to="/procesos"
+                        class="nav-item"
+                        active-class="nav-item--active"
+                        @click="$emit('update:open', false)"
+                    >
                         <Workflow class="nav-ic" />
                         <span>Procesos</span>
                     </RouterLink>
 
-                    <RouterLink to="/catalogos" class="nav-item" active-class="nav-item--active">
+                    <RouterLink
+                        to="/catalogos"
+                        class="nav-item"
+                        active-class="nav-item--active"
+                        @click="$emit('update:open', false)"
+                    >
                         <LibraryBig class="nav-ic" />
                         <span>Catálogos</span>
                     </RouterLink>
-                    
-                    <RouterLink to="/consultasreportes" class="nav-item" active-class="nav-item--active">
+
+                    <RouterLink
+                        to="/consultasreportes"
+                        class="nav-item"
+                        active-class="nav-item--active"
+                        @click="$emit('update:open', false)"
+                    >
                         <BarChart3 class="nav-ic" />
                         <span>Consultas y Reportes</span>
                     </RouterLink>
                 </div>
             </div>
-
-            <!-- Footer -->
-            <div class="mt-auto pt-4 border-t border-slate-800">
-                <p class="px-1 text-[11px] text-slate-500">
-                    © {{ new Date().getFullYear() }} BuhoSoft
-                </p>
-            </div>
         </nav>
+
+        <!-- Footer -->
+        <div class="px-4 py-3 border-t border-slate-800 shrink-0">
+            <p class="text-[11px] text-slate-500">
+                © {{ new Date().getFullYear() }} BuhoSoft
+            </p>
+        </div>
     </aside>
 </template>
 
 <script setup>
-import { LayoutDashboard, Workflow, LibraryBig } from "lucide-vue-next";
+import {
+    LayoutDashboard,
+    Workflow,
+    LibraryBig,
+    BarChart3,
+    ShoppingCart,
+    X,
+} from "lucide-vue-next";
+
+defineProps({ open: { type: Boolean, default: false } });
+defineEmits(["update:open"]);
 </script>
 
 <style scoped>
@@ -137,9 +210,9 @@ import { LayoutDashboard, Workflow, LibraryBig } from "lucide-vue-next";
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.625rem 0.75rem 0.625rem 0.95rem; /* un poquito más a la izq por la barra */
+    padding: 0.625rem 0.75rem 0.625rem 0.95rem;
     border-radius: 0.9rem;
-    color: rgba(148, 163, 184, 0.95); /* slate-400 */
+    color: rgba(148, 163, 184, 0.95);
     transition:
         background-color 160ms ease,
         color 160ms ease,
@@ -147,7 +220,6 @@ import { LayoutDashboard, Workflow, LibraryBig } from "lucide-vue-next";
         box-shadow 160ms ease;
 }
 
-/* Barra izquierda (apagada por defecto) */
 .nav-item::before {
     content: "";
     position: absolute;
@@ -156,7 +228,7 @@ import { LayoutDashboard, Workflow, LibraryBig } from "lucide-vue-next";
     bottom: 0.55rem;
     width: 3px;
     border-radius: 999px;
-    background: rgba(16, 185, 129, 0); /* invisible */
+    background: rgba(16, 185, 129, 0);
     transform: scaleY(0.6);
     transition:
         background-color 160ms ease,
@@ -171,21 +243,19 @@ import { LayoutDashboard, Workflow, LibraryBig } from "lucide-vue-next";
     transition: color 160ms ease;
 }
 
-/* Hover: suave, “premium” */
 .nav-item:hover {
-    background: rgba(16, 185, 129, 0.10); /* emerald-600/10 */
+    background: rgba(16, 185, 129, 0.1);
     color: rgba(226, 232, 240, 0.98);
     transform: translateX(1px);
 }
 .nav-item:hover .nav-ic {
-    color: rgba(52, 211, 153, 0.98); /* emerald-400 */
+    color: rgba(52, 211, 153, 0.98);
 }
 .nav-item:hover::before {
     background: rgba(16, 185, 129, 0.35);
     transform: scaleY(0.9);
 }
 
-/* Active: barra encendida + contorno */
 .nav-item--active {
     background: rgba(16, 185, 129, 0.18);
     color: rgba(255, 255, 255, 0.98);
@@ -195,12 +265,11 @@ import { LayoutDashboard, Workflow, LibraryBig } from "lucide-vue-next";
     color: rgba(52, 211, 153, 0.98);
 }
 .nav-item--active::before {
-    background: rgba(16, 185, 129, 1); /* emerald-600 */
+    background: rgba(16, 185, 129, 1);
     transform: scaleY(1);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); /* glow sutil */
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
 }
 
-/* Acción rápida: un poquito más marcada */
 .nav-item--quick {
     background: rgba(16, 185, 129, 0.08);
     box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.18);
@@ -212,22 +281,45 @@ import { LayoutDashboard, Workflow, LibraryBig } from "lucide-vue-next";
 }
 @keyframes owlFloat {
     0%,
-    100% { transform: translateY(0px); }
-    50% { transform: translateY(-5px); }
+    100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-5px);
+    }
 }
 
-/* Blink */
 .owl-lid {
     opacity: 0;
     animation: owlBlink 6.2s infinite;
 }
-.owl-lid:nth-of-type(1) { animation-delay: 0s; }
-.owl-lid:nth-of-type(2) { animation-delay: 0.08s; }
+.owl-lid:nth-of-type(1) {
+    animation-delay: 0s;
+}
+.owl-lid:nth-of-type(2) {
+    animation-delay: 0.08s;
+}
 @keyframes owlBlink {
     0%,
     93%,
-    100% { opacity: 0; }
-    95% { opacity: 1; }
-    96.5% { opacity: 0; }
+    100% {
+        opacity: 0;
+    }
+    95% {
+        opacity: 1;
+    }
+    96.5% {
+        opacity: 0;
+    }
+}
+
+/* Drawer transition */
+.nav-fade-enter-active,
+.nav-fade-leave-active {
+    transition: opacity 250ms ease;
+}
+.nav-fade-enter-from,
+.nav-fade-leave-to {
+    opacity: 0;
 }
 </style>

@@ -5,7 +5,7 @@
             class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-xl"
         >
             <div
-                class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4"
+                class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 sm:px-6 py-3 sm:py-4"
             >
                 <div class="flex min-w-0 items-center gap-3">
                     <div
@@ -33,23 +33,23 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5 sm:gap-2">
                     <button
                         type="button"
                         @click="panelDatos = true"
-                        class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        class="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-white px-2.5 sm:px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                     >
                         <SlidersHorizontal class="h-4 w-4" />
-                        Datos
+                        <span class="hidden sm:inline">Datos</span>
                     </button>
 
                     <button
                         type="button"
                         @click="compra.resetear"
-                        class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        class="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-white px-2.5 sm:px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                     >
                         <RotateCcw class="h-4 w-4" />
-                        Limpiar
+                        <span class="hidden sm:inline">Limpiar</span>
                     </button>
 
                     <button
@@ -58,7 +58,7 @@
                         :disabled="
                             compra.guardando || compra.detalles.length === 0
                         "
-                        class="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        class="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-xl bg-emerald-600 px-3 sm:px-5 text-sm font-bold text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <Loader2
                             v-if="compra.guardando"
@@ -72,7 +72,7 @@
         </section>
 
         <!-- CONTENT -->
-        <main class="mx-auto max-w-7xl space-y-5 px-6 py-6">
+        <main class="mx-auto max-w-7xl space-y-4 sm:space-y-5 px-3 sm:px-6 py-4 sm:py-6">
             <!-- RESUMEN SUPERIOR -->
             <section
                 class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px_220px]"
@@ -268,7 +268,7 @@
 
         <!-- FOOTER STICKY -->
         <section
-            class="sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 px-6 py-3 backdrop-blur-xl"
+            class="sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 px-3 sm:px-6 py-3 backdrop-blur-xl"
         >
             <div
                 class="mx-auto flex max-w-7xl items-center justify-between gap-4"

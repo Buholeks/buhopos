@@ -1,5 +1,5 @@
 <template>
-    <div class="min-h-screen bg-slate-50 p-6">
+    <div class="min-h-screen bg-slate-50 p-3 sm:p-6">
         <!-- TOPBAR -->
         <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
@@ -28,7 +28,7 @@
                     <BaseInput
                         v-model="busqueda"
                         placeholder="Buscar nombre o código…"
-                        :rootClass="'w-64'"
+                        :rootClass="'w-full sm:w-64'"
                         @input="buscarDebounce"
                     />
                     <BtnCerrar

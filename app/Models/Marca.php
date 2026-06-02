@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PublicImageStorage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -66,6 +67,6 @@ class Marca extends Model
     /** Ruta pública del logo */
     public function logoUrl(): ?string
     {
-        return $this->logo ? asset('storage/' . $this->logo) : null;
+        return PublicImageStorage::url($this->logo);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TipoAtributo;
+use App\Support\PublicImageStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -214,6 +215,6 @@ class CatalogoPreciosController extends Controller
     {
         $imagen = $row->variante_imagen ?: $row->producto_imagen;
 
-        return $imagen ? asset('storage/' . ltrim($imagen, '/')) : null;
+        return PublicImageStorage::url($imagen);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Marca;
 use App\Models\Modelo;
+use App\Support\PublicImageStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -80,7 +81,7 @@ class ModeloController extends Controller
         $modelo->activo      = $datos['activo'] ?? true;
 
         if ($request->hasFile('imagen')) {
-            $modelo->imagen = $request->file('imagen')->store('modelos/imagenes', 'public');
+            $modelo->imagen = PublicImageStorage::store($request->file('imagen'), 'modelos/imagenes');
         }
 
         $modelo->save();
@@ -134,7 +135,7 @@ class ModeloController extends Controller
             if ($modelo->imagen) {
                 Storage::disk('public')->delete($modelo->imagen);
             }
-            $modelo->imagen = $request->file('imagen')->store('modelos/imagenes', 'public');
+            $modelo->imagen = PublicImageStorage::store($request->file('imagen'), 'modelos/imagenes');
         }
 
         $modelo->save();

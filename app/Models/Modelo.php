@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PublicImageStorage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -67,6 +68,6 @@ class Modelo extends Model
     /** Ruta pública de la imagen */
     public function imagenUrl(): ?string
     {
-        return $this->imagen ? asset('storage/' . $this->imagen) : null;
+        return PublicImageStorage::url($this->imagen);
     }
 }

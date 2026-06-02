@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\PublicImageStorage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -119,7 +120,7 @@ class ProductoVariante extends Model
         $imagen = $this->attributes['imagen'] ?? null;
 
         if ($imagen) {
-            return asset('storage/' . ltrim($imagen, '/'));
+            return PublicImageStorage::url($imagen);
         }
 
         return $this->producto?->imagen_url;

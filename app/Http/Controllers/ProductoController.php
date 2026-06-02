@@ -8,6 +8,7 @@ use App\Models\Producto;
 use App\Models\ProductoVariante;
 use App\Models\TipoAtributo;
 use App\Models\VarianteAtributo;
+use App\Support\PublicImageStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -100,8 +101,10 @@ class ProductoController extends Controller
             ]));
 
             if ($request->hasFile('imagen')) {
-                $producto->imagen = $request->file('imagen')
-                    ->store("productos/{$empresaId}", 'public');
+                $producto->imagen = PublicImageStorage::store(
+                    $request->file('imagen'),
+                    "productos/{$empresaId}"
+                );
             }
 
             $producto->save();
@@ -148,8 +151,10 @@ class ProductoController extends Controller
                 Storage::disk('public')->delete($producto->imagen);
             }
 
-            $producto->imagen = $request->file('imagen')
-                ->store("productos/{$empresaId}", 'public');
+            $producto->imagen = PublicImageStorage::store(
+                $request->file('imagen'),
+                "productos/{$empresaId}"
+            );
         }
 
         if (!empty($datos['eliminar_imagen']) && $producto->imagen) {
@@ -316,7 +321,7 @@ class ProductoController extends Controller
                 'sku'           => $toNullIfEmpty($datos['sku'] ?? null) ?: ProductoVariante::generarSku($id, $empresaId),
                 'codigo_barras' => $toNullIfEmpty($datos['codigo_barras'] ?? null),
                 'imagen'        => $request->hasFile('imagen')
-                    ? $request->file('imagen')->store("variantes/{$empresaId}", 'public')
+                    ? PublicImageStorage::store($request->file('imagen'), "variantes/{$empresaId}")
                     : null,
                 'precio_costo'  => $toNullIfEmpty($datos['precio_costo'] ?? null),
                 'precio_venta'  => $toNullIfEmpty($datos['precio_venta'] ?? null),
@@ -429,8 +434,10 @@ class ProductoController extends Controller
                 Storage::disk('public')->delete($variante->imagen);
             }
 
-            $variante->imagen = $request->file('imagen')
-                ->store("variantes/{$variante->empresa_id}", 'public');
+            $variante->imagen = PublicImageStorage::store(
+                $request->file('imagen'),
+                "variantes/{$variante->empresa_id}"
+            );
         } elseif (!empty($datos['eliminar_imagen'])) {
             if ($variante->imagen) {
                 Storage::disk('public')->delete($variante->imagen);

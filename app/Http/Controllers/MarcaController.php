@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Marca;
+use App\Support\PublicImageStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -64,7 +65,7 @@ class MarcaController extends Controller
         $marca->activo      = $datos['activo'] ?? true;
 
         if ($request->hasFile('logo')) {
-            $marca->logo = $request->file('logo')->store('marcas/logos', 'public');
+            $marca->logo = PublicImageStorage::store($request->file('logo'), 'marcas/logos');
         }
 
         $marca->save();
@@ -118,7 +119,7 @@ class MarcaController extends Controller
             if ($marca->logo) {
                 Storage::disk('public')->delete($marca->logo);
             }
-            $marca->logo = $request->file('logo')->store('marcas/logos', 'public');
+            $marca->logo = PublicImageStorage::store($request->file('logo'), 'marcas/logos');
         }
 
         $marca->save();

@@ -314,7 +314,7 @@ class SerieController extends Controller
             'nombre'         => $producto?->nombre,
             'codigo'         => $producto?->codigo,
             'sku'            => $variante?->sku,
-            'imagen_url'     => $producto?->imagen,
+            'imagen_url'     => $variante?->imagen_url ?? $producto?->imagen_url,
             'precio_venta'   => $resolverPrecio('precio_venta') ?? 0,
             'precio_costo'   => $resolverPrecio('precio_costo') ?? 0,
             'precio1'        => $resolverPrecio('precio1'),

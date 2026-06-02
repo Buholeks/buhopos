@@ -9,10 +9,12 @@
             :total="total"
             :showTotal="false"
             :disableAccionesVenta="detalles.length === 0"
+            :disableReimprimirUltima="!ultimaVentaDisponible"
             @abrirCaja="abrirCaja"
             @modal-mov="modalMov = true"
             @enEspera="ponerVentaEnEspera"
             @recuperar="abrirModalRecuperar"
+            @reimprimirUltima="reimprimirUltimaVenta"
             @descuentoGlobal="abrirModalDescuento"
             @reset="resetearTodo"
             @guardar="abrirModalCobro"
@@ -159,6 +161,8 @@ import {
     saveVentaEnEspera,
     removeVentaEnEspera,
 } from "@/helpers/ventasEnEspera";
+import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
+import { imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
 
 
 const authStore = useAuthStore();
@@ -190,7 +194,16 @@ const {
     cambio,
     pagoInsuficiente,
     hayExcedido,
+    ultimaVenta,
 } = storeToRefs(store);
+const ultimaVentaDisponible = computed(() => {
+    if (!ultimaVenta.value) return false;
+
+    return (
+        Number(ultimaVenta.value.empresa_id) === Number(empresaId.value) &&
+        Number(ultimaVenta.value.sucursal_id) === Number(sucursalId.value)
+    );
+});
 
 const root = ref(null);
 const searchRef = ref(null);
@@ -802,6 +815,19 @@ function resetearTodo() {
     nextTick(() => searchRef.value?.focus?.());
 }
 
+function reimprimirUltimaVenta() {
+    if (!ultimaVentaDisponible.value) {
+        toastWarning("No hay una ultima venta para reimprimir");
+        return;
+    }
+
+    try {
+        imprimirTicketVenta(crearTicketVenta(ultimaVenta.value));
+    } catch (e) {
+        toastError(e.message ?? "No se pudo reimprimir el ticket");
+    }
+}
+
 // ── Apertura modal cobro ──────────────────────────────────────────────────────
 function abrirModalCobro() {
     if (!corteActual.value?.id) {
@@ -879,13 +905,24 @@ async function guardarVentaFinal() {
         return;
     }
 
-    await Swal.fire({
+    const imprimir = await Swal.fire({
         icon: "success",
         title: "¡Venta registrada!",
         html: `<p style="font-size:14px;color:#475569;">Stock actualizado correctamente.</p>`,
         confirmButtonColor: "#059669",
-        confirmButtonText: "Nueva venta",
+        showCancelButton: true,
+        confirmButtonText: "Imprimir ticket",
+        cancelButtonText: "Nueva venta",
+        reverseButtons: true,
     });
+
+    if (imprimir.isConfirmed) {
+        try {
+            imprimirTicketVenta(crearTicketVenta(res.venta));
+        } catch (e) {
+            toastError(e.message ?? "No se pudo imprimir el ticket");
+        }
+    }
 
     busqueda.value = "";
     resultados.value = [];

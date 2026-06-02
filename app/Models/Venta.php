@@ -29,6 +29,9 @@ class Venta extends Model
         'cambio',
         'notas',
         'estado',
+        'cancelado_por',
+        'cancelado_en',
+        'motivo_cancelacion',
     ];
 
     protected $casts = [
@@ -36,8 +39,9 @@ class Venta extends Model
         'subtotal'  => 'decimal:2',
         'descuento' => 'decimal:2',
         'total'     => 'decimal:2',
-        'monto_recibido',
-        'cambio',
+        'monto_recibido' => 'decimal:2',
+        'cambio'         => 'decimal:2',
+        'cancelado_en'   => 'datetime',
     ];
 
     public function empresa(): BelongsTo
@@ -52,15 +56,6 @@ class Venta extends Model
     {
         return $this->hasMany(VentaDetalle::class);
     }
-
-    // public function recalcularTotales(): void
-    // {
-    //     $subtotal = $this->detalles()->sum('subtotal');
-    //     $this->update([
-    //         'subtotal' => $subtotal,
-    //         'total'    => max(0, $subtotal - $this->descuento),
-    //     ]);
-    // }
 
     public function recalcularTotales(): void
     {
@@ -82,8 +77,23 @@ class Venta extends Model
     {
         return $this->belongsTo(Cliente::class);
     }
-    public function corte()
+    public function sucursal(): BelongsTo
+    {
+        return $this->belongsTo(Sucursal::class);
+    }
+
+    public function corte(): BelongsTo
     {
         return $this->belongsTo(CorteCaja::class, 'corte_id');
+    }
+
+    public function cancelador(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelado_por');
+    }
+
+    public function devoluciones(): HasMany
+    {
+        return $this->hasMany(Devolucion::class);
     }
 }

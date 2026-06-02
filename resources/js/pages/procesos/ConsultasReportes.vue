@@ -8,18 +8,9 @@
 import HubSection from "@/components/hub/HubSection.vue";
 
 import {
-    ShoppingCart,
     ReceiptText,
-    ClipboardList,
-    FileText,
-    Wallet,
-    RotateCcw,
-    ArrowDownUp,
-    Wrench,
     Landmark,
-    PackageCheck,
     BarChart3,
-    Boxes,
     CreditCard,
 } from "lucide-vue-next";
 
@@ -43,7 +34,7 @@ const consultas = [
         badge: "Disponible",
     },
     {
-        label: "Compras a Proveedores",
+        label: "Consulta de compras",
         icon: ReceiptText,
         to: { name: "reportes-compras" },
         badge: "Disponible",

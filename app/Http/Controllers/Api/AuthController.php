@@ -54,8 +54,11 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // Regenerar sesión UNA sola vez, al final de todas las validaciones
-        $request->session()->regenerate();
+        // Regenerar sesión solo si hay sesión activa (requests stateful vía Sanctum SPA).
+        // En requests sin sesión (API pura / dev server) esto se omite sin error.
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
 
         return $user->load([
             'empresa:id,nombre',

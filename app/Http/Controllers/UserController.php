@@ -7,7 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 
-class UserController
+class UserController extends Controller
 {
     public function buscarVendedores(Request $request): JsonResponse
     {

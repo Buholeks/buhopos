@@ -19,9 +19,6 @@ import {
     Wrench,
     Landmark,
     PackageCheck,
-    BarChart3,
-    Boxes,
-    CreditCard,
 } from "lucide-vue-next";
 
 const procesos = [
@@ -41,6 +38,12 @@ const procesos = [
         label: "Corte de Caja",
         icon: Landmark,
         to: { name: "caja" },
+        badge: "Disponible",
+    },
+      {
+        label: "Pagos a proveedores",
+        icon: Wallet,
+        to: { name: "reportes-pagos-proveedores" },
         badge: "Disponible",
     },
     {
@@ -68,10 +71,10 @@ const procesos = [
         badge: "Próximamente",
     },
     {
-        label: "Devoluciones",
+        label: "Cancelaciones y devoluciones",
         icon: RotateCcw,
-        to: null,
-        badge: "Próximamente",
+        to: { name: "cancelaciones-devoluciones" },
+        badge: "Disponible",
     },
     {
         label: "Entradas / Salidas",

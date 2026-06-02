@@ -16,10 +16,10 @@
 
                     <div>
                         <h1 class="text-lg font-semibold text-slate-900">
-                            Compras a Proveedores
+                            {{ tituloPagina }}
                         </h1>
                         <p class="text-xs text-slate-500">
-                            Historial de compras a Proveedores y Pagos
+                            {{ subtituloPagina }}
                         </p>
                     </div>
                 </div>
@@ -77,7 +77,7 @@
                         </select>
                     </div>
 
-                    <div>
+                    <div v-if="esVistaCompras">
                         <label
                             class="mb-1 block text-xs font-medium text-slate-500"
                         >
@@ -91,6 +91,7 @@
                             <option value="">Todos</option>
                             <option value="confirmada">Confirmada</option>
                             <option value="borrador">Borrador</option>
+                            <option value="cancelada">Cancelada</option>
                         </select>
                     </div>
 
@@ -127,7 +128,10 @@
 
             <template v-else-if="datos">
                 <!-- Resumen compacto -->
-                <section class="grid grid-cols-2 gap-3 md:grid-cols-5">
+                <section
+                    v-if="esVistaCompras"
+                    class="grid grid-cols-2 gap-3 md:grid-cols-5"
+                >
                     <div
                         v-for="item in resumenCompras"
                         :key="item.label"
@@ -159,7 +163,7 @@
                 </section>
 
                 <!-- Tabs -->
-                <div class="flex items-center gap-2">
+                <div v-if="esVistaMixta" class="flex items-center gap-2">
                     <button
                         type="button"
                         :class="
@@ -185,7 +189,7 @@
 
                 <!-- Tabla compras -->
                 <section
-                    v-if="tabActivo === 'compras'"
+                    v-if="esVistaCompras"
                     class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                 >
                     <div
@@ -207,7 +211,7 @@
                                 class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"
                             >
                                 <tr>
-                                    <th class="px-4 py-3 text-left">Folio de ejemplo</th>
+                                    <th class="px-4 py-3 text-left">Folio</th>
                                     <th class="px-4 py-3 text-left">Fecha</th>
                                     <th class="px-4 py-3 text-left">
                                         Proveedor
@@ -260,7 +264,7 @@
 
                                     <td class="px-4 py-3">
                                         <span :class="badgePago(c.forma_pago)">
-                                            {{ c.forma_pago }}
+                                            {{ labelFormaPago(c.forma_pago) }}
                                         </span>
                                     </td>
 
@@ -314,21 +318,6 @@
                                                 @click.stop="verDetalle(c)"
                                             >
                                                 <Eye class="h-4 w-4" />
-                                            </button>
-
-                                            <button
-                                                v-if="
-                                                    [
-                                                        'credito',
-                                                        'tarjeta_credito',
-                                                    ].includes(c.forma_pago)
-                                                "
-                                                type="button"
-                                                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-600 transition hover:bg-amber-50"
-                                                title="Pagos"
-                                                @click.stop="abrirPagos(c)"
-                                            >
-                                                <Wallet class="h-4 w-4" />
                                             </button>
                                         </div>
                                     </td>
@@ -384,7 +373,7 @@
 
                 <!-- Cuentas por pagar -->
                 <section
-                    v-if="tabActivo === 'cuentas'"
+                    v-if="esVistaPagos"
                     class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                 >
                     <div
@@ -560,7 +549,11 @@
                                                     badgePago(ct.forma_pago)
                                                 "
                                             >
-                                                {{ ct.forma_pago }}
+                                                {{
+                                                    labelFormaPago(
+                                                        ct.forma_pago,
+                                                    )
+                                                }}
                                             </span>
                                         </td>
 
@@ -920,7 +913,11 @@
                                                         badgePago(p.forma_pago)
                                                     "
                                                 >
-                                                    {{ p.forma_pago }}
+                                                    {{
+                                                        labelFormaPago(
+                                                            p.forma_pago,
+                                                        )
+                                                    }}
                                                 </span>
                                             </td>
                                             <td
@@ -1074,8 +1071,8 @@
                                     <option value="transferencia">
                                         Transferencia
                                     </option>
-                                    <option value="tarjeta_debito">Tarjeta de débito</option>
-                                    <option value="tarjeta_credito">Tarjeta de crédito</option>
+                                    <option value="tarjeta">Tarjeta</option>
+                                    <option value="cheque">Cheque</option>
                                 </select>
                             </div>
 
@@ -1163,7 +1160,11 @@
                                                         badgePago(p.forma_pago)
                                                     "
                                                 >
-                                                    {{ p.forma_pago }}
+                                                    {{
+                                                        labelFormaPago(
+                                                            p.forma_pago,
+                                                        )
+                                                    }}
                                                 </span>
                                             </td>
                                             <td
@@ -1212,6 +1213,7 @@
 <script setup>
 import { computed, defineComponent, h, onMounted, ref } from "vue";
 import axios from "axios";
+import { toastError } from "@/lib/alert";
 
 import {
     AlertTriangle,
@@ -1272,6 +1274,24 @@ const InfoItem = defineComponent({
     },
 });
 
+const props = defineProps({
+    vista: { type: String, default: "mixta" },
+});
+
+const esVistaMixta = computed(() => props.vista === "mixta");
+const esVistaCompras = computed(() => props.vista !== "pagos");
+const esVistaPagos = computed(() => props.vista !== "compras");
+
+const tituloPagina = computed(() =>
+    props.vista === "pagos" ? "Pagos a proveedores" : "Consulta de compras",
+);
+
+const subtituloPagina = computed(() =>
+    props.vista === "pagos"
+        ? "Cuentas por pagar, saldos vencidos y registro de pagos"
+        : "Historial y detalle de compras a proveedores",
+);
+
 const cargando = ref(false);
 const cargandoCuentas = ref(false);
 const cargandoDetalle = ref(false);
@@ -1281,7 +1301,7 @@ const guardandoPago = ref(false);
 const modalAbierto = ref(false);
 const modalPagosAbierto = ref(false);
 
-const tabActivo = ref("compras");
+const tabActivo = ref(props.vista === "pagos" ? "cuentas" : "compras");
 const datos = ref(null);
 const datosCuentas = ref(null);
 const detalle = ref(null);
@@ -1412,11 +1432,25 @@ function getEstatusPago(c) {
     const saldo = Number(c?.saldo ?? c?.total ?? 0);
     if (saldo <= 0) return "pagado";
     if (c?.fecha_vencimiento) {
-        const hoy = new Date().toISOString().split("T")[0];
+        const hoy = fechaOffset(0);
         if (c.fecha_vencimiento.toString().substring(0, 10) < hoy)
             return "vencido";
     }
     return "pendiente";
+}
+
+function labelFormaPago(fp) {
+    const labels = {
+        efectivo: "Efectivo",
+        transferencia: "Transferencia",
+        tarjeta: "Tarjeta",
+        tarjeta_debito: "Tarjeta de débito",
+        tarjeta_credito: "Tarjeta de crédito",
+        credito: "Crédito",
+        cheque: "Cheque",
+    };
+
+    return labels[fp] ?? fp ?? "-";
 }
 
 function badgePago(fp) {
@@ -1426,9 +1460,11 @@ function badgePago(fp) {
     const tonos = {
         efectivo: "bg-emerald-50 text-emerald-700",
         transferencia: "bg-sky-50 text-sky-700",
+        tarjeta: "bg-indigo-50 text-indigo-700",
         tarjeta_debito: "bg-indigo-50 text-indigo-700",
         tarjeta_credito: "bg-purple-50 text-purple-700",
         credito: "bg-amber-50 text-amber-700",
+        cheque: "bg-slate-100 text-slate-700",
     };
 
     return `${base} ${tonos[fp] ?? "bg-slate-100 text-slate-600"}`;
@@ -1461,9 +1497,12 @@ function badgeEstatusPago(e) {
 
 function aplicarFiltros() {
     filtros.value.page = 1;
-    buscar();
 
-    if (tabActivo.value === "cuentas") {
+    if (esVistaCompras.value) {
+        buscar();
+    }
+
+    if (esVistaPagos.value) {
         filtrosCuentas.value.page = 1;
         cargarCuentas();
     }
@@ -1475,9 +1514,11 @@ function aplicarFiltrosCuentas() {
 }
 
 function refrescar() {
-    buscar();
+    if (esVistaCompras.value) {
+        buscar();
+    }
 
-    if (tabActivo.value === "cuentas") {
+    if (esVistaPagos.value) {
         cargarCuentas();
     }
 }
@@ -1493,6 +1534,7 @@ async function buscar() {
         datos.value = data;
     } catch (e) {
         console.error(e);
+        toastError("Error al cargar compras");
     } finally {
         cargando.value = false;
     }
@@ -1534,6 +1576,7 @@ async function cargarCuentas() {
         datosCuentas.value = data;
     } catch (e) {
         console.error(e);
+        toastError("Error al cargar cuentas por pagar");
     } finally {
         cargandoCuentas.value = false;
     }
@@ -1557,6 +1600,7 @@ async function verDetalle(compra) {
         detalle.value = data;
     } catch (e) {
         console.error(e);
+        toastError("Error al cargar el detalle");
     } finally {
         cargandoDetalle.value = false;
     }
@@ -1573,6 +1617,7 @@ async function cargarProveedores() {
         proveedores.value = data.data ?? data;
     } catch (e) {
         console.error(e);
+        toastError("Error al cargar proveedores");
     }
 }
 
@@ -1598,6 +1643,7 @@ async function abrirPagos(compra) {
         datosPagos.value = data;
     } catch (e) {
         console.error(e);
+        toastError("Error al cargar los pagos");
     } finally {
         cargandoPagos.value = false;
     }
@@ -1650,9 +1696,11 @@ async function registrarPago() {
         actualizarFilas(data);
         resetFormPago();
 
-        await buscar();
+        if (esVistaCompras.value) {
+            await buscar();
+        }
 
-        if (tabActivo.value === "cuentas") {
+        if (esVistaPagos.value) {
             await cargarCuentas();
         }
     } catch (e) {
@@ -1681,9 +1729,11 @@ async function eliminarPago(pago) {
         datosPagos.value = data;
         actualizarFilas(data);
 
-        await buscar();
+        if (esVistaCompras.value) {
+            await buscar();
+        }
 
-        if (tabActivo.value === "cuentas") {
+        if (esVistaPagos.value) {
             await cargarCuentas();
         }
     } catch (e) {
@@ -1693,6 +1743,15 @@ async function eliminarPago(pago) {
 
 onMounted(async () => {
     await cargarProveedores();
-    await buscar();
+
+    if (esVistaCompras.value) {
+        await buscar();
+    } else {
+        datos.value = {};
+    }
+
+    if (esVistaPagos.value) {
+        await cargarCuentas();
+    }
 });
 </script>

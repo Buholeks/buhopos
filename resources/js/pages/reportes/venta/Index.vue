@@ -580,7 +580,9 @@
                                     </th>
                                     <th
                                         class="px-4 py-3 text-right font-medium"
-                                    ></th>
+                                    >
+                                        Acciones
+                                    </th>
                                 </tr>
                             </thead>
 
@@ -655,14 +657,29 @@
                                         <td
                                             class="px-4 py-3 text-right text-slate-400"
                                         >
-                                            <ChevronDown
-                                                class="ml-auto h-4 w-4 transition"
-                                                :class="
-                                                    expandido === v.id
-                                                        ? 'rotate-180'
-                                                        : ''
-                                                "
-                                            />
+                                            <div
+                                                class="flex items-center justify-end gap-2"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-emerald-600"
+                                                    title="Reimprimir ticket"
+                                                    @click.stop="
+                                                        reimprimirVenta(v.id)
+                                                    "
+                                                >
+                                                    <Printer class="h-4 w-4" />
+                                                </button>
+
+                                                <ChevronDown
+                                                    class="h-4 w-4 transition"
+                                                    :class="
+                                                        expandido === v.id
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                    "
+                                                />
+                                            </div>
                                         </td>
                                     </tr>
 
@@ -1039,6 +1056,7 @@ import {
     Hash,
     Inbox,
     Loader2,
+    Printer,
     ReceiptText,
     RotateCcw,
     Rows3,
@@ -1047,6 +1065,8 @@ import {
     Users,
     Wallet,
 } from "lucide-vue-next";
+import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
+import { imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 const props = defineProps({
@@ -1148,6 +1168,16 @@ async function toggleDetalle(id) {
         console.error("toggleDetalle", e);
     } finally {
         detallesCargando.value = false;
+    }
+}
+
+async function reimprimirVenta(id) {
+    try {
+        const { data } = await axios.get(`${props.apiBase}/${id}`);
+        imprimirTicketVenta(crearTicketVenta({ ...data, reimpresion: true }));
+    } catch (e) {
+        console.error("reimprimirVenta", e);
+        window.alert("No se pudo reimprimir el ticket.");
     }
 }
 

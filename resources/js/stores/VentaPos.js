@@ -4,6 +4,7 @@ import http from "@/lib/http";
 
 export const useVentaPosStore = defineStore("VentaPos", () => {
     const guardando = ref(false);
+    const ultimaVenta = ref(cargarUltimaVenta());
 
     const cliente = ref(null);
     const clienteId = ref(null);
@@ -241,16 +242,18 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
                     serie_id: d.serie_id ?? null,
                     cantidad: parseInt(d.cantidad, 10),
                     precio_venta: Number(d.precio_venta),
+                    lista_precio_usada: d.precio_lista_sel ?? null,
                     motivo_precio: d.motivo_precio ?? null,
                     era_exhibido: d.era_exhibido ?? false,
                 })),
             };
 
-            await http.post("/api/ventas", payload);
+            const { data } = await http.post("/api/ventas", payload);
 
+            setUltimaVenta(data);
             resetVenta();
 
-            return { ok: true };
+            return { ok: true, venta: data };
         } catch (error) {
             return {
                 ok: false,
@@ -265,8 +268,23 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         }
     }
 
+    function setUltimaVenta(venta) {
+        ultimaVenta.value = venta ?? null;
+
+        try {
+            if (venta) {
+                localStorage.setItem("buho_pos_ultima_venta", JSON.stringify(venta));
+            } else {
+                localStorage.removeItem("buho_pos_ultima_venta");
+            }
+        } catch {
+            // Si el navegador bloquea localStorage, se conserva en memoria.
+        }
+    }
+
     return {
         guardando,
+        ultimaVenta,
         cliente,
         clienteId,
         form,
@@ -291,5 +309,15 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         resetCobro,
         resetVenta,
         guardarVenta,
+        setUltimaVenta,
     };
 });
+
+function cargarUltimaVenta() {
+    try {
+        const raw = localStorage.getItem("buho_pos_ultima_venta");
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}

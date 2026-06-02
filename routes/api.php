@@ -12,6 +12,7 @@ use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\UserController;
 
 use App\Http\Controllers\CategoriaController;
+use App\Http\Controllers\CatalogoPreciosController;
 use App\Http\Controllers\MarcaController;
 use App\Http\Controllers\ModeloController;
 use App\Http\Controllers\TipoAtributoController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\UnidadMedidaController;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\CompraController;
 use App\Http\Controllers\VentaController;
+use App\Http\Controllers\CancelacionDevolucionController;
 use App\Http\Controllers\CorteCajaController;
 use App\Http\Controllers\ExhibicionController;
 use App\Http\Controllers\SerieController;
@@ -102,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::get('/productos/atributos-empresa', [ProductoController::class, 'atributosEmpresa']);
+    Route::get('/productos/catalogo-precios', [CatalogoPreciosController::class, 'index']);
     Route::apiResource('productos', ProductoController::class);
 
     Route::prefix('productos/{id}/variantes')->group(function () {
@@ -155,6 +158,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [VentaController::class, 'store']);
         Route::get('/{id}', [VentaController::class, 'show']);
         Route::delete('/{id}', [VentaController::class, 'destroy']);
+    });
+
+    Route::prefix('cancelaciones-devoluciones')->group(function () {
+        Route::get('/buscar', [CancelacionDevolucionController::class, 'buscar']);
+        Route::post('/cancelar', [CancelacionDevolucionController::class, 'cancelar']);
+        Route::post('/devolver', [CancelacionDevolucionController::class, 'devolver']);
     });
 
     /*

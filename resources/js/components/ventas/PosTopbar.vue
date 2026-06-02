@@ -141,6 +141,17 @@
                 <button
                     type="button"
                     class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="disableReimprimirUltima"
+                    title="Reimprimir ultima venta"
+                    @click="$emit('reimprimirUltima')"
+                >
+                    <Printer class="h-4 w-4 text-slate-600" />
+                    Reimprimir
+                </button>
+
+                <button
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="disableAccionesVenta"
                     @click="$emit('descuentoGlobal')"
                 >
@@ -197,6 +208,7 @@ import {
     Loader2,
     Package,
     BadgeDollarSign,
+    Printer,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -212,6 +224,7 @@ const props = defineProps({
     showTotal: { type: Boolean, default: false },
 
     disableAccionesVenta: { type: Boolean, default: false },
+    disableReimprimirUltima: { type: Boolean, default: true },
 });
 
 defineEmits([
@@ -219,6 +232,7 @@ defineEmits([
     "modal-mov",
     "enEspera",
     "recuperar",
+    "reimprimirUltima",
     "descuentoGlobal",
     "reset",
     "guardar",

@@ -115,6 +115,11 @@ class ReporteVentasController extends Controller
             ->where('sucursal_id', $user->sucursal_id)
             ->with([
                 'user:id,name',
+                'empresa:id,nombre,rfc,direccion,telefono',
+                'sucursal:id,nombre,direccion,telefono',
+                'cliente:id,nombre,telefono',
+                'vendedor:id,name',
+                'detalles.serie',
                 'detalles.producto:id,nombre,codigo',
                 // Cargamos la variante completa para poder llamar nombreVariante()
                 'detalles.variante.atributos.tipoAtributo:id,nombre',

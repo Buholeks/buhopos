@@ -48,7 +48,9 @@ class VentaController extends Controller
             ->with([
                 'user:id,name',
                 'detalles.producto:id,nombre,codigo',
-                'detalles.variante:id,sku,nombre_variante',
+                'detalles.variante:id,sku,codigo_barras',
+                'detalles.variante.atributos.tipoAtributo:id,nombre',
+                'detalles.variante.atributos.atributo:id,valor',
             ])
             ->findOrFail($id);
 
@@ -76,6 +78,7 @@ class VentaController extends Controller
             'detalles.*.producto_id'   => ['required', 'exists:productos,id'],
             'detalles.*.cantidad'      => ['required', 'integer', 'min:1'],
             'detalles.*.precio_venta'  => ['required', 'numeric', 'min:0'],
+            'detalles.*.lista_precio_usada' => ['nullable', 'string', 'max:30'],
             'detalles.*.motivo_precio' => ['nullable', 'string', 'max:255'],
             'detalles.*.era_exhibido'  => ['nullable', 'boolean'],
             'detalles.*.serie_id'      => ['nullable', 'integer', 'exists:series,id'],
@@ -135,12 +138,13 @@ class VentaController extends Controller
         $varianteIds = collect($datos['detalles'])->pluck('variante_id')->filter()->unique()->values();
 
         $productos = Producto::whereIn('id', $productoIds)
-            ->select('id', 'nombre', 'precio_costo')
+            ->select('id', 'nombre', 'precio_costo', 'precio_venta', 'precio1', 'precio2', 'precio3', 'precio4', 'precio5')
             ->get()
             ->keyBy('id');
 
         $variantes = ProductoVariante::whereIn('id', $varianteIds)
-            ->select('id', 'producto_id', 'sku', 'precio_costo')
+            ->with(['atributos.tipoAtributo:id,nombre', 'atributos.atributo:id,valor'])
+            ->select('id', 'producto_id', 'sku', 'precio_costo', 'precio_venta', 'precio1', 'precio2', 'precio3', 'precio4', 'precio5')
             ->get()
             ->keyBy('id');
 
@@ -230,17 +234,41 @@ class VentaController extends Controller
                     $precioCosto = (float) $serieObj->precio_costo;
                 }
 
+                $precioOriginal = $varianteId
+                    ? (float) (
+                        $variantes[$varianteId]?->precio_venta
+                        ?? $productos[$productoId]?->precio_venta
+                        ?? $precioVenta
+                    )
+                    : (float) ($productos[$productoId]?->precio_venta ?? $precioVenta);
+
+                $descuentoLinea = round(max(0, $precioOriginal - $precioVenta) * $cantidad, 2);
                 $subtotalLinea = $cantidad * $precioVenta;
+                $productoNombre = $productos[$productoId]?->nombre;
+                $varianteNombre = $varianteId
+                    ? ($variantes[$varianteId]?->nombreVariante() ?: null)
+                    : null;
+                $listaPrecioUsada = $det['lista_precio_usada']
+                    ?? $this->resolverListaPrecioUsada(
+                        $precioVenta,
+                        $varianteId ? $variantes[$varianteId] ?? null : null,
+                        $productos[$productoId] ?? null
+                    );
 
                 $detalle = VentaDetalle::create([
                     'venta_id'      => $venta->id,
                     'producto_id'   => $productoId,
+                    'producto_nombre' => $productoNombre,
                     'variante_id'   => $varianteId,
+                    'variante_nombre' => $varianteNombre,
                     'serie_id'      => $serieId,
                     'cantidad'      => $cantidad,
                     'precio_venta'  => $precioVenta,
                     'precio_costo'  => $precioCosto,
-                    'descuento'     => 0,
+                    'precio_lista_original' => $precioOriginal,
+                    'precio_aplicado' => $precioVenta,
+                    'lista_precio_usada' => $listaPrecioUsada,
+                    'descuento'     => $descuentoLinea,
                     'subtotal'      => $subtotalLinea,
                     'motivo_precio' => $det['motivo_precio'] ?? null,
                 ]);
@@ -263,6 +291,13 @@ class VentaController extends Controller
                 $venta->load([
                     'detalles.producto',
                     'detalles.variante',
+                    'detalles.variante.atributos.tipoAtributo:id,nombre',
+                    'detalles.variante.atributos.atributo:id,valor',
+                    'detalles.serie',
+                    'empresa:id,nombre,rfc,direccion,telefono',
+                    'sucursal:id,nombre,direccion,telefono',
+                    'cliente:id,nombre,telefono',
+                    'vendedor:id,name',
                     'user:id,name',
                 ]),
                 201
@@ -334,6 +369,26 @@ class VentaController extends Controller
     //   3. En el map se resuelve cada precio con herencia: variante ?? producto
     // ────────────────────────────────────────────────────────────────────────────
 
+
+    private function resolverListaPrecioUsada(float $precioAplicado, ?ProductoVariante $variante, ?Producto $producto): ?string
+    {
+        $precios = [
+            'P.Venta' => $variante?->precio_venta ?? $producto?->precio_venta,
+            'P1' => $variante?->precio1 ?? $producto?->precio1,
+            'P2' => $variante?->precio2 ?? $producto?->precio2,
+            'P3' => $variante?->precio3 ?? $producto?->precio3,
+            'P4' => $variante?->precio4 ?? $producto?->precio4,
+            'P5' => $variante?->precio5 ?? $producto?->precio5,
+        ];
+
+        foreach ($precios as $nombre => $precio) {
+            if ($precio !== null && abs((float) $precio - $precioAplicado) < 0.01) {
+                return $nombre;
+            }
+        }
+
+        return null;
+    }
 
     public function buscarVariantes(Request $request): JsonResponse
     {

@@ -216,11 +216,6 @@ const navSections = [
                 to: "/exhibicion",
                 icon: PackageCheck,
             },
-            {
-                label: "Nuevo traspaso",
-                to: "/traspasos/nuevo",
-                icon: Repeat2,
-            },
         ],
     },
     {

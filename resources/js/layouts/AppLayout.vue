@@ -73,6 +73,20 @@
 
                 <!-- Right -->
                 <div class="flex items-center gap-2 sm:gap-4">
+                    <button
+                        class="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                        title="Traspasos pendientes por recibir"
+                        @click="router.push({ name: 'traspasos-entrada' })"
+                    >
+                        <Bell class="h-4 w-4" />
+                        <span
+                            v-if="traspasosPendientes > 0"
+                            class="absolute -right-1 -top-1 min-w-5 rounded-full bg-amber-500 px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white ring-2 ring-white"
+                        >
+                            {{ traspasosPendientes > 99 ? "99+" : traspasosPendientes }}
+                        </span>
+                    </button>
+
                     <!-- User avatar + info -->
                     <div class="flex items-center gap-2 sm:gap-3">
                         <div
@@ -124,12 +138,14 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import AppNav from "../components/AppNav.vue";
 import { useAuthStore } from "../stores/auth";
-import { confirm, toastSuccess, error } from "../lib/alert";
+import http from "../lib/http";
+import { confirm, toastSuccess, toastWarning, error } from "../lib/alert";
 import {
+    Bell,
     Building2,
     ChevronDown,
     LogOut,
@@ -141,6 +157,66 @@ const auth = useAuthStore();
 const router = useRouter();
 const loading = ref(false);
 const navOpen = ref(false);
+const traspasosPendientes = ref(0);
+let traspasosTimer = null;
+
+const storageKey = () =>
+    `buhopos:traspasos:last:${auth.empresaId ?? "na"}:${auth.sucursalActivaId ?? "na"}`;
+
+const revisarTraspasosPendientes = async ({ baseline = false } = {}) => {
+    if (!auth.isAuth || !auth.sucursalActivaId) return;
+
+    try {
+        const { data } = await http.get("/api/traspasos/resumen-pendientes");
+        traspasosPendientes.value = Number(data.por_recibir ?? 0);
+
+        const ultimo = data.ultimo;
+        if (!ultimo?.id) return;
+
+        const key = storageKey();
+        const previo = Number(localStorage.getItem(key) || 0);
+
+        if (!previo || baseline) {
+            localStorage.setItem(key, String(ultimo.id));
+            return;
+        }
+
+        if (Number(ultimo.id) > previo) {
+            localStorage.setItem(key, String(ultimo.id));
+            toastWarning(
+                `Nuevo traspaso ${ultimo.folio} por recibir${ultimo.origen ? ` de ${ultimo.origen}` : ""}`
+            );
+        }
+    } catch {
+        // El monitor no debe interrumpir la operacion normal de la pantalla.
+    }
+};
+
+const detenerMonitorTraspasos = () => {
+    if (!traspasosTimer) return;
+    window.clearInterval(traspasosTimer);
+    traspasosTimer = null;
+};
+
+const iniciarMonitorTraspasos = () => {
+    detenerMonitorTraspasos();
+    revisarTraspasosPendientes({ baseline: true });
+    traspasosTimer = window.setInterval(() => revisarTraspasosPendientes(), 45000);
+};
+
+onMounted(() => {
+    if (auth.isAuth) iniciarMonitorTraspasos();
+});
+
+onBeforeUnmount(() => detenerMonitorTraspasos());
+
+watch(
+    () => auth.sucursalActivaId,
+    () => {
+        traspasosPendientes.value = 0;
+        if (auth.isAuth) iniciarMonitorTraspasos();
+    }
+);
 
 const salir = async () => {
     if (loading.value) return;
@@ -158,6 +234,8 @@ const salir = async () => {
 
     try {
         await auth.logout();
+        detenerMonitorTraspasos();
+        traspasosPendientes.value = 0;
         toastSuccess("Sesión cerrada");
         router.push({ name: "login" });
     } catch {

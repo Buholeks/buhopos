@@ -26,6 +26,7 @@ use App\Http\Controllers\CancelacionDevolucionController;
 use App\Http\Controllers\CorteCajaController;
 use App\Http\Controllers\ExhibicionController;
 use App\Http\Controllers\SerieController;
+use App\Http\Controllers\TraspasoController;
 
 use App\Http\Controllers\CompraProveedorController;
 use App\Http\Controllers\AbonoProveedorController;
@@ -43,12 +44,18 @@ use App\Http\Controllers\ReporteVentasAgrupadoController;
 */
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/me', function (Request $request) {
         $user = $request->user();
+
+        if (!$user->activo) {
+            Auth::logout();
+            abort(403, 'Tu cuenta está pendiente de activación. Contacta al administrador.');
+        }
 
         if (!$user->empresa_id || !$user->sucursal_id) {
             Auth::logout();
@@ -198,6 +205,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{inventario}/variantes', [ExhibicionController::class, 'variantes']);
         Route::patch('/{inventario}/exhibir', [ExhibicionController::class, 'exhibir']);
         Route::patch('/{inventario}/quitar', [ExhibicionController::class, 'quitar']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Traspasos de mercancía
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('traspasos')->group(function () {
+        Route::get('/', [TraspasoController::class, 'index']);
+        Route::post('/', [TraspasoController::class, 'store']);
+        Route::get('/sucursales', [TraspasoController::class, 'sucursales']);
+        Route::get('/resumen-pendientes', [TraspasoController::class, 'resumenPendientes']);
+        Route::get('/inventario', [TraspasoController::class, 'inventario']);
+        Route::get('/series-disponibles', [TraspasoController::class, 'seriesDisponibles']);
+        Route::get('/{id}', [TraspasoController::class, 'show']);
+        Route::post('/{id}/recibir', [TraspasoController::class, 'recibir']);
+        Route::post('/{id}/rechazar', [TraspasoController::class, 'rechazar']);
+        Route::post('/{id}/cancelar', [TraspasoController::class, 'cancelar']);
     });
 
     /*

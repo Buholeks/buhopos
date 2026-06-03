@@ -61,20 +61,17 @@ export const useAuthStore = defineStore("auth", {
       } catch (e) {
         const status = e?.response?.status;
 
-        // 401 = no autenticado (normal cuando estás en /login)
         if (status === 401) {
           this.user = null;
           this.sucursales = [];
           return;
         }
 
-        // 403 = autenticado pero sin empresa/sucursal -> cerrar sesión y limpiar
         if (status === 403) {
-          // intenta cerrar sesión en backend (si existe cookie/token vigente)
           try {
             await http.post("/api/logout");
           } catch (_) {
-            // si falla, igual limpiamos en frontend
+            // El backend ya puede haber cerrado la sesión.
           }
 
           this.user = null;
@@ -82,29 +79,25 @@ export const useAuthStore = defineStore("auth", {
           this.changingSucursal = false;
           this.booted = false;
 
-          // opcional: lanzar error para que el router/guard decida a dónde ir
-          throw new Error(e?.response?.data?.message || "Usuario sin empresa o sucursal asignada");
+          throw new Error(e?.response?.data?.message || "Usuario sin acceso activo");
         }
 
-        // otros errores
         console.error("fetchUser error:", e);
         this.user = null;
         this.sucursales = [];
       }
     },
 
-
-    async login({ email, password }) {
+    async login({ email, password, remember = false }) {
       this.loading = true;
       try {
         await http.get("/sanctum/csrf-cookie");
-        await http.post("/api/login", { email, password });
+        await http.post("/api/login", { email, password, remember });
         await this.fetchUser();
       } catch (e) {
         const status = e?.response?.status;
 
-        if (status === 403) throw new Error(e?.response?.data?.message || "Usuario sin empresa o sucursal asignada");
-        if (status === 422) throw new Error("Credenciales inválidas");
+        if (status === 403 || status === 422) throw e;
 
         throw new Error("Error al iniciar sesión");
       } finally {

@@ -12,6 +12,7 @@ import {
     Landmark,
     BarChart3,
     CreditCard,
+    Repeat2,
 } from "lucide-vue-next";
 
 const consultas = [
@@ -37,6 +38,18 @@ const consultas = [
         label: "Consulta de compras",
         icon: ReceiptText,
         to: { name: "reportes-compras" },
+        badge: "Disponible",
+    },
+    {
+        label: "Traspasos entrada",
+        icon: Repeat2,
+        to: { name: "traspasos-entrada" },
+        badge: "Disponible",
+    },
+    {
+        label: "Traspasos salida",
+        icon: Repeat2,
+        to: { name: "traspasos-salida" },
         badge: "Disponible",
     },
 ];

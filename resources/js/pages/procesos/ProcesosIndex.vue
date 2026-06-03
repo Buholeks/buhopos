@@ -19,6 +19,7 @@ import {
     Wrench,
     Landmark,
     PackageCheck,
+    Repeat2,
 } from "lucide-vue-next";
 
 const procesos = [
@@ -50,6 +51,12 @@ const procesos = [
         label: "Exhibición",
         icon: PackageCheck,
         to: { name: "exhibicion" },
+        badge: "Disponible",
+    },
+    {
+        label: "Nuevo traspaso",
+        icon: Repeat2,
+        to: { name: "traspasos-nuevo" },
         badge: "Disponible",
     },
     {

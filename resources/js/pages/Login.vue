@@ -59,6 +59,13 @@
                         </template>
                     </BaseInput>
 
+                    <div
+                        v-if="error"
+                        class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
+                    >
+                        {{ error }}
+                    </div>
+
                     <!-- Submit -->
                     <button
                         type="submit"
@@ -72,6 +79,16 @@
                         <LogIn v-else class="h-4 w-4" />
                         {{ auth.loading ? "Entrando..." : "Entrar" }}
                     </button>
+
+                    <p class="text-center text-sm text-slate-500">
+                        ¿No tienes cuenta?
+                        <RouterLink
+                            :to="{ name: 'register' }"
+                            class="font-semibold text-slate-900 hover:underline"
+                        >
+                            Regístrate aquí
+                        </RouterLink>
+                    </p>
 
                 </form>
             </div>

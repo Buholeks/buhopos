@@ -75,31 +75,42 @@
                                 Nueva
                             </button>
 
-                            <button
-                                v-for="tipo in catalogos?.tiposAtributo ?? []"
-                                :key="`tipo-${tipo.id}`"
-                                @click="setVarTab(`tipo:${tipo.id}`)"
-                                class="border-b-2 px-3 py-2 text-sm font-medium"
-                                :class="
-                                    varTab === `tipo:${tipo.id}`
-                                        ? 'border-slate-900 text-slate-900'
-                                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                                "
-                            >
-                                {{ tipo.nombre }}
-                            </button>
                         </div>
                     </div>
 
                     <div class="max-h-[75vh] overflow-y-auto px-6 py-5">
                         <!-- TAB: LISTA -->
                         <div v-show="varTab === 'lista'">
+                            <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-slate-700">
+                                        Buscar variante
+                                    </label>
+                                    <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3">
+                                        <Search class="h-4 w-4 text-slate-400" />
+                                        <input
+                                            v-model="busquedaVariante"
+                                            placeholder="SKU, codigo, atributo..."
+                                            class="w-full py-2.5 text-sm outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="flex items-end gap-2">
+                                    <span class="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                                        {{ variantesActivas }} activas
+                                    </span>
+                                    <span class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">
+                                        {{ variantesInactivas }} inactivas
+                                    </span>
+                                </div>
+                            </div>
+
                             <div
-                                v-if="(variantes?.length ?? 0) > 0"
+                                v-if="(variantesFiltradas?.length ?? 0) > 0"
                                 class="space-y-2"
                             >
                                 <div
-                                    v-for="v in variantes"
+                                    v-for="v in variantesFiltradas"
                                     :key="v.id"
                                     class="rounded-xl border border-slate-200 bg-slate-50 p-3"
                                     @dblclick="emit('toggle-editar', v)"
@@ -326,6 +337,31 @@
                                                         "
                                                         placeholder="EAN/UPC"
                                                         class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                                    />
+                                                </div>
+
+                                                <div
+                                                    class="md:col-span-2 mt-2 border-t border-emerald-200 pt-3 text-xs font-semibold uppercase tracking-wider text-slate-600"
+                                                >
+                                                    Atributos de la variante
+                                                </div>
+
+                                                <div
+                                                    v-for="tipo in catalogos?.tiposAtributo ?? []"
+                                                    :key="`edit-attr-${tipo.id}`"
+                                                >
+                                                    <BaseSearchSelect
+                                                        v-model.number="
+                                                            formEditProxy.atributos[
+                                                                tipo.id
+                                                            ]
+                                                        "
+                                                        :items="tipo.atributos ?? []"
+                                                        :label="tipo.nombre"
+                                                        :placeholder="`Buscar ${tipo.nombre}...`"
+                                                        :label-key="(a) => a.valor"
+                                                        value-key="id"
+                                                        :disabled="!tipo.atributos?.length"
                                                     />
                                                 </div>
 
@@ -990,7 +1026,7 @@
                         <div
                             v-for="tipo in catalogos?.tiposAtributo ?? []"
                             :key="`panel-${tipo.id}`"
-                            v-show="varTab === `tipo:${tipo.id}`"
+                            v-if="false"
                         >
                             <div
                                 class="rounded-xl border border-slate-200 bg-slate-50 p-4"
@@ -1073,7 +1109,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import {
     LayoutGrid,
@@ -1084,6 +1120,7 @@ import {
     Plus,
     Loader2,
     AlertTriangle,
+    Search,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -1133,6 +1170,38 @@ const formEditProxy = computed({
     get: () => props.formEditVar,
     set: (v) => emit("update:formEditVar", v),
 });
+
+const busquedaVariante = ref("");
+
+const variantesFiltradas = computed(() => {
+    const q = busquedaVariante.value.trim().toLowerCase();
+    if (!q) return props.variantes ?? [];
+
+    return (props.variantes ?? []).filter((v) => {
+        const atributos = (v.atributos ?? [])
+            .map((va) => `${va.tipo_atributo?.nombre ?? ""} ${va.atributo?.valor ?? ""}`)
+            .join(" ");
+
+        return [
+            v.nombre_variante,
+            v.sku,
+            v.codigo_barras,
+            atributos,
+        ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(q);
+    });
+});
+
+const variantesActivas = computed(
+    () => (props.variantes ?? []).filter((v) => v.activo).length,
+);
+
+const variantesInactivas = computed(
+    () => (props.variantes ?? []).filter((v) => !v.activo).length,
+);
 
 function setVarTab(t) {
     emit("update:varTab", t);

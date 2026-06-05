@@ -17,6 +17,7 @@ import GestorUnidadesMedida from "../pages/atributos/GestorUnidadesMedida.vue";
 import GestorProductos from "../pages/productos/GestorProductos.vue";
 import CatalogoPrecios from "../pages/productos/CatalogoPrecios.vue";
 import Traspasos from "../pages/productos/Traspasos.vue";
+import PedidosIndex from "../pages/pedidos/PedidosIndex.vue";
 import NuevaVenta from "../pages/ventas/NuevaVenta.vue";
 import CancelacionesDevoluciones from "../pages/ventas/CancelacionesDevoluciones.vue";
 import NuevaCompra from "../pages/compras/NuevaCompra.vue";
@@ -52,6 +53,12 @@ const routes = [
       { path: "traspasos/consulta", redirect: { name: "traspasos-entrada" } },
       { path: "traspasos/entrada", name: "traspasos-entrada", component: Traspasos, props: { modo: "consulta", tipo: "entrada" }, meta: { title: "Traspasos de entrada" } },
       { path: "traspasos/salida", name: "traspasos-salida", component: Traspasos, props: { modo: "consulta", tipo: "salida" }, meta: { title: "Traspasos de salida" } },
+      { path: "pedidos", redirect: { name: "pedidos-nuevo" } },
+      { path: "pedidos/nuevo", name: "pedidos-nuevo", component: PedidosIndex, props: { modo: "nuevo", tipo: "pedido" }, meta: { title: "Nuevo pedido" } },
+      { path: "pedidos/consulta", name: "pedidos-consulta", component: PedidosIndex, props: { modo: "consulta", tipo: "pedido" }, meta: { title: "Consulta de pedidos" } },
+      { path: "apartados", redirect: { name: "apartados-nuevo" } },
+      { path: "apartados/nuevo", name: "apartados-nuevo", component: PedidosIndex, props: { modo: "nuevo", tipo: "apartado" }, meta: { title: "Nuevo apartado" } },
+      { path: "apartados/consulta", name: "apartados-consulta", component: PedidosIndex, props: { modo: "consulta", tipo: "apartado" }, meta: { title: "Consulta de apartados" } },
       { path: "ventas", name: "ventas", component: NuevaVenta, meta: { title: "Ventas" } },
       { path: "cancelaciones-devoluciones", name: "cancelaciones-devoluciones", component: CancelacionesDevoluciones, meta: { title: "Cancelaciones y devoluciones" } },
       { path: "compras", name: "compras", component: NuevaCompra, meta: { title: "Compras" } },

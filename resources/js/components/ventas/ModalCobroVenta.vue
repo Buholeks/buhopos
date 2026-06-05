@@ -40,6 +40,40 @@
                         </select>
                     </div>
 
+                    <div
+                        v-if="cliente?.id && saldoDisponible > 0"
+                        class="rounded-2xl border border-emerald-200 bg-emerald-50 p-3"
+                    >
+                        <div class="mb-2 flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-sm font-semibold text-emerald-900">
+                                    Saldo a favor
+                                </p>
+                                <p class="text-xs text-emerald-700">
+                                    Disponible: {{ formatPrecio(saldoDisponible) }}
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                class="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                                @click="$emit('update:saldoAplicado', Math.min(saldoDisponible, total))"
+                            >
+                                Aplicar maximo
+                            </button>
+                        </div>
+
+                        <input
+                            :value="saldoAplicado"
+                            type="number"
+                            min="0"
+                            :max="Math.min(saldoDisponible, total)"
+                            step="0.01"
+                            class="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                            @input="$emit('update:saldoAplicado', $event.target.value)"
+                        />
+                    </div>
+
                     <div v-if="formaPago === 'efectivo'">
                         <label class="mb-1 block text-sm font-medium text-slate-700">
                             Monto recibido
@@ -118,6 +152,23 @@
                         </div>
 
                         <div
+                            v-if="saldoAplicado > 0"
+                            class="flex items-center justify-between gap-3"
+                        >
+                            <span class="text-slate-500">Saldo aplicado</span>
+                            <span class="font-semibold text-emerald-700">
+                                -{{ formatPrecio(saldoAplicado) }}
+                            </span>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-slate-500">Restante a pagar</span>
+                            <span class="font-semibold text-slate-900">
+                                {{ formatPrecio(totalACobrar) }}
+                            </span>
+                        </div>
+
+                        <div
                             v-if="formaPago === 'efectivo'"
                             class="flex items-center justify-between gap-3"
                         >
@@ -165,6 +216,9 @@ defineProps({
     subtotal: { type: Number, default: 0 },
     descuento: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
+    totalACobrar: { type: Number, default: 0 },
+    saldoDisponible: { type: Number, default: 0 },
+    saldoAplicado: { type: Number, default: 0 },
     cambio: { type: Number, default: 0 },
     pagoInsuficiente: { type: Boolean, default: false },
     cliente: { type: Object, default: null },
@@ -175,6 +229,7 @@ defineProps({
 defineEmits([
     "update:formaPago",
     "update:montoRecibido",
+    "update:saldoAplicado",
     "update:notas",
     "select-vendedor",
     "cancel",

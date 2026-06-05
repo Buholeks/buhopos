@@ -6,6 +6,9 @@ use App\Models\Compra;
 use App\Models\Serie;
 use App\Models\CompraDetalle;
 use App\Models\Inventario;
+use App\Models\InventarioReserva;
+use App\Models\Pedido;
+use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
 use App\Models\Producto;
 use Illuminate\Http\JsonResponse;
@@ -106,7 +109,7 @@ class CompraController extends Controller
                 $precioVenta  = isset($det['precio_venta']) ? (float) $det['precio_venta'] : null;
                 $subtotal     = $cantidad * $precioCompra;
 
-                CompraDetalle::create([
+                $compraDetalle = CompraDetalle::create([
                     'compra_id'     => $compra->id,
                     'producto_id'   => $productoId,
                     'variante_id'   => $varianteId,
@@ -138,6 +141,15 @@ class CompraController extends Controller
 
                 $inv->stock = (float) $inv->stock + $cantidad;
                 $inv->save();
+
+                $this->vincularPedidosPendientes(
+                    $empresaId,
+                    $sucursalId,
+                    $productoId,
+                    $varianteId,
+                    $compraDetalle,
+                    $inv
+                );
 
                 // ── Actualizar precios ─────────────────────────────────────
                 if ($varianteId) {
@@ -207,6 +219,190 @@ class CompraController extends Controller
     }
 
     // ── POST /api/compras/{id}/cancelar ────────────────────────────────────
+    private function vincularPedidosPendientes(
+        int $empresaId,
+        int $sucursalId,
+        int $productoId,
+        ?int $varianteId,
+        CompraDetalle $compraDetalle,
+        Inventario $inventario
+    ): void {
+        $reservado = (float) InventarioReserva::where([
+            'empresa_id' => $empresaId,
+            'sucursal_id' => $sucursalId,
+            'producto_id' => $productoId,
+            'variante_id' => $varianteId,
+            'estado' => 'activa',
+        ])->sum('cantidad');
+
+        $disponible = min(
+            (float) $compraDetalle->cantidad,
+            max(0, (float) $inventario->stock - $reservado)
+        );
+        if ($disponible <= 0) {
+            return;
+        }
+
+        $variante = $varianteId
+            ? ProductoVariante::with(['atributos.atributo'])->find($varianteId)
+            : null;
+
+        $detalles = PedidoDetalle::query()
+            ->where('producto_id', $productoId)
+            ->where(function ($q) use ($varianteId) {
+                $q->where('variante_id', $varianteId);
+
+                if ($varianteId) {
+                    $q->orWhereNull('variante_id');
+                }
+            })
+            ->where('estado', 'pendiente')
+            ->whereNull('compra_detalle_id')
+            ->whereHas('pedido', fn($q) => $q
+                ->where('empresa_id', $empresaId)
+                ->where('sucursal_id', $sucursalId)
+                ->where('tipo', 'pedido')
+                ->whereIn('estado', ['pendiente', 'en_proceso', 'parcial']))
+            ->with('pedido')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($detalles as $detalle) {
+            if (! $this->detallePedidoCoincideConCompra($detalle, $varianteId, $variante)) {
+                continue;
+            }
+
+            $cantidad = (float) $detalle->cantidad;
+            if ($cantidad > $disponible) {
+                continue;
+            }
+
+            $detalle->update([
+                'compra_detalle_id' => $compraDetalle->id,
+                'estado' => 'disponible',
+            ]);
+
+            InventarioReserva::create([
+                'empresa_id' => $empresaId,
+                'sucursal_id' => $sucursalId,
+                'pedido_id' => $detalle->pedido_id,
+                'pedido_detalle_id' => $detalle->id,
+                'producto_id' => $productoId,
+                'variante_id' => $varianteId,
+                'cantidad' => $cantidad,
+                'estado' => 'activa',
+            ]);
+
+            $disponible -= $cantidad;
+            $this->actualizarEstadoPedido($detalle->pedido);
+        }
+    }
+
+    private function detallePedidoCoincideConCompra(
+        PedidoDetalle $detalle,
+        ?int $varianteId,
+        ?ProductoVariante $variante
+    ): bool {
+        if ((int) ($detalle->variante_id ?? 0) === (int) ($varianteId ?? 0)) {
+            return true;
+        }
+
+        if ($detalle->variante_id !== null || $varianteId === null || ! $variante) {
+            return false;
+        }
+
+        $valoresPedido = collect([
+            $detalle->color_texto,
+            $detalle->talla_texto,
+            $detalle->modelo_texto,
+        ])
+            ->map(fn($v) => $this->normalizarTextoVariante($v))
+            ->filter()
+            ->values();
+
+        if ($valoresPedido->isEmpty()) {
+            return false;
+        }
+
+        $textoVariante = $this->normalizarTextoVariante(
+            $variante->nombreVariante() . ' ' . $variante->sku . ' ' . $variante->codigo_barras
+        );
+
+        return $valoresPedido->every(fn($valor) => str_contains($textoVariante, $valor));
+    }
+
+    private function normalizarTextoVariante(?string $texto): string
+    {
+        $texto = trim((string) $texto);
+        if ($texto === '') {
+            return '';
+        }
+
+        $texto = mb_strtolower($texto, 'UTF-8');
+        $texto = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $texto) ?: $texto;
+        return preg_replace('/[^a-z0-9]+/', '', $texto) ?? '';
+    }
+
+    private function actualizarEstadoPedido(Pedido $pedido): void
+    {
+        $detalles = $pedido->detalles()->get(['estado']);
+        if ($detalles->isEmpty()) {
+            return;
+        }
+
+        if ($detalles->every(fn($d) => in_array($d->estado, ['disponible', 'reservado', 'entregado'], true))) {
+            $pedido->update(['estado' => 'disponible']);
+            return;
+        }
+
+        if ($detalles->contains(fn($d) => in_array($d->estado, ['disponible', 'reservado', 'entregado'], true))) {
+            $pedido->update(['estado' => 'parcial']);
+        }
+    }
+
+    private function liberarPedidosVinculadosACompraDetalle(int $compraDetalleId): void
+    {
+        $detalles = PedidoDetalle::where('compra_detalle_id', $compraDetalleId)
+            ->with('pedido')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($detalles as $detalle) {
+            InventarioReserva::where('pedido_detalle_id', $detalle->id)
+                ->where('estado', 'activa')
+                ->update(['estado' => 'liberada']);
+
+            if ($detalle->estado !== 'entregado') {
+                $detalle->update([
+                    'compra_detalle_id' => null,
+                    'estado' => 'pendiente',
+                ]);
+            }
+
+            if ($detalle->pedido) {
+                $this->actualizarEstadoPedidoDespuesDeLiberar($detalle->pedido);
+            }
+        }
+    }
+
+    private function actualizarEstadoPedidoDespuesDeLiberar(Pedido $pedido): void
+    {
+        $detalles = $pedido->detalles()->get(['estado']);
+        if ($detalles->isEmpty()) {
+            return;
+        }
+
+        if ($detalles->every(fn($d) => $d->estado === 'pendiente')) {
+            $pedido->update(['estado' => 'pendiente']);
+            return;
+        }
+
+        if ($detalles->contains(fn($d) => $d->estado === 'pendiente')) {
+            $pedido->update(['estado' => 'parcial']);
+        }
+    }
+
     public function cancelar(int $id): JsonResponse
     {
         $user      = Auth::user();
@@ -256,6 +452,8 @@ class CompraController extends Controller
 
                 $inv->stock = $nuevo;
                 $inv->save();
+
+                $this->liberarPedidosVinculadosACompraDetalle($det->id);
             }
 
             $compra->update(['estado' => 'cancelada']);

@@ -295,6 +295,20 @@ function onDocClick(e) {
   if (!root.value.contains(e.target)) cerrar()
 }
 
+function syncQueryFromSelection() {
+  if (props.modelValue == null || props.modelValue === '') {
+    if (!open.value) query.value = ''
+    return
+  }
+
+  if (!selectedLabel.value) return
+
+  // Evita reemplazar lo que el usuario esta escribiendo mientras busca.
+  if (open.value && query.value.trim() !== '' && query.value !== selectedLabel.value) return
+
+  query.value = selectedLabel.value
+}
+
 onMounted(() => document.addEventListener('click', onDocClick))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 
@@ -302,15 +316,13 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 // pero si está vacío el query, intentamos reflejarlo.
 watch(
   () => props.modelValue,
-  (v) => {
-    if (v == null) {
-      if (!open.value) query.value = ''
-      return
-    }
-    // Si query ya tiene algo (usuario escribiendo), no lo molestamos.
-    if (query.value.trim() !== '' && open.value) return
-    // Si tenemos etiqueta local, ponerla en input
-    if (selectedLabel.value) query.value = selectedLabel.value
-  }
+  () => syncQueryFromSelection(),
+  { immediate: true }
+)
+
+watch(
+  selectedLabel,
+  () => syncQueryFromSelection(),
+  { immediate: true }
 )
 </script>

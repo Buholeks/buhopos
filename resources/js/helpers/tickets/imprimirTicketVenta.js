@@ -246,6 +246,14 @@ function crearHtmlTicket(ticket) {
                     : ""
             }
             <div class="fila total"><span>Total</span><span>${fmt(ticket.total)}</span></div>
+            ${
+                Number(ticket.saldo_aplicado ?? 0) > 0
+                    ? `
+                        <div class="fila"><span>Saldo a favor aplicado</span><span>-${fmt(ticket.saldo_aplicado)}</span></div>
+                        <div class="fila"><span>Restante pagado</span><span>${fmt(ticket.restante_pagado)}</span></div>
+                    `
+                    : ""
+            }
             <div class="fila pago"><span>Forma de pago</span><span>${escapeHtml(labelPago(ticket.forma_pago))}</span></div>
             ${
                 ticket.forma_pago === "efectivo"

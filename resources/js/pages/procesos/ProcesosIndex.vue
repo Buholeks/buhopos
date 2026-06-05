@@ -60,10 +60,28 @@ const procesos = [
         badge: "Disponible",
     },
     {
-        label: "Pedidos",
+        label: "Nuevo pedido",
         icon: ClipboardList,
-        to: null,
-        badge: "Próximamente",
+        to: { name: "pedidos-nuevo" },
+        badge: "Disponible",
+    },
+    {
+        label: "Nuevo apartado",
+        icon: ClipboardList,
+        to: { name: "apartados-nuevo" },
+        badge: "Disponible",
+    },
+    {
+        label: "Consulta pedidos",
+        icon: ClipboardList,
+        to: { name: "pedidos-consulta" },
+        badge: "Disponible",
+    },
+    {
+        label: "Consulta apartados",
+        icon: ClipboardList,
+        to: { name: "apartados-consulta" },
+        badge: "Disponible",
     },
     {
         label: "Cotizaciones",

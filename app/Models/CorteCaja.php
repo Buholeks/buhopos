@@ -101,10 +101,10 @@ class CorteCaja extends Model
             ->where('corte_id', $this->id) // ✅ exacto
             ->where('estado', 'confirmada')
             ->selectRaw("
-            SUM(CASE WHEN forma_pago = 'efectivo' THEN total ELSE 0 END) as efectivo,
-            SUM(CASE WHEN forma_pago = 'tarjeta' THEN total ELSE 0 END) as tarjeta,
-            SUM(CASE WHEN forma_pago = 'transferencia' THEN total ELSE 0 END) as transferencia,
-            SUM(CASE WHEN forma_pago = 'credito' THEN total ELSE 0 END) as credito,
+            SUM(CASE WHEN forma_pago = 'efectivo' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as efectivo,
+            SUM(CASE WHEN forma_pago = 'tarjeta' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as tarjeta,
+            SUM(CASE WHEN forma_pago = 'transferencia' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as transferencia,
+            SUM(CASE WHEN forma_pago = 'credito' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as credito,
             COUNT(*) as num
         ")
             ->first();

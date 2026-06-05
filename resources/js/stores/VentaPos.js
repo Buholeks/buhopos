@@ -22,6 +22,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         vendedor: null,
         forma_pago: "efectivo",
         monto_recibido: "",
+        saldo_disponible: 0,
+        saldo_aplicado: 0,
         notas: "",
     });
 
@@ -36,14 +38,25 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         Math.max(0, subtotal.value - Number(form.descuento || 0)),
     );
 
+    const saldoAplicable = computed(() =>
+        Math.min(
+            Number(cobro.saldo_disponible || 0),
+            Number(total.value || 0),
+        ),
+    );
+
+    const totalACobrar = computed(() =>
+        Math.max(0, total.value - Number(cobro.saldo_aplicado || 0)),
+    );
+
     const cambio = computed(() => {
         if (cobro.forma_pago !== "efectivo") return 0;
-        return Math.max(0, Number(cobro.monto_recibido || 0) - total.value);
+        return Math.max(0, Number(cobro.monto_recibido || 0) - totalACobrar.value);
     });
 
     const pagoInsuficiente = computed(() => {
         if (cobro.forma_pago !== "efectivo") return false;
-        return Number(cobro.monto_recibido || 0) < total.value;
+        return Number(cobro.monto_recibido || 0) < totalACobrar.value;
     });
 
     const hayExcedido = computed(() =>
@@ -70,6 +83,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
     function clearCliente() {
         cliente.value = null;
         clienteId.value = null;
+        cobro.saldo_disponible = 0;
+        cobro.saldo_aplicado = 0;
     }
 
     function setVendedor(payload) {
@@ -102,6 +117,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         const det = {
             _key: ++keyCounter,
             _idkey,
+            pedido_id: r.pedido_id ?? null,
+            pedido_detalle_id: r.pedido_detalle_id ?? null,
             variante_id: r.id ?? null,
             producto_id: r.producto_id,
             serie_id: null,
@@ -189,6 +206,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
             vendedor: null,
             forma_pago: "efectivo",
             monto_recibido: "",
+            saldo_disponible: 0,
+            saldo_aplicado: 0,
             notas: "",
         });
     }
@@ -227,6 +246,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
                 vendedor_id: cobro.vendedor_id,
                 forma_pago: cobro.forma_pago,
                 descuento: Number(form.descuento || 0),
+                saldo_aplicado: Number(cobro.saldo_aplicado || 0),
                 notas: cobro.notas || form.notas || null,
                 monto_recibido:
                     cobro.forma_pago === "efectivo"
@@ -240,6 +260,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
                     producto_id: d.producto_id,
                     variante_id: d.variante_id,
                     serie_id: d.serie_id ?? null,
+                    pedido_id: d.pedido_id ?? null,
+                    pedido_detalle_id: d.pedido_detalle_id ?? null,
                     cantidad: parseInt(d.cantidad, 10),
                     precio_venta: Number(d.precio_venta),
                     lista_precio_usada: d.precio_lista_sel ?? null,
@@ -292,6 +314,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         detalles,
         subtotal,
         total,
+        saldoAplicable,
+        totalACobrar,
         cambio,
         pagoInsuficiente,
         hayExcedido,

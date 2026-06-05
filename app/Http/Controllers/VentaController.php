@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Venta;
 use App\Models\Cliente;
+use App\Models\ClienteSaldoMovimiento;
 use App\Models\User;
 use App\Models\VentaDetalle;
 use App\Models\Inventario;
+use App\Models\InventarioReserva;
+use App\Models\Pedido;
+use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
 use App\Models\Producto;
 use App\Services\FolioService;
@@ -69,6 +73,7 @@ class VentaController extends Controller
             'vendedor_id'              => ['required', 'exists:users,id'],
             'forma_pago'               => ['required', 'in:efectivo,credito,transferencia,tarjeta'],
             'descuento'                => ['nullable', 'numeric', 'min:0'],
+            'saldo_aplicado'           => ['nullable', 'numeric', 'min:0'],
             'notas'                    => ['nullable', 'string'],
             'monto_recibido'           => ['nullable', 'numeric', 'min:0'],
             'cambio'                   => ['nullable', 'numeric', 'min:0'],
@@ -82,6 +87,8 @@ class VentaController extends Controller
             'detalles.*.motivo_precio' => ['nullable', 'string', 'max:255'],
             'detalles.*.era_exhibido'  => ['nullable', 'boolean'],
             'detalles.*.serie_id'      => ['nullable', 'integer', 'exists:series,id'],
+            'detalles.*.pedido_id'     => ['nullable', 'integer', 'exists:pedidos,id'],
+            'detalles.*.pedido_detalle_id' => ['nullable', 'integer', 'exists:pedido_detalles,id'],
         ]);
 
         $corte = CorteCaja::where('empresa_id', $empresaId)
@@ -124,10 +131,37 @@ class VentaController extends Controller
 
         $descuento = (float) ($datos['descuento'] ?? 0);
         $totalCalculado = max(0, $subtotalCalculado - $descuento);
+        $saldoAplicado = round((float) ($datos['saldo_aplicado'] ?? 0), 2);
         $montoRecibido = (float) ($datos['monto_recibido'] ?? 0);
         $cambio = (float) ($datos['cambio'] ?? 0);
+        $totalACobrar = max(0, $totalCalculado - $saldoAplicado);
 
-        if ($datos['forma_pago'] === 'efectivo' && $montoRecibido < $totalCalculado) {
+        if ($saldoAplicado > 0 && empty($datos['cliente_id'])) {
+            return response()->json([
+                'message' => 'Selecciona un cliente para aplicar saldo a favor.',
+                'campo' => 'cliente_id',
+            ], 422);
+        }
+
+        if ($saldoAplicado > $totalCalculado) {
+            return response()->json([
+                'message' => 'El saldo aplicado no puede ser mayor al total de la venta.',
+                'campo' => 'saldo_aplicado',
+            ], 422);
+        }
+
+        if ($saldoAplicado > 0) {
+            $saldoDisponible = $this->saldoDisponibleCliente($empresaId, $sucursalId, (int) $datos['cliente_id']);
+
+            if ($saldoAplicado > $saldoDisponible) {
+                return response()->json([
+                    'message' => "Saldo a favor insuficiente. Disponible: {$saldoDisponible}.",
+                    'campo' => 'saldo_aplicado',
+                ], 422);
+            }
+        }
+
+        if ($datos['forma_pago'] === 'efectivo' && $montoRecibido < $totalACobrar) {
             return response()->json([
                 'message' => 'El monto recibido no puede ser menor al total de la venta.',
                 'campo'   => 'monto_recibido',
@@ -164,6 +198,7 @@ class VentaController extends Controller
                 'fecha'           => $datos['fecha'],
                 'forma_pago'      => $datos['forma_pago'],
                 'descuento'       => $descuento,
+                'saldo_aplicado'  => $saldoAplicado,
                 'notas'           => $datos['notas'] ?? null,
                 'monto_recibido'  => $datos['forma_pago'] === 'efectivo' ? $montoRecibido : null,
                 'cambio'          => $datos['forma_pago'] === 'efectivo' ? $cambio : 0,
@@ -257,6 +292,8 @@ class VentaController extends Controller
 
                 $detalle = VentaDetalle::create([
                     'venta_id'      => $venta->id,
+                    'pedido_id'     => $det['pedido_id'] ?? null,
+                    'pedido_detalle_id' => $det['pedido_detalle_id'] ?? null,
                     'producto_id'   => $productoId,
                     'producto_nombre' => $productoNombre,
                     'variante_id'   => $varianteId,
@@ -281,9 +318,30 @@ class VentaController extends Controller
                 if ($serieObj) {
                     $serieObj->marcarVendido($venta->id, $detalle->id);
                 }
+
+                if (!empty($det['pedido_detalle_id'])) {
+                    $this->entregarPedidoDetalle(
+                        (int) $det['pedido_detalle_id'],
+                        $venta,
+                        $productoId,
+                        $varianteId,
+                        $cantidad
+                    );
+                }
             }
 
             $venta->recalcularTotales();
+
+            if ($saldoAplicado > 0) {
+                $this->registrarAplicacionSaldo(
+                    $venta,
+                    $corte,
+                    (int) $datos['cliente_id'],
+                    $saldoAplicado
+                );
+            }
+
+            $corte->recalcularVentas();
 
             DB::commit();
 
@@ -350,9 +408,18 @@ class VentaController extends Controller
 
                 $inv->stock = (float) $inv->stock + $cantidad;
                 $inv->save();
+
+                if ($det->pedido_detalle_id) {
+                    $this->revertirPedidoDetalleVenta($det);
+                }
+            }
+
+            if ((float) ($venta->saldo_aplicado ?? 0) > 0 && $venta->cliente_id) {
+                $this->devolverSaldoPorCancelacion($venta);
             }
 
             $venta->update(['estado' => 'cancelada']);
+            $venta->corte?->recalcularVentas();
             DB::commit();
 
             return response()->json(['mensaje' => 'Venta cancelada y stock revertido.']);
@@ -388,6 +455,157 @@ class VentaController extends Controller
         }
 
         return null;
+    }
+
+    private function saldoDisponibleCliente(int $empresaId, int $sucursalId, int $clienteId): float
+    {
+        return round((float) ClienteSaldoMovimiento::where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->where('cliente_id', $clienteId)
+            ->sum(DB::raw("CASE WHEN tipo IN ('abono','ajuste') THEN monto ELSE -monto END")), 2);
+    }
+
+    private function registrarAplicacionSaldo(Venta $venta, CorteCaja $corte, int $clienteId, float $monto): void
+    {
+        $saldoAnterior = $this->saldoDisponibleCliente(
+            (int) $venta->empresa_id,
+            (int) $venta->sucursal_id,
+            $clienteId
+        );
+
+        ClienteSaldoMovimiento::create([
+            'empresa_id' => $venta->empresa_id,
+            'sucursal_id' => $venta->sucursal_id,
+            'cliente_id' => $clienteId,
+            'venta_id' => $venta->id,
+            'corte_id' => $corte->id,
+            'user_id' => Auth::id(),
+            'tipo' => 'aplicacion',
+            'forma_pago' => 'saldo_favor',
+            'monto' => $monto,
+            'saldo_resultante' => max(0, $saldoAnterior - $monto),
+            'concepto' => "Aplicacion de saldo en venta {$venta->folio}",
+        ]);
+    }
+
+    private function devolverSaldoPorCancelacion(Venta $venta): void
+    {
+        $monto = (float) ($venta->saldo_aplicado ?? 0);
+        if ($monto <= 0 || ! $venta->cliente_id) {
+            return;
+        }
+
+        $saldoAnterior = $this->saldoDisponibleCliente(
+            (int) $venta->empresa_id,
+            (int) $venta->sucursal_id,
+            (int) $venta->cliente_id
+        );
+
+        ClienteSaldoMovimiento::create([
+            'empresa_id' => $venta->empresa_id,
+            'sucursal_id' => $venta->sucursal_id,
+            'cliente_id' => $venta->cliente_id,
+            'venta_id' => $venta->id,
+            'corte_id' => $venta->corte_id,
+            'user_id' => Auth::id(),
+            'tipo' => 'ajuste',
+            'forma_pago' => 'saldo_favor',
+            'monto' => $monto,
+            'saldo_resultante' => $saldoAnterior + $monto,
+            'concepto' => "Devolucion de saldo por cancelacion {$venta->folio}",
+        ]);
+    }
+
+    private function entregarPedidoDetalle(
+        int $pedidoDetalleId,
+        Venta $venta,
+        int $productoId,
+        ?int $varianteId,
+        int $cantidad
+    ): void {
+        $detalle = PedidoDetalle::where('id', $pedidoDetalleId)
+            ->where('producto_id', $productoId)
+            ->where('variante_id', $varianteId)
+            ->whereHas('pedido', fn($q) => $q
+                ->where('empresa_id', $venta->empresa_id)
+                ->where('sucursal_id', $venta->sucursal_id)
+                ->where('cliente_id', $venta->cliente_id))
+            ->with('pedido')
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        if ((float) $detalle->cantidad !== (float) $cantidad) {
+            throw new \RuntimeException('La cantidad vendida no coincide con la cantidad del pedido.');
+        }
+
+        InventarioReserva::where('pedido_detalle_id', $detalle->id)
+            ->where('estado', 'activa')
+            ->update(['estado' => 'consumida']);
+
+        $detalle->update(['estado' => 'entregado']);
+
+        $pedido = $detalle->pedido;
+        $pedido->update(['venta_id' => $venta->id]);
+
+        $pendientes = $pedido->detalles()
+            ->whereNotIn('estado', ['entregado', 'cancelado'])
+            ->exists();
+
+        if ($pendientes) {
+            $pedido->update(['estado' => 'parcial']);
+            return;
+        }
+
+        $pedido->update([
+            'estado' => 'entregado',
+            'estado_pago' => 'pagado',
+            'saldo_pendiente' => 0,
+        ]);
+    }
+
+    private function revertirPedidoDetalleVenta(VentaDetalle $ventaDetalle): void
+    {
+        $detalle = PedidoDetalle::where('id', $ventaDetalle->pedido_detalle_id)
+            ->with('pedido')
+            ->lockForUpdate()
+            ->first();
+
+        if (! $detalle) {
+            return;
+        }
+
+        $detalle->update(['estado' => 'disponible']);
+
+        InventarioReserva::updateOrCreate(
+            [
+                'pedido_detalle_id' => $detalle->id,
+                'estado' => 'activa',
+            ],
+            [
+                'empresa_id' => $detalle->pedido->empresa_id,
+                'sucursal_id' => $detalle->pedido->sucursal_id,
+                'pedido_id' => $detalle->pedido_id,
+                'producto_id' => $detalle->producto_id,
+                'variante_id' => $detalle->variante_id,
+                'cantidad' => $detalle->cantidad,
+            ]
+        );
+
+        $detalle->pedido->update([
+            'estado' => 'disponible',
+            'estado_pago' => $this->estadoPagoPedido(
+                (float) $detalle->pedido->subtotal,
+                (float) $detalle->pedido->anticipo
+            ),
+            'saldo_pendiente' => max(0, (float) $detalle->pedido->subtotal - (float) $detalle->pedido->anticipo),
+        ]);
+    }
+
+    private function estadoPagoPedido(float $subtotal, float $anticipo): string
+    {
+        if ($anticipo <= 0) return 'sin_anticipo';
+        if ($anticipo >= $subtotal && $subtotal > 0) return 'pagado';
+        return 'con_anticipo';
     }
 
     public function buscarVariantes(Request $request): JsonResponse

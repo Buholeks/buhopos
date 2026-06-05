@@ -22,6 +22,7 @@ use App\Http\Controllers\UnidadMedidaController;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\CompraController;
 use App\Http\Controllers\VentaController;
+use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\CancelacionDevolucionController;
 use App\Http\Controllers\CorteCajaController;
 use App\Http\Controllers\ExhibicionController;
@@ -166,6 +167,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [VentaController::class, 'show']);
         Route::delete('/{id}', [VentaController::class, 'destroy']);
     });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pedidos y apartados
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/clientes/{cliente}/pedidos-resumen', [PedidoController::class, 'clienteResumen']);
+    Route::get('/pedidos/buscar-catalogo', [PedidoController::class, 'buscarCatalogo']);
+    Route::get('/pedidos', [PedidoController::class, 'index']);
+    Route::post('/pedidos', [PedidoController::class, 'store']);
+    Route::get('/pedidos/{pedido}', [PedidoController::class, 'show']);
+    Route::post('/pedidos/{pedido}/abonos', [PedidoController::class, 'abonar']);
+    Route::post('/pedidos/{pedido}/cancelar', [PedidoController::class, 'cancelar']);
 
     Route::prefix('cancelaciones-devoluciones')->group(function () {
         Route::get('/buscar', [CancelacionDevolucionController::class, 'buscar']);

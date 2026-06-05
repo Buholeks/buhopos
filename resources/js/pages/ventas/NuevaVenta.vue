@@ -43,6 +43,63 @@
                 @clear="store.clearCliente"
             />
 
+            <section
+                v-if="pedidosDisponibles.length > 0"
+                class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+            >
+                <div class="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-sm font-bold text-emerald-950">
+                            Pedidos disponibles del cliente
+                        </h2>
+                        <p class="text-xs text-emerald-700">
+                            Carga los articulos disponibles directo al carrito.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid gap-3 lg:grid-cols-2">
+                    <div
+                        v-for="pedido in pedidosDisponibles"
+                        :key="pedido.id"
+                        class="rounded-xl border border-emerald-100 bg-white p-3"
+                    >
+                        <div class="mb-2 flex items-center justify-between gap-2">
+                            <p class="font-semibold text-slate-900">{{ pedido.folio }}</p>
+                            <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                                {{ formatPrecio(pedido.anticipo || 0) }} anticipo
+                            </span>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div
+                                v-for="detallePedido in detallesDisponiblesPedido(pedido)"
+                                :key="detallePedido.id"
+                                class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2"
+                            >
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-medium text-slate-900">
+                                        {{ detallePedido.cantidad }} x {{ detallePedido.descripcion }}
+                                    </p>
+                                    <p class="text-xs text-slate-500">
+                                        {{ formatPrecio(detallePedido.precio_acordado || 0) }}
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                    :disabled="detallePedido.estado === 'entregado'"
+                                    @click="agregarPedidoAlCarrito(pedido, detallePedido)"
+                                >
+                                    Agregar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <PosSearch
                 ref="searchRef"
                 v-model="busqueda"
@@ -95,6 +152,9 @@
             :subtotal="subtotal"
             :descuento="Number(form.descuento || 0)"
             :total="total"
+            :total-a-cobrar="totalACobrar"
+            :saldo-disponible="Number(cobro.saldo_disponible || 0)"
+            :saldo-aplicado="Number(cobro.saldo_aplicado || 0)"
             :cambio="cambio"
             :pago-insuficiente="pagoInsuficiente"
             :cliente="cliente"
@@ -103,6 +163,7 @@
             @select-vendedor="store.setVendedor"
             @update:formaPago="(v) => (cobro.forma_pago = v)"
             @update:montoRecibido="(v) => (cobro.monto_recibido = v)"
+            @update:saldoAplicado="actualizarSaldoAplicado"
             @update:notas="(v) => (cobro.notas = v)"
             @cancel="store.cerrarCobro"
             @confirm="guardarVentaFinal"
@@ -136,6 +197,7 @@ import {
     onMounted,
     onBeforeUnmount,
     nextTick,
+    watch,
 } from "vue";
 import { storeToRefs } from "pinia";
 import Swal from "sweetalert2";
@@ -169,6 +231,7 @@ const authStore = useAuthStore();
 
 const ventasEnEspera = ref([]);
 const modalRecuperar = ref(false);
+const pedidosDisponibles = ref([]);
 
 const empresaId = computed(() => authStore.user?.empresa_id ?? null);
 const sucursalId = computed(() => authStore.user?.sucursal_id ?? null);
@@ -191,6 +254,7 @@ const {
     detalles,
     subtotal,
     total,
+    totalACobrar,
     cambio,
     pagoInsuficiente,
     hayExcedido,
@@ -213,6 +277,16 @@ const resultados = ref([]);
 const buscando = ref(false);
 const dropdown = ref(false);
 const cursor = ref(0);
+
+watch(
+    () => cliente.value?.id,
+    () => cargarSaldoCliente(),
+);
+
+watch(
+    () => total.value,
+    () => actualizarSaldoAplicado(cobro.value.saldo_aplicado),
+);
 
 // ── Fila seleccionada ─────────────────────────────────────────────────────────
 const selectedIdx = ref(null);
@@ -727,6 +801,49 @@ function seleccionarItem(r) {
 }
 
 // ── Selección con serie ───────────────────────────────────────────────────────
+async function agregarPedidoAlCarrito(pedido, detallePedido) {
+    if (detalles.value.some((d) => Number(d.pedido_detalle_id) === Number(detallePedido.id))) {
+        toastWarning("Ese articulo del pedido ya esta en la venta");
+        return;
+    }
+
+    const q = detallePedido.variante?.sku || detallePedido.producto?.codigo || detallePedido.descripcion;
+    if (!q) {
+        toastError("No se pudo localizar el producto del pedido");
+        return;
+    }
+
+    try {
+        const { data } = await http.get("/api/ventas/buscar-variantes", {
+            params: { q },
+        });
+
+        const items = Array.isArray(data) ? data : [];
+        const item = items.find((r) =>
+            Number(r.producto_id) === Number(detallePedido.producto_id) &&
+            String(r.id ?? "") === String(detallePedido.variante_id ?? "")
+        );
+
+        if (!item || item.sin_stock) {
+            toastWarning("El producto del pedido ya no tiene stock disponible");
+            return;
+        }
+
+        const det = store.agregarDetalle(item);
+        det.cantidad = Number(detallePedido.cantidad || 1);
+        det.precio_venta = Number(detallePedido.precio_acordado || item.precio_venta || 0);
+        det.pedido_id = pedido.id;
+        det.pedido_detalle_id = detallePedido.id;
+        det.cantidad_fija = true;
+        store.normalizeLinea(det);
+
+        selectedIdx.value = detalles.value.findIndex((x) => x._key === det._key);
+        toastSuccess(`Pedido ${pedido.folio} cargado`);
+    } catch {
+        toastError("No se pudo cargar el pedido al carrito");
+    }
+}
+
 function seleccionarItemConSerie(serieData) {
     const det = store.agregarDetalleConSerie({
         serie_id: serieData.serie_id,
@@ -854,9 +971,61 @@ function abrirModalCobro() {
     }
 
     store.abrirCobro();
+    aplicarSaldoAutomatico();
+}
+
+async function cargarSaldoCliente() {
+    cobro.value.saldo_disponible = 0;
+    cobro.value.saldo_aplicado = 0;
+    pedidosDisponibles.value = [];
+
+    if (!cliente.value?.id) return;
+
+    try {
+        const { data } = await http.get(`/api/clientes/${cliente.value.id}/pedidos-resumen`);
+        cobro.value.saldo_disponible = Number(data?.saldo_favor ?? 0);
+        pedidosDisponibles.value = Array.isArray(data?.pedidos_disponibles)
+            ? data.pedidos_disponibles
+            : [];
+        aplicarSaldoAutomatico();
+    } catch {
+        cobro.value.saldo_disponible = 0;
+        pedidosDisponibles.value = [];
+    }
+}
+
+function aplicarSaldoAutomatico() {
+    if (!cliente.value?.id) {
+        cobro.value.saldo_aplicado = 0;
+        return;
+    }
+
+    cobro.value.saldo_aplicado = Math.min(
+        Number(cobro.value.saldo_disponible || 0),
+        Number(total.value || 0),
+    );
+
+    if (cobro.value.forma_pago === "efectivo") {
+        cobro.value.monto_recibido = totalACobrar.value > 0 ? totalACobrar.value : 0;
+    }
+}
+
+function actualizarSaldoAplicado(value) {
+    const monto = Number(value || 0);
+    cobro.value.saldo_aplicado = Math.min(
+        Math.max(0, monto),
+        Number(cobro.value.saldo_disponible || 0),
+        Number(total.value || 0),
+    );
 }
 
 // ── Guardar venta final ───────────────────────────────────────────────────────
+function detallesDisponiblesPedido(pedido) {
+    return (pedido?.detalles ?? []).filter((d) =>
+        ["disponible", "reservado"].includes(d.estado),
+    );
+}
+
 async function guardarVentaFinal() {
     if (!cobro.value.vendedor_id) {
         toastWarning("Selecciona un vendedor");

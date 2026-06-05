@@ -17,9 +17,6 @@
                     Venta
                 </th>
                 <th class="border-b border-slate-200 px-3 py-2 text-center">
-                    Variantes
-                </th>
-                <th class="border-b border-slate-200 px-3 py-2 text-center">
                     Estado
                 </th>
                 <th class="border-b border-slate-200 px-3 py-2 text-right">
@@ -54,6 +51,15 @@
                     <p class="text-sm font-medium text-slate-900">
                         {{ p.nombre }}
                     </p>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                        <span
+                            v-for="badge in pendientes(p)"
+                            :key="badge"
+                            class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+                        >
+                            {{ badge }}
+                        </span>
+                    </div>
                     <p
                         v-if="p.unidad_medida"
                         class="mt-0.5 text-xs text-slate-500"
@@ -77,6 +83,13 @@
                     </p>
                     <p class="text-xs text-slate-500">
                         {{ p.marca?.nombre ?? "" }}
+                        <span v-if="p.modelo?.nombre">/ {{ p.modelo.nombre }}</span>
+                    </p>
+                    <p
+                        v-if="categoriaNombre(p) !== (p.categoria?.nombre ?? 'Sin categoria')"
+                        class="text-[10px] text-slate-400"
+                    >
+                        {{ categoriaNombre(p) }}
                     </p>
                 </td>
 
@@ -91,65 +104,20 @@
                     {{ formatPrecio(p.precio_venta) }}
                 </td>
 
-                <!-- Variantes -->
                 <td class="px-3 py-2 text-center">
                     <button
-                        @click.stop="$emit('variantes', p)"
-                        class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition"
-                        :class="
-                            p.tiene_variantes
-                                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                        "
-                        :title="
-                            p.tiene_variantes
-                                ? 'Ver / agregar / editar variantes'
-                                : 'Crear variantes'
-                        "
-                    >
-                        <LayoutGrid class="h-4 w-4" />
-
-                        <span v-if="p.tiene_variantes">Variantes</span>
-                        <span v-else class="inline-flex items-center gap-1">
-                            <Plus class="h-3.5 w-3.5" />
-                            Variantes
-                        </span>
-
-                        <!-- Badge -->
-                        <span
-                            class="inline-flex items-center justify-center rounded-full bg-white/70 px-2 py-0.5 font-mono text-[10px]"
-                        >
-                            <template v-if="p.variantes_count != null">
-                                {{ p.variantes_count }}
-                            </template>
-
-                            <template v-else>
-                                <Check
-                                    v-if="p.tiene_variantes"
-                                    class="h-3.5 w-3.5 text-blue-700"
-                                    title="Tiene variantes"
-                                />
-                                <span v-else>0</span>
-                            </template>
-                        </span>
-                    </button>
-
-                    <p class="mt-1 text-[10px] text-slate-400">
-                        Doble click en una variante = editar
-                    </p>
-                </td>
-
-                <td class="px-3 py-2 text-center">
-                    <span
+                        type="button"
                         class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium"
                         :class="
                             p.activo
                                 ? 'bg-emerald-100 text-emerald-700'
                                 : 'bg-slate-100 text-slate-500'
                         "
+                        :title="p.activo ? 'Desactivar producto' : 'Activar producto'"
+                        @click.stop="$emit('toggle-activo', p)"
                     >
                         {{ p.activo ? "Activo" : "Inactivo" }}
-                    </span>
+                    </button>
                 </td>
 
                 <!-- Acciones -->
@@ -172,6 +140,14 @@
                         </button>
 
                         <button
+                            @click.stop="$emit('duplicar', p)"
+                            title="Duplicar producto"
+                            class="rounded-md p-2 text-slate-600 hover:bg-slate-100"
+                        >
+                            <Copy class="h-4 w-4" />
+                        </button>
+
+                        <button
                             @click.stop="$emit('eliminar', p)"
                             title="Eliminar"
                             class="rounded-md p-2 text-red-600 hover:bg-red-50"
@@ -190,15 +166,29 @@ import {
     Image,
     LayoutGrid,
     Pencil,
+    Copy,
     Trash2,
-    Check,
-    Plus,
 } from "lucide-vue-next";
 
-defineProps({
+const props = defineProps({
     productos: { type: Array, default: () => [] },
     formatPrecio: { type: Function, required: true },
+    categoriaNombre: { type: Function, default: (p) => p.categoria?.nombre ?? "Sin categoria" },
 });
 
-defineEmits(["editar", "eliminar", "variantes"]);
+defineEmits(["editar", "duplicar", "toggle-activo", "eliminar", "variantes"]);
+
+function pendientes(p) {
+    return [
+        !p.categoria_id ? "Sin categoria" : null,
+        !p.unidad_medida_id ? "Sin unidad" : null,
+        !p.marca_id ? "Sin marca" : null,
+        p.marca_id && !p.modelo_id ? "Sin modelo" : null,
+        Number(p.precio_venta ?? 0) <= 0 ? "Sin precio" : null,
+    ].filter(Boolean);
+}
+
+function categoriaNombre(p) {
+    return props.categoriaNombre(p);
+}
 </script>

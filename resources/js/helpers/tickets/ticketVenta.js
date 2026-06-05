@@ -32,6 +32,10 @@ export function crearTicketVenta(venta) {
         0,
     );
 
+    const total = Number(venta?.total ?? 0);
+    const saldoAplicado = Number(venta?.saldo_aplicado ?? 0);
+    const restantePagado = Math.max(0, total - saldoAplicado);
+
     return {
         folio: venta?.folio ?? "-",
         reimpresion: Boolean(venta?.reimpresion),
@@ -46,7 +50,9 @@ export function crearTicketVenta(venta) {
         subtotal_lista: subtotalLista,
         descuento_precios: descuentoPrecios,
         descuento: Number(venta?.descuento ?? 0),
-        total: Number(venta?.total ?? 0),
+        total,
+        saldo_aplicado: saldoAplicado,
+        restante_pagado: restantePagado,
         monto_recibido: Number(venta?.monto_recibido ?? 0),
         cambio: Number(venta?.cambio ?? 0),
         notas: venta?.notas ?? null,

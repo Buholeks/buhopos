@@ -171,6 +171,7 @@
                                         !modelosDeMarca?.length
                                     "
                                     hint="Primero selecciona una marca."
+                                    :error="err?.modelo_id"
                                 />
                             </div>
 

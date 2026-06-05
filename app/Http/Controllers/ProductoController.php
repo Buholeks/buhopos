@@ -35,6 +35,7 @@ class ProductoController extends Controller
             ->with([
                 'categoria:id,nombre',
                 'marca:id,nombre',
+                'modelo:id,nombre,marca_id',
                 'unidadMedida:id,nombre,abreviatura',
             ])
             ->orderBy('id', 'desc');
@@ -45,6 +46,14 @@ class ProductoController extends Controller
 
         if ($request->filled('marca_id')) {
             $query->where('marca_id', $request->integer('marca_id'));
+        }
+
+        if ($request->filled('modelo_id')) {
+            $query->where('modelo_id', $request->integer('modelo_id'));
+        }
+
+        if ($request->filled('unidad_medida_id')) {
+            $query->where('unidad_medida_id', $request->integer('unidad_medida_id'));
         }
 
         if ($request->filled('activo')) {
@@ -64,7 +73,13 @@ class ProductoController extends Controller
 
             $query->where(function ($q) use ($b) {
                 $q->where('nombre', 'like', "%{$b}%")
-                    ->orWhere('codigo', 'like', "%{$b}%");
+                    ->orWhere('codigo', 'like', "%{$b}%")
+                    ->orWhereHas('categoria', fn($sq) => $sq->where('nombre', 'like', "%{$b}%"))
+                    ->orWhereHas('marca', fn($sq) => $sq->where('nombre', 'like', "%{$b}%"))
+                    ->orWhereHas('modelo', fn($sq) => $sq->where('nombre', 'like', "%{$b}%"))
+                    ->orWhereHas('unidadMedida', fn($sq) => $sq
+                        ->where('nombre', 'like', "%{$b}%")
+                        ->orWhere('abreviatura', 'like', "%{$b}%"));
             });
         }
 
@@ -81,6 +96,7 @@ class ProductoController extends Controller
             $this->reglas($empresaId),
             $this->mensajes()
         );
+        $this->validarModeloMarca($datos);
 
         DB::beginTransaction();
 
@@ -113,7 +129,7 @@ class ProductoController extends Controller
 
             return response()->json([
                 'message' => 'Producto creado correctamente.',
-                'data' => $producto->load(['categoria', 'marca', 'unidadMedida']),
+                'data' => $producto->load(['categoria', 'marca', 'modelo', 'unidadMedida']),
             ], 201);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -145,6 +161,7 @@ class ProductoController extends Controller
             $this->reglas($empresaId, $id),
             $this->mensajes()
         );
+        $this->validarModeloMarca($datos);
 
         if ($request->hasFile('imagen')) {
             if ($producto->imagen) {
@@ -173,7 +190,7 @@ class ProductoController extends Controller
 
         return response()->json([
             'message' => 'Producto actualizado correctamente.',
-            'data' => $producto->load(['categoria', 'marca', 'unidadMedida']),
+            'data' => $producto->load(['categoria', 'marca', 'modelo', 'unidadMedida']),
         ]);
     }
 
@@ -404,9 +421,56 @@ class ProductoController extends Controller
             'activo'          => ['nullable', 'boolean'],
             'imagen'          => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'eliminar_imagen' => ['nullable', 'boolean'],
+            'atributos'       => ['nullable', 'array', 'min:1'],
+            'atributos.*'     => ['required', 'integer', 'exists:atributos,id'],
         ]);
 
         $toNullIfEmpty = fn($v) => ($v === '' || $v === null) ? null : $v;
+
+        $atributosEditados = null;
+        if (array_key_exists('atributos', $datos)) {
+            $atributosEditados = collect($datos['atributos'])
+                ->mapWithKeys(fn($atributoId, $tipoId) => [(int) $tipoId => (int) $atributoId])
+                ->filter()
+                ->sort()
+                ->toArray();
+
+            foreach ($atributosEditados as $tipoId => $atributoId) {
+                $valido = \App\Models\Atributo::where('id', $atributoId)
+                    ->where('tipo_atributo_id', $tipoId)
+                    ->exists();
+
+                if (! $valido) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "atributos.{$tipoId}" => ["El atributo seleccionado no pertenece a este tipo."],
+                    ]);
+                }
+            }
+
+            $atributosNuevos = collect($atributosEditados)->values()->sort()->values()->toArray();
+
+            $duplicado = ProductoVariante::where('empresa_id', $this->empresaId())
+                ->where('producto_id', $id)
+                ->where('id', '!=', $varianteId)
+                ->whereNull('deleted_at')
+                ->with('atributos')
+                ->get()
+                ->first(function ($v) use ($atributosNuevos) {
+                    $existentes = $v->atributos
+                        ->pluck('atributo_id')
+                        ->sort()
+                        ->values()
+                        ->toArray();
+
+                    return $existentes === $atributosNuevos;
+                });
+
+            if ($duplicado) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'atributos' => ['Ya existe otra variante con esa combinacion de atributos.'],
+                ]);
+            }
+        }
 
         $variante->sku           = $toNullIfEmpty($datos['sku'] ?? null);
         $variante->codigo_barras = $toNullIfEmpty($datos['codigo_barras'] ?? null);
@@ -447,6 +511,19 @@ class ProductoController extends Controller
         }
 
         $variante->save();
+
+        if ($atributosEditados !== null) {
+            VarianteAtributo::where('variante_id', $variante->id)->delete();
+
+            foreach ($atributosEditados as $tipoId => $atributoId) {
+                VarianteAtributo::create([
+                    'variante_id'      => $variante->id,
+                    'tipo_atributo_id' => $tipoId,
+                    'atributo_id'      => $atributoId,
+                ]);
+            }
+        }
+
         $variante->load(['producto', 'atributos.tipoAtributo', 'atributos.atributo']);
 
         return response()->json([
@@ -544,5 +621,24 @@ class ProductoController extends Controller
             'imagen.image'          => 'El archivo debe ser una imagen.',
             'imagen.max'            => 'La imagen no debe superar 2MB.',
         ];
+    }
+
+    private function validarModeloMarca(array $datos): void
+    {
+        if (empty($datos['modelo_id']) || empty($datos['marca_id'])) {
+            return;
+        }
+
+        $pertenece = DB::table('modelos')
+            ->where('id', $datos['modelo_id'])
+            ->where('marca_id', $datos['marca_id'])
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (! $pertenece) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'modelo_id' => ['El modelo seleccionado no pertenece a la marca indicada.'],
+            ]);
+        }
     }
 }

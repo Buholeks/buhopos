@@ -10,6 +10,7 @@
             :showTotal="false"
             :disableAccionesVenta="detalles.length === 0"
             :disableReimprimirUltima="!ultimaVentaDisponible"
+            :cliente="cliente"
             @abrirCaja="abrirCaja"
             @modal-mov="modalMov = true"
             @enEspera="ponerVentaEnEspera"
@@ -18,6 +19,8 @@
             @descuentoGlobal="abrirModalDescuento"
             @reset="resetearTodo"
             @guardar="abrirModalCobro"
+            @select-cliente="store.setCliente"
+            @clear-cliente="store.clearCliente"
         />
         <NuevoMovimientoModal
             v-if="modalMov"
@@ -37,12 +40,6 @@
 />
 
         <div class="mx-auto flex max-w-7xl flex-col gap-3 sm:gap-4 px-3 sm:px-6 py-3 sm:py-6">
-            <VentaClienteSelector
-                :cliente="cliente"
-                @select="store.setCliente"
-                @clear="store.clearCliente"
-            />
-
             <section
                 v-if="pedidosDisponibles.length > 0"
                 class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
@@ -142,6 +139,17 @@
             />
         </div>
 
+        <ModalDatosVenta
+            v-if="modalDatosVenta"
+            :cliente="cliente"
+            :vendedor-id="cobro.vendedor_id"
+            :vendedor="cobro.vendedor"
+            @select-cliente="store.setCliente"
+            @select-vendedor="store.setVendedor"
+            @cancel="modalDatosVenta = false"
+            @confirm="continuarAlCobro"
+        />
+
         <ModalCobroVenta
             v-if="cobro.visible"
             :vendedor-id="cobro.vendedor_id"
@@ -155,12 +163,12 @@
             :total-a-cobrar="totalACobrar"
             :saldo-disponible="Number(cobro.saldo_disponible || 0)"
             :saldo-aplicado="Number(cobro.saldo_aplicado || 0)"
+            :saldo-bloqueado="saldoBloqueado"
             :cambio="cambio"
             :pago-insuficiente="pagoInsuficiente"
             :cliente="cliente"
             :disableConfirm="guardando"
             :formatPrecio="formatPrecio"
-            @select-vendedor="store.setVendedor"
             @update:formaPago="(v) => (cobro.forma_pago = v)"
             @update:montoRecibido="(v) => (cobro.monto_recibido = v)"
             @update:saldoAplicado="actualizarSaldoAplicado"
@@ -212,7 +220,7 @@ import PosTable from "@/components/ventas/PosTable.vue";
 import ModalPrecioManual from "@/components/ventas/ModalPrecioManual.vue";
 import ModalSerie from "@/components/ventas/ModalSerie.vue";
 import NuevoMovimientoModal from "@/components/caja/NuevoMovimientoModal.vue";
-import VentaClienteSelector from "@/components/ventas/VentaClienteSelector.vue";
+import ModalDatosVenta from "@/components/ventas/ModalDatosVenta.vue";
 import ModalCobroVenta from "@/components/ventas/ModalCobroVenta.vue";
 
 import { useAuthStore } from "@/stores/auth";
@@ -232,12 +240,31 @@ const authStore = useAuthStore();
 const ventasEnEspera = ref([]);
 const modalRecuperar = ref(false);
 const pedidosDisponibles = ref([]);
+const tieneProductosPendientes = ref(false);
 
 const empresaId = computed(() => authStore.user?.empresa_id ?? null);
 const sucursalId = computed(() => authStore.user?.sucursal_id ?? null);
 const userId = computed(() => authStore.user?.id ?? null);
 
 const sinCajaAbierta = computed(() => !corteActual.value?.id);
+const idsProductosPendientesDisponibles = computed(() =>
+    new Set(
+        pedidosDisponibles.value.flatMap((pedido) =>
+            (pedido.detalles ?? [])
+                .filter((detalle) => ["disponible", "reservado"].includes(detalle.estado))
+                .map((detalle) => Number(detalle.id)),
+        ),
+    ),
+);
+const ventaSoloProductosPendientes = computed(() =>
+    detalles.value.length > 0 &&
+    detalles.value.every((detalle) =>
+        idsProductosPendientesDisponibles.value.has(Number(detalle.pedido_detalle_id)),
+    ),
+);
+const saldoBloqueado = computed(() =>
+    tieneProductosPendientes.value && !ventaSoloProductosPendientes.value,
+);
 
 
 const modalMov = ref(false);
@@ -271,6 +298,7 @@ const ultimaVentaDisponible = computed(() => {
 
 const root = ref(null);
 const searchRef = ref(null);
+const modalDatosVenta = ref(false);
 
 const busqueda = ref("");
 const resultados = ref([]);
@@ -286,6 +314,13 @@ watch(
 watch(
     () => total.value,
     () => actualizarSaldoAplicado(cobro.value.saldo_aplicado),
+);
+
+watch(
+    saldoBloqueado,
+    (bloqueado) => {
+        if (bloqueado) cobro.value.saldo_aplicado = 0;
+    },
 );
 
 // ── Fila seleccionada ─────────────────────────────────────────────────────────
@@ -970,6 +1005,16 @@ function abrirModalCobro() {
         return;
     }
 
+    modalDatosVenta.value = true;
+}
+
+function continuarAlCobro() {
+    if (!cobro.value.vendedor_id) {
+        toastWarning("Selecciona un vendedor");
+        return;
+    }
+
+    modalDatosVenta.value = false;
     store.abrirCobro();
     aplicarSaldoAutomatico();
 }
@@ -978,6 +1023,7 @@ async function cargarSaldoCliente() {
     cobro.value.saldo_disponible = 0;
     cobro.value.saldo_aplicado = 0;
     pedidosDisponibles.value = [];
+    tieneProductosPendientes.value = false;
 
     if (!cliente.value?.id) return;
 
@@ -987,15 +1033,17 @@ async function cargarSaldoCliente() {
         pedidosDisponibles.value = Array.isArray(data?.pedidos_disponibles)
             ? data.pedidos_disponibles
             : [];
+        tieneProductosPendientes.value = !!data?.tiene_productos_pendientes;
         aplicarSaldoAutomatico();
     } catch {
         cobro.value.saldo_disponible = 0;
         pedidosDisponibles.value = [];
+        tieneProductosPendientes.value = false;
     }
 }
 
 function aplicarSaldoAutomatico() {
-    if (!cliente.value?.id) {
+    if (!cliente.value?.id || saldoBloqueado.value) {
         cobro.value.saldo_aplicado = 0;
         return;
     }
@@ -1011,6 +1059,11 @@ function aplicarSaldoAutomatico() {
 }
 
 function actualizarSaldoAplicado(value) {
+    if (saldoBloqueado.value) {
+        cobro.value.saldo_aplicado = 0;
+        return;
+    }
+
     const monto = Number(value || 0);
     cobro.value.saldo_aplicado = Math.min(
         Math.max(0, monto),
@@ -1113,6 +1166,7 @@ function onKeydown(e) {
     if (e.ctrlKey && e.key === "Enter") {
         e.preventDefault();
         if (cobro.value.visible) guardarVentaFinal();
+        else if (modalDatosVenta.value) continuarAlCobro();
         else abrirModalCobro();
         return;
     }
@@ -1133,6 +1187,12 @@ function onKeydown(e) {
         if (cobro.value.visible) {
             e.preventDefault();
             store.cerrarCobro();
+            return;
+        }
+
+        if (modalDatosVenta.value) {
+            e.preventDefault();
+            modalDatosVenta.value = false;
             return;
         }
 
@@ -1171,11 +1231,11 @@ function onDocClick(e) {
     }
 }
 
-onMounted(() => {
+onMounted(async () => {
     document.addEventListener("click", onDocClick);
     document.addEventListener("keydown", onKeydown);
-    cargarCorteActual();
-        cargarVentasEnEspera();
+    await cargarCorteActual();
+    cargarVentasEnEspera();
 
     nextTick(() => searchRef.value?.focus?.());
 });

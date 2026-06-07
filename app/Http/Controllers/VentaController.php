@@ -159,6 +159,30 @@ class VentaController extends Controller
                     'campo' => 'saldo_aplicado',
                 ], 422);
             }
+
+            if ($this->clienteTieneProductosPendientes($empresaId, $sucursalId, (int) $datos['cliente_id'])) {
+                $detalleIds = collect($datos['detalles'])
+                    ->pluck('pedido_detalle_id')
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+                $detallesValidos = PedidoDetalle::whereIn('id', $detalleIds)
+                    ->whereNotIn('estado', ['entregado', 'cancelado'])
+                    ->whereHas('pedido', fn($query) => $query
+                        ->where('empresa_id', $empresaId)
+                        ->where('sucursal_id', $sucursalId)
+                        ->where('cliente_id', $datos['cliente_id'])
+                        ->whereNotIn('estado', ['entregado', 'cancelado']))
+                    ->count();
+
+                if ($detalleIds->count() !== count($datos['detalles']) || $detallesValidos !== $detalleIds->count()) {
+                    return response()->json([
+                        'message' => 'El cliente tiene productos pendientes. Su saldo a favor solo puede usarse para liquidar esos pedidos o apartados.',
+                        'campo' => 'saldo_aplicado',
+                    ], 422);
+                }
+            }
         }
 
         if ($datos['forma_pago'] === 'efectivo' && $montoRecibido < $totalACobrar) {
@@ -463,6 +487,17 @@ class VentaController extends Controller
             ->where('sucursal_id', $sucursalId)
             ->where('cliente_id', $clienteId)
             ->sum(DB::raw("CASE WHEN tipo IN ('abono','ajuste') THEN monto ELSE -monto END")), 2);
+    }
+
+    private function clienteTieneProductosPendientes(int $empresaId, int $sucursalId, int $clienteId): bool
+    {
+        return PedidoDetalle::whereHas('pedido', fn($query) => $query
+            ->where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->where('cliente_id', $clienteId)
+            ->whereNotIn('estado', ['entregado', 'cancelado']))
+            ->whereNotIn('estado', ['entregado', 'cancelado'])
+            ->exists();
     }
 
     private function registrarAplicacionSaldo(Venta $venta, CorteCaja $corte, int $clienteId, float $monto): void

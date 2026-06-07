@@ -2,7 +2,7 @@
     <div class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-4">
         <div class="w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div class="border-b border-slate-200 px-6 py-4">
-                <h2 class="text-lg font-semibold text-slate-900">Registrar venta</h2>
+                <h2 class="text-lg font-semibold text-slate-900">Cobrar venta</h2>
                 <p class="mt-1 text-sm text-slate-500">
                     Captura el cobro y confirma la operación.
                 </p>
@@ -10,19 +10,6 @@
 
             <div class="grid gap-6 px-6 py-5 lg:grid-cols-[1.15fr_0.85fr]">
                 <div class="space-y-4">
-                    <BaseSearchSelect
-                        :model-value="vendedor?.id ?? vendedorId ?? null"
-                        label="Vendedor"
-                        placeholder="Buscar vendedor..."
-                        :fetcher="buscarVendedores"
-                        :min-chars="1"
-                        :debounce-ms="250"
-                        :label-key="(it) => it.name || it.nombre || 'Sin nombre'"
-                        :sub-label-key="(it) => it.email || it.telefono || ''"
-                        value-key="id"
-                        @selected="(it) => $emit('select-vendedor', it)"
-                    />
-
                     <div>
                         <label class="mb-1 block text-sm font-medium text-slate-700">
                             Método de pago
@@ -42,19 +29,21 @@
 
                     <div
                         v-if="cliente?.id && saldoDisponible > 0"
-                        class="rounded-2xl border border-emerald-200 bg-emerald-50 p-3"
+                        class="rounded-2xl border p-3"
+                        :class="saldoBloqueado ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'"
                     >
                         <div class="mb-2 flex items-center justify-between gap-3">
                             <div>
-                                <p class="text-sm font-semibold text-emerald-900">
+                                <p class="text-sm font-semibold" :class="saldoBloqueado ? 'text-amber-900' : 'text-emerald-900'">
                                     Saldo a favor
                                 </p>
-                                <p class="text-xs text-emerald-700">
+                                <p class="text-xs" :class="saldoBloqueado ? 'text-amber-700' : 'text-emerald-700'">
                                     Disponible: {{ formatPrecio(saldoDisponible) }}
                                 </p>
                             </div>
 
                             <button
+                                v-if="!saldoBloqueado"
                                 type="button"
                                 class="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
                                 @click="$emit('update:saldoAplicado', Math.min(saldoDisponible, total))"
@@ -63,7 +52,12 @@
                             </button>
                         </div>
 
+                        <p v-if="saldoBloqueado" class="text-xs leading-relaxed text-amber-800">
+                            Este saldo está reservado para productos pendientes de pedidos o apartados. Para usarlo, carga únicamente esos productos.
+                        </p>
+
                         <input
+                            v-else
                             :value="saldoAplicado"
                             type="number"
                             min="0"
@@ -80,6 +74,7 @@
                         </label>
 
                         <input
+                            ref="montoRecibidoRef"
                             :value="montoRecibido"
                             type="number"
                             min="0"
@@ -204,8 +199,7 @@
 </template>
 
 <script setup>
-import http from "@/lib/http";
-import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
+import { nextTick, onMounted, ref } from "vue";
 
 defineProps({
     vendedorId: { type: [String, Number, null], default: null },
@@ -219,6 +213,7 @@ defineProps({
     totalACobrar: { type: Number, default: 0 },
     saldoDisponible: { type: Number, default: 0 },
     saldoAplicado: { type: Number, default: 0 },
+    saldoBloqueado: { type: Boolean, default: false },
     cambio: { type: Number, default: 0 },
     pagoInsuficiente: { type: Boolean, default: false },
     cliente: { type: Object, default: null },
@@ -231,20 +226,16 @@ defineEmits([
     "update:montoRecibido",
     "update:saldoAplicado",
     "update:notas",
-    "select-vendedor",
     "cancel",
     "confirm",
 ]);
 
-async function buscarVendedores(q) {
-    const { data } = await http.get("/api/users/vendedores", {
-        params: { q },
-    });
+const montoRecibidoRef = ref(null);
 
-    return Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data)
-          ? data
-          : [];
-}
+onMounted(() =>
+    nextTick(() => {
+        montoRecibidoRef.value?.focus();
+        montoRecibidoRef.value?.select();
+    }),
+);
 </script>

@@ -331,9 +331,18 @@ class PedidoController extends Controller
             ->orderByDesc('id')
             ->get();
 
+        $tieneProductosPendientes = PedidoDetalle::whereHas('pedido', fn($query) => $query
+            ->where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->where('cliente_id', $clienteId)
+            ->whereNotIn('estado', ['entregado', 'cancelado']))
+            ->whereNotIn('estado', ['entregado', 'cancelado'])
+            ->exists();
+
         return response()->json([
             'saldo_favor' => round((float) $saldo, 2),
             'pedidos_disponibles' => $pedidos,
+            'tiene_productos_pendientes' => $tieneProductosPendientes,
         ]);
     }
 

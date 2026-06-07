@@ -177,6 +177,12 @@
                     </span>
                 </button>
 
+                <VentaClienteSelector
+                    :cliente="cliente"
+                    @select="$emit('selectCliente', $event)"
+                    @clear="$emit('clearCliente')"
+                />
+
                 <button
                     type="button"
                     class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -210,6 +216,7 @@ import {
     BadgeDollarSign,
     Printer,
 } from "lucide-vue-next";
+import VentaClienteSelector from "@/components/ventas/VentaClienteSelector.vue";
 
 const props = defineProps({
     guardando: { type: Boolean, default: false },
@@ -225,6 +232,7 @@ const props = defineProps({
 
     disableAccionesVenta: { type: Boolean, default: false },
     disableReimprimirUltima: { type: Boolean, default: true },
+    cliente: { type: Object, default: null },
 });
 
 defineEmits([
@@ -236,6 +244,8 @@ defineEmits([
     "descuentoGlobal",
     "reset",
     "guardar",
+    "selectCliente",
+    "clearCliente",
 ]);
 
 function formatPrecio(v) {

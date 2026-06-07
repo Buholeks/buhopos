@@ -37,6 +37,7 @@ use App\Http\Controllers\ReporteCajaController;
 use App\Http\Controllers\ReporteComprasController;
 use App\Http\Controllers\ReporteVentasController;
 use App\Http\Controllers\ReporteVentasAgrupadoController;
+use App\Http\Controllers\ReporteUtilidadesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -310,5 +311,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/modelos', [ReporteVentasAgrupadoController::class, 'porModelo']);
             Route::get('/proveedores', [ReporteVentasAgrupadoController::class, 'porProveedor']);
         });
+
+        Route::get('/utilidades', [ReporteUtilidadesController::class, 'index']);
     });
 });

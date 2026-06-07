@@ -28,6 +28,7 @@ import Exhibicion from "../pages/productos/Exhibicion.vue";
 import ReporteCaja from "@/pages/reportes/caja/Index.vue";
 import ReporteVentas from "@/pages/reportes/venta/Index.vue";
 import VentasAgrupado from "@/pages/reportes/venta/VentasAgrupado.vue";
+import ReporteUtilidades from "@/pages/reportes/utilidades/Index.vue";
 import reportecompras from "@/pages/compras/Reporte.vue";
 
 const routes = [
@@ -69,6 +70,7 @@ const routes = [
       { path: "reportes-caja", name: "reportes-caja", component: ReporteCaja, meta: { title: "Reporte de caja" } },
       { path: "reportes-ventas", name: "reportes-ventas", component: ReporteVentas, meta: { title: "Consulta de ventas" } },
       { path: "reportes-ventas-agrupado", name: "reportes-ventas-agrupado", component: VentasAgrupado, meta: { title: "Ventas agrupadas" } },
+      { path: "reportes-utilidades", name: "reportes-utilidades", component: ReporteUtilidades, meta: { title: "Reporte de utilidades" } },
       { path: "reportes-compras", name: "reportes-compras", component: reportecompras, props: { vista: "compras" }, meta: { title: "Consulta de compras" } },
       { path: "reportes-pagos-proveedores", name: "reportes-pagos-proveedores", component: reportecompras, props: { vista: "pagos" }, meta: { title: "Pagos a proveedores" } },
     ],

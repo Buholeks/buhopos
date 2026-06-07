@@ -197,18 +197,6 @@ const navSections = [
                 icon: Landmark,
                 emphasis: true,
             },
-            {
-                label: "Nuevo pedido",
-                to: "/pedidos/nuevo",
-                icon: ClipboardList,
-                emphasis: true,
-            },
-            {
-                label: "Nuevo apartado",
-                to: "/apartados/nuevo",
-                icon: ClipboardList,
-                emphasis: true,
-            },
         ],
     },
     {
@@ -248,16 +236,6 @@ const navSections = [
                 label: "Consultas y reportes",
                 to: "/consultasreportes",
                 icon: ChartColumn,
-            },
-            {
-                label: "Consulta pedidos",
-                to: "/pedidos/consulta",
-                icon: ClipboardList,
-            },
-            {
-                label: "Consulta apartados",
-                to: "/apartados/consulta",
-                icon: ClipboardList,
             },
         ],
     },

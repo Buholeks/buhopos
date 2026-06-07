@@ -105,7 +105,7 @@
                             >
                                 <option value="">Todos</option>
                                 <option
-                                    v-for="u in cajeros"
+                                    v-for="u in cajerosDisponibles"
                                     :key="u.id"
                                     :value="u.id"
                                 >
@@ -200,7 +200,7 @@
                 <!-- TOTALES -->
                 <div v-if="totales" class="border-t border-slate-100 px-5 py-5">
                     <div
-                        class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-8"
+                        class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
                     >
                         <div
                             class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
@@ -208,7 +208,7 @@
                             <p
                                 class="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700"
                             >
-                                Total período
+                                Venta neta
                             </p>
                             <p
                                 class="mt-2 text-lg font-semibold text-emerald-800"
@@ -223,7 +223,7 @@
                             <p
                                 class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400"
                             >
-                                Ventas
+                                Ventas confirmadas
                             </p>
                             <p
                                 class="mt-2 text-lg font-semibold text-slate-900"
@@ -251,12 +251,15 @@
                             <p
                                 class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400"
                             >
-                                Ticket prom.
+                                Venta promedio
                             </p>
                             <p
                                 class="mt-2 text-lg font-semibold text-slate-900"
                             >
                                 {{ fmt(totales.ticket_prom) }}
+                            </p>
+                            <p class="mt-1 text-xs text-slate-400">
+                                Total vendido / ventas confirmadas
                             </p>
                         </div>
 
@@ -361,7 +364,7 @@
                                     <th
                                         class="px-4 py-3 text-right font-medium"
                                     >
-                                        Ticket prom.
+                                        Venta prom.
                                     </th>
                                 </tr>
                             </thead>
@@ -608,7 +611,7 @@
                                         <td
                                             class="whitespace-nowrap px-4 py-3 text-slate-500"
                                         >
-                                            {{ fmtDatetime(v.fecha) }}
+                                            {{ fmtVentaDatetime(v) }}
                                         </td>
                                         <td class="px-4 py-3 text-slate-700">
                                             {{ v.user?.name ?? "—" }}
@@ -732,29 +735,6 @@
                                                         </p>
                                                     </div>
 
-                                                    <div
-                                                        class="flex flex-wrap items-center gap-4 text-sm"
-                                                    >
-                                                        <span
-                                                            class="text-slate-500"
-                                                        >
-                                                            Margen bruto:
-                                                            <strong
-                                                                :class="
-                                                                    detalleActual.margen >=
-                                                                    0
-                                                                        ? 'text-emerald-600'
-                                                                        : 'text-red-600'
-                                                                "
-                                                            >
-                                                                {{
-                                                                    fmt(
-                                                                        detalleActual.margen,
-                                                                    )
-                                                                }}
-                                                            </strong>
-                                                        </span>
-                                                    </div>
                                                 </div>
 
                                                 <!-- DETALLE DE LÍNEAS -->
@@ -799,18 +779,6 @@
                                                                     >
                                                                         Precio
                                                                         venta
-                                                                    </th>
-                                                                    <th
-                                                                        class="px-4 py-3 text-right font-medium"
-                                                                    >
-                                                                        Precio
-                                                                        costo
-                                                                    </th>
-                                                                    <th
-                                                                        class="px-4 py-3 text-right font-medium"
-                                                                    >
-                                                                        Margen
-                                                                        línea
                                                                     </th>
                                                                     <th
                                                                         class="px-4 py-3 text-right font-medium"
@@ -909,34 +877,6 @@
                                                                         }}
                                                                     </td>
                                                                     <td
-                                                                        class="px-4 py-3 text-right font-mono text-slate-500"
-                                                                    >
-                                                                        {{
-                                                                            fmt(
-                                                                                d.precio_costo,
-                                                                            )
-                                                                        }}
-                                                                    </td>
-                                                                    <td
-                                                                        class="px-4 py-3 text-right font-mono font-semibold"
-                                                                        :class="
-                                                                            margenLinea(
-                                                                                d,
-                                                                            ) >=
-                                                                            0
-                                                                                ? 'text-emerald-600'
-                                                                                : 'text-red-600'
-                                                                        "
-                                                                    >
-                                                                        {{
-                                                                            fmt(
-                                                                                margenLinea(
-                                                                                    d,
-                                                                                ),
-                                                                            )
-                                                                        }}
-                                                                    </td>
-                                                                    <td
                                                                         class="px-4 py-3 text-right font-mono font-semibold text-emerald-700"
                                                                     >
                                                                         {{
@@ -955,25 +895,10 @@
                                                                     class="font-semibold text-slate-900"
                                                                 >
                                                                     <td
-                                                                        colspan="6"
+                                                                        colspan="4"
                                                                         class="px-4 py-3"
                                                                     >
                                                                         Totales
-                                                                    </td>
-                                                                    <td
-                                                                        class="px-4 py-3 text-right font-mono"
-                                                                        :class="
-                                                                            detalleActual.margen >=
-                                                                            0
-                                                                                ? 'text-emerald-600'
-                                                                                : 'text-red-600'
-                                                                        "
-                                                                    >
-                                                                        {{
-                                                                            fmt(
-                                                                                detalleActual.margen,
-                                                                            )
-                                                                        }}
                                                                     </td>
                                                                     <td
                                                                         class="px-4 py-3 text-right font-mono text-emerald-700"
@@ -1088,6 +1013,7 @@ const cargando = ref(false);
 const ventas = ref([]);
 const datosAgrupados = ref([]);
 const totales = ref(null);
+const cajerosDisponibles = ref(props.cajeros);
 const pag = ref({ current_page: 1, last_page: 1, total: 0 });
 const expandido = ref(null);
 const detalleActual = ref(null);
@@ -1130,6 +1056,7 @@ async function cargarVentas() {
         const { data } = await axios.get(props.apiBase, { params: params() });
 
         totales.value = data.totales;
+        cajerosDisponibles.value = data.cajeros ?? cajerosDisponibles.value;
 
         if (f.por_dia) {
             datosAgrupados.value = data.datos ?? [];
@@ -1222,10 +1149,6 @@ function params() {
     };
 }
 
-function margenLinea(d) {
-    return (+d.precio_venta - +d.precio_costo) * +d.cantidad;
-}
-
 function badgeFormaPagoClass(forma) {
     if (forma === "efectivo") return "bg-emerald-50 text-emerald-700";
     if (forma === "tarjeta") return "bg-sky-50 text-sky-700";
@@ -1250,15 +1173,27 @@ function fmt(v) {
     return mxn.format(+v || 0);
 }
 
-function fmtDatetime(s) {
-    if (!s) return "—";
-    return new Date(s).toLocaleString("es-MX", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
+function fmtVentaDatetime(venta) {
+    if (!venta?.fecha) return "—";
+
+    const fecha = String(venta.fecha).slice(0, 10);
+    const fechaFormateada = new Date(`${fecha}T12:00:00`).toLocaleDateString(
+        "es-MX",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        },
+    );
+
+    if (!venta.created_at) return fechaFormateada;
+
+    const hora = new Date(venta.created_at).toLocaleTimeString("es-MX", {
         hour: "2-digit",
         minute: "2-digit",
     });
+
+    return `${fechaFormateada}, ${hora}`;
 }
 
 function fmtFecha(s) {

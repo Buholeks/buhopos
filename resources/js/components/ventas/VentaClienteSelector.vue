@@ -1,115 +1,67 @@
 
 <template>
-    <div
-        class="flex items-center gap-5 rounded-2xl border bg-white p-4 transition"
-        :class="
-            asignado
-                ? 'border-stone-200'
-                : 'border-dashed border-stone-300 bg-stone-50/60'
-        "
-    >
-        <!-- Avatar -->
-        <div class="relative shrink-0">
-            <div
-                class="flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold"
-                :class="
-                    asignado
-                        ? 'bg-stone-900 text-white'
-                        : 'bg-stone-100 text-stone-400'
-                "
-            >
-                <span v-if="asignado">{{ iniciales }}</span>
-                <UserRound v-else class="h-5 w-5" />
+    <div ref="containerRef" class="relative inline-flex items-center">
+        <!-- Sin cliente: botón icono compacto -->
+        <button
+            v-if="!asignado"
+            type="button"
+            class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-500 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-700"
+            title="Seleccionar cliente (opcional)"
+            @click="toggleDropdown"
+        >
+            <UserRound class="h-4 w-4 shrink-0" />
+        </button>
+
+        <!-- Con cliente: chip compacto -->
+        <div
+            v-else
+            class="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm"
+        >
+            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">
+                {{ iniciales }}
             </div>
-            <span
-                v-if="asignado"
-                class="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500"
-            />
+            <button
+                type="button"
+                class="max-w-[140px] truncate font-medium text-emerald-800 hover:text-emerald-900"
+                @click="toggleDropdown"
+            >
+                {{ nombreCliente }}
+            </button>
+            <button
+                type="button"
+                class="ml-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-200 hover:text-emerald-800"
+                title="Quitar cliente"
+                @click.stop="$emit('clear')"
+            >
+                <X class="h-3 w-3" />
+            </button>
         </div>
 
-        <!-- Info -->
-        <div class="min-w-0 flex-1">
-            <template v-if="asignado">
-                <div class="flex items-center gap-2">
-                    <span
-                        class="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500"
-                    >
-                        Cliente
-                    </span>
-                    <span class="h-1 w-1 rounded-full bg-stone-300" />
-                    <span
-                        v-if="cliente?.tag"
-                        class="text-[11px] font-medium text-emerald-700"
-                    >
-                        {{ cliente.tag }}
-                    </span>
-                </div>
-                <h2
-                    class="truncate text-[17px] font-semibold tracking-tight text-stone-900"
-                >
-                    {{ nombreCliente }}
-                </h2>
-                <p class="truncate text-xs text-stone-500">
-                    {{ subtextoCliente }}
-                </p>
-            </template>
-
-            <template v-else>
-                <div class="flex items-center gap-2">
-                    <span
-                        class="text-[11px] font-medium uppercase tracking-[0.14em] text-rose-600"
-                    >
-                        Requerido
-                    </span>
-                </div>
-                <h2
-                    class="truncate text-[17px] font-semibold tracking-tight text-stone-900"
-                >
-                    Selecciona un cliente
-                </h2>
-                <p class="truncate text-xs text-stone-500">
-                    No se puede registrar la venta sin un cliente asignado
-                </p>
-            </template>
-        </div>
-
-        <!-- Buscador -->
-        <div class="w-[300px] shrink-0">
+        <!-- Dropdown de búsqueda -->
+        <div
+            v-if="open"
+            class="absolute left-0 top-full z-50 mt-1 w-72 rounded-2xl border border-stone-200 bg-white p-3 shadow-xl"
+            @click.stop
+        >
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Buscar cliente</p>
             <BaseSearchSelect
                 :model-value="cliente?.id ?? null"
                 label=""
-                placeholder="Buscar cliente..."
+                placeholder="Nombre, teléfono..."
                 :fetcher="buscarClientes"
                 :min-chars="1"
                 :debounce-ms="250"
                 :label-key="(it) => it.nombre || it.name || 'Sin nombre'"
-                :sub-label-key="
-                    (it) =>
-                        it.telefono ||
-                        it.phone ||
-                        it.email ||
-                        'Sin referencia'
-                "
+                :sub-label-key="(it) => it.telefono || it.phone || it.email || 'Sin referencia'"
                 value-key="id"
                 @selected="onSelected"
             />
         </div>
-
-        <!-- Quitar (sólo para cambiar; sigue siendo obligatorio asignar otro) -->
-        <button
-            v-if="asignado"
-            type="button"
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900"
-            title="Quitar cliente"
-            @click="$emit('clear')"
-        >
-            <X class="h-4 w-4" />
-        </button>
     </div>
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { UserRound, X } from "lucide-vue-next";
 import http from "@/lib/http";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
@@ -119,6 +71,18 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["select", "clear"]);
+
+const open = ref(false);
+const containerRef = ref(null);
+
+function onDocClick(e) {
+    if (containerRef.value && !containerRef.value.contains(e.target)) {
+        open.value = false;
+    }
+}
+
+onMounted(() => document.addEventListener("click", onDocClick));
+onBeforeUnmount(() => document.removeEventListener("click", onDocClick));
 
 const asignado = computed(() => !!props.cliente);
 
@@ -133,17 +97,9 @@ const iniciales = computed(() => {
     return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase();
 });
 
-const subtextoCliente = computed(() => {
-    const c = props.cliente;
-    if (!c) return "";
-    const partes = [];
-    if (c.telefono || c.phone) partes.push(c.telefono || c.phone);
-    if (c.compras != null) partes.push(`${c.compras} compras`);
-    if (c.ultima) partes.push(`última ${c.ultima}`);
-    return partes.length
-        ? partes.join(" · ")
-        : c.email || "Cliente asignado a la venta";
-});
+function toggleDropdown() {
+    open.value = !open.value;
+}
 
 async function buscarClientes(q) {
     const { data } = await http.get("/api/clientes/buscar", {
@@ -158,5 +114,6 @@ async function buscarClientes(q) {
 
 function onSelected(item) {
     emit("select", item);
+    open.value = false;
 }
 </script>

@@ -325,4 +325,8 @@ watch(
   () => syncQueryFromSelection(),
   { immediate: true }
 )
+
+defineExpose({
+  focus: () => focusInput(),
+})
 </script>

@@ -13,6 +13,7 @@ import {
     BarChart3,
     CreditCard,
     Repeat2,
+    TrendingUp,
 } from "lucide-vue-next";
 
 const consultas = [
@@ -38,6 +39,12 @@ const consultas = [
         label: "Consulta de compras",
         icon: ReceiptText,
         to: { name: "reportes-compras" },
+        badge: "Disponible",
+    },
+    {
+        label: "Reporte de utilidades",
+        icon: TrendingUp,
+        to: { name: "reportes-utilidades" },
         badge: "Disponible",
     },
     {

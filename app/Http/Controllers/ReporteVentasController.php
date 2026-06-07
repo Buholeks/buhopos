@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Venta;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -35,9 +36,9 @@ class ReporteVentasController extends Controller
                     $q->whereDate('fecha', '>=', $request->fecha_desde))
                 ->when($request->filled('fecha_hasta'), fn($q) =>
                     $q->whereDate('fecha', '<=', $request->fecha_hasta))
-                ->when($request->filled('user_id'),    fn($q, $v) => $q->where('user_id', $v))
-                ->when($request->filled('forma_pago'), fn($q, $v) => $q->where('forma_pago', $v))
-                ->when($request->filled('estado'),     fn($q, $v) => $q->where('estado', $v))
+                ->when($request->filled('user_id'),    fn($q) => $q->where('user_id', $request->user_id))
+                ->when($request->filled('forma_pago'), fn($q) => $q->where('forma_pago', $request->forma_pago))
+                ->when($request->filled('estado'),     fn($q) => $q->where('estado', $request->estado))
                 ->when($request->filled('folio'),      fn($q) =>
                     $q->where('folio', 'like', '%' . $request->folio . '%'))
                 ->when($request->filled('producto'),   fn($q) =>
@@ -54,6 +55,13 @@ class ReporteVentasController extends Controller
                      ->where('sucursal_id', $user->sucursal_id)
             )
         );
+
+        $cajeros = User::where('empresa_id', $user->empresa_id)
+            ->whereHas('ventasRegistradas', fn($q) =>
+                $q->where('sucursal_id', $user->sucursal_id)
+            )
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         // ── Query principal (con eager loads) ─────────────────────
         $query = $aplicarFiltros(
@@ -72,13 +80,13 @@ class ReporteVentasController extends Controller
                     'fecha'         => $fecha,
                     'num_ventas'    => $grupo->count(),
                     'canceladas'    => $grupo->where('estado', 'cancelada')->count(),
-                    'subtotal'      => round($grupo->sum('subtotal'), 2),
-                    'descuentos'    => round($grupo->sum('descuento'), 2),
-                    'total'         => round($grupo->sum('total'), 2),
-                    'efectivo'      => round($grupo->where('forma_pago', 'efectivo')->sum('total'), 2),
-                    'tarjeta'       => round($grupo->where('forma_pago', 'tarjeta')->sum('total'), 2),
-                    'transferencia' => round($grupo->where('forma_pago', 'transferencia')->sum('total'), 2),
-                    'credito'       => round($grupo->where('forma_pago', 'credito')->sum('total'), 2),
+                    'subtotal'      => round($grupo->where('estado', 'confirmada')->sum('subtotal'), 2),
+                    'descuentos'    => round($grupo->where('estado', 'confirmada')->sum('descuento'), 2),
+                    'total'         => round($grupo->where('estado', 'confirmada')->sum('total'), 2),
+                    'efectivo'      => round($grupo->where('estado', 'confirmada')->where('forma_pago', 'efectivo')->sum('total'), 2),
+                    'tarjeta'       => round($grupo->where('estado', 'confirmada')->where('forma_pago', 'tarjeta')->sum('total'), 2),
+                    'transferencia' => round($grupo->where('estado', 'confirmada')->where('forma_pago', 'transferencia')->sum('total'), 2),
+                    'credito'       => round($grupo->where('estado', 'confirmada')->where('forma_pago', 'credito')->sum('total'), 2),
                     'ticket_prom'   => $grupo->where('estado', 'confirmada')->count() > 0
                         ? round(
                             $grupo->where('estado', 'confirmada')->sum('total') /
@@ -92,6 +100,7 @@ class ReporteVentasController extends Controller
                 'agrupado_por' => 'dia',
                 'datos'        => $agrupado,
                 'totales'      => $totales,
+                'cajeros'      => $cajeros,
             ]);
         }
 
@@ -101,6 +110,7 @@ class ReporteVentasController extends Controller
         return response()->json([
             'ventas'  => $ventas,
             'totales' => $totales,
+            'cajeros' => $cajeros,
         ]);
     }
 
@@ -127,15 +137,10 @@ class ReporteVentasController extends Controller
             ])
             ->findOrFail($id);
 
-        $venta->margen = round(
-            $venta->detalles->sum(fn($d) =>
-                (+$d->precio_venta - +$d->precio_costo) * +$d->cantidad
-            ), 2
-        );
-
         // Inyectar nombre legible de variante en cada detalle
         $venta->detalles->each(function ($d) {
             $d->nombre_variante = $d->variante?->nombreVariante() ?: null;
+            $d->makeHidden('precio_costo');
         });
 
         return response()->json($venta);
@@ -152,12 +157,12 @@ class ReporteVentasController extends Controller
             COUNT(*)                                                              AS num_ventas,
             COALESCE(SUM(CASE WHEN estado='confirmada' THEN 1 ELSE 0 END), 0)    AS confirmadas,
             COALESCE(SUM(CASE WHEN estado='cancelada'  THEN 1 ELSE 0 END), 0)    AS canceladas,
-            COALESCE(SUM(total), 0)                                               AS total,
-            COALESCE(SUM(descuento), 0)                                           AS descuentos,
-            COALESCE(SUM(CASE WHEN forma_pago='efectivo'      THEN total END),0)  AS efectivo,
-            COALESCE(SUM(CASE WHEN forma_pago='tarjeta'       THEN total END),0)  AS tarjeta,
-            COALESCE(SUM(CASE WHEN forma_pago='transferencia' THEN total END),0)  AS transferencia,
-            COALESCE(SUM(CASE WHEN forma_pago='credito'       THEN total END),0)  AS credito
+            COALESCE(SUM(CASE WHEN estado='confirmada' THEN total ELSE 0 END), 0) AS total,
+            COALESCE(SUM(CASE WHEN estado='confirmada' THEN descuento ELSE 0 END), 0) AS descuentos,
+            COALESCE(SUM(CASE WHEN forma_pago='efectivo'      AND estado='confirmada' THEN total ELSE 0 END),0) AS efectivo,
+            COALESCE(SUM(CASE WHEN forma_pago='tarjeta'       AND estado='confirmada' THEN total ELSE 0 END),0) AS tarjeta,
+            COALESCE(SUM(CASE WHEN forma_pago='transferencia' AND estado='confirmada' THEN total ELSE 0 END),0) AS transferencia,
+            COALESCE(SUM(CASE WHEN forma_pago='credito'       AND estado='confirmada' THEN total ELSE 0 END),0) AS credito
         ")->first();
 
         $confirmadas = (int) $row->confirmadas;

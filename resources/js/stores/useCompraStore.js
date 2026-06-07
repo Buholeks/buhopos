@@ -39,6 +39,22 @@ export const useCompraStore = defineStore("compra", () => {
     });
 
     const totalArticulos = computed(() => detalles.value.length);
+    const proveedorActual = computed(() => {
+        return proveedores.value.find(
+            (proveedor) => Number(proveedor.id) === Number(form.proveedor_id),
+        );
+    });
+    const saldoFavorDisponible = computed(() =>
+        Math.max(0, Number(proveedorActual.value?.saldo_favor ?? 0)),
+    );
+    const saldoFavorAplicado = computed(() =>
+        form.aplicar_saldo_favor
+            ? Math.min(saldoFavorDisponible.value, totalCompra.value)
+            : 0,
+    );
+    const restantePorPagar = computed(() =>
+        Math.max(0, totalCompra.value - saldoFavorAplicado.value),
+    );
 
     const todosLosImeis = computed(() => {
         return detalles.value.flatMap((d) => d.imeis ?? []);
@@ -63,6 +79,7 @@ export const useCompraStore = defineStore("compra", () => {
             forma_pago: "efectivo",
             fecha_vencimiento: "",
             notas: "",
+            aplicar_saldo_favor: false,
         };
     }
 
@@ -283,6 +300,7 @@ export const useCompraStore = defineStore("compra", () => {
                         <strong>${detalles.value.length} artículo${detalles.value.length !== 1 ? "s" : ""}</strong>
                         por un total de <strong>${formatPrecio(totalCompra.value)}</strong>.
                     </p>
+                    ${saldoFavorAplicado.value > 0 ? `<p class="mt-2 text-sm text-emerald-700">Se aplicar&aacute;n <strong>${formatPrecio(saldoFavorAplicado.value)}</strong> de saldo a favor. Restante: <strong>${formatPrecio(restantePorPagar.value)}</strong>.</p>` : ""}
                     <p class="mt-2 text-xs text-slate-400">
                         El stock se incrementará automáticamente.
                     </p>
@@ -308,6 +326,7 @@ export const useCompraStore = defineStore("compra", () => {
                 forma_pago: form.forma_pago,
                 fecha_vencimiento: form.fecha_vencimiento || null,
                 notas: form.notas || null,
+                aplicar_saldo_favor: Boolean(form.aplicar_saldo_favor),
                 detalles: detalles.value.map((d) => ({
                     producto_id: d.producto_id,
                     variante_id: d.variante_id ?? null,
@@ -326,6 +345,7 @@ export const useCompraStore = defineStore("compra", () => {
                 confirmButtonText: "Nueva compra",
             });
 
+            await cargarProveedores();
             resetear();
         } catch (e) {
             Swal.fire({
@@ -354,6 +374,10 @@ export const useCompraStore = defineStore("compra", () => {
     function actualizarCampoForm(key, value) {
         form[key] = value;
 
+        if (key === 'proveedor_id') {
+            form.aplicar_saldo_favor = false;
+        }
+
         if (key === 'forma_pago' && !['credito', 'tarjeta_credito'].includes(value)) {
             form.fecha_vencimiento = "";
         }
@@ -373,6 +397,9 @@ export const useCompraStore = defineStore("compra", () => {
 
         totalCompra,
         totalArticulos,
+        saldoFavorDisponible,
+        saldoFavorAplicado,
+        restantePorPagar,
         todosLosImeis,
 
         formatPrecio,

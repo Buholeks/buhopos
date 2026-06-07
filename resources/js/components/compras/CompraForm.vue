@@ -74,6 +74,32 @@
                 </div>
             </div>
 
+            <div
+                v-if="saldoFavorDisponible > 0"
+                class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3"
+            >
+                <label class="flex cursor-pointer items-start gap-3">
+                    <input
+                        type="checkbox"
+                        class="mt-1 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+                        :checked="form.aplicar_saldo_favor"
+                        @change="updateField('aplicar_saldo_favor', $event.target.checked)"
+                    />
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold text-emerald-900">
+                            Aplicar saldo a favor
+                        </span>
+                        <span class="block text-xs text-emerald-700">
+                            Disponible {{ formatPrecio(saldoFavorDisponible) }}
+                        </span>
+                    </span>
+                </label>
+                <div v-if="form.aplicar_saldo_favor" class="mt-3 grid grid-cols-2 gap-2 border-t border-emerald-200 pt-3 text-xs">
+                    <div><span class="text-emerald-700">Se aplica</span><strong class="block text-emerald-950">{{ formatPrecio(saldoFavorAplicado) }}</strong></div>
+                    <div><span class="text-emerald-700">Restante por pagar</span><strong class="block text-emerald-950">{{ formatPrecio(restantePorPagar) }}</strong></div>
+                </div>
+            </div>
+
             <!-- Fecha vencimiento (solo crédito) -->
             <Transition
                 enter-active-class="transition duration-150 ease-out"
@@ -177,6 +203,9 @@ const props = defineProps({
     form: { type: Object, required: true },
     total: { type: Number, default: 0 },
     cantidadArticulos: { type: Number, default: 0 },
+    saldoFavorDisponible: { type: Number, default: 0 },
+    saldoFavorAplicado: { type: Number, default: 0 },
+    restantePorPagar: { type: Number, default: 0 },
     formatPrecio: { type: Function, required: true },
 });
 

@@ -59,5 +59,17 @@ const consultas = [
         to: { name: "traspasos-salida" },
         badge: "Disponible",
     },
+     {
+        label: "Consulta pedidos",
+        icon: ClipboardList,
+        to: { name: "pedidos-consulta" },
+        badge: "Disponible",
+    },
+    {
+        label: "Consulta apartados",
+        icon: ClipboardList,
+        to: { name: "apartados-consulta" },
+        badge: "Disponible",
+    },
 ];
 </script>

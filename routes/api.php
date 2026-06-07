@@ -38,6 +38,7 @@ use App\Http\Controllers\ReporteComprasController;
 use App\Http\Controllers\ReporteVentasController;
 use App\Http\Controllers\ReporteVentasAgrupadoController;
 use App\Http\Controllers\ReporteUtilidadesController;
+use App\Http\Controllers\DevolucionProveedorController;
 
 /*
 |--------------------------------------------------------------------------
@@ -88,6 +89,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('proveedores', ProveedorController::class);
 
     Route::get('/users/vendedores', [UserController::class, 'buscarVendedores']);
+    Route::get('/users/sucursales-disponibles', [UserController::class, 'sucursalesDisponibles']);
+    Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
 
     /*
     |--------------------------------------------------------------------------
@@ -135,13 +139,20 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [CompraController::class, 'store']);
         Route::get('/{id}', [CompraController::class, 'show']);
         Route::delete('/{id}', [CompraController::class, 'destroy']);
-        Route::post('/{id}/cancelar', [CompraController::class, 'cancelar']);
+        Route::post('/{compraId}/cancelar', [DevolucionProveedorController::class, 'cancelar']);
 
         Route::prefix('{compraId}/pagos')->group(function () {
             Route::get('/', [PagoProveedorController::class, 'index']);
             Route::post('/', [PagoProveedorController::class, 'store']);
             Route::delete('/{id}', [PagoProveedorController::class, 'destroy']);
         });
+    });
+
+    Route::prefix('devoluciones-proveedor')->group(function () {
+        Route::get('/compras', [DevolucionProveedorController::class, 'buscarCompras']);
+        Route::get('/compras/{compraId}', [DevolucionProveedorController::class, 'show']);
+        Route::post('/compras/{compraId}/cancelar', [DevolucionProveedorController::class, 'cancelar']);
+        Route::post('/', [DevolucionProveedorController::class, 'store']);
     });
 
     /*

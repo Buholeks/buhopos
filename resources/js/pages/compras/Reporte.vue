@@ -91,6 +91,8 @@
                             <option value="">Todos</option>
                             <option value="confirmada">Confirmada</option>
                             <option value="borrador">Borrador</option>
+                            <option value="devuelta_parcial">Devuelta parcial</option>
+                            <option value="devuelta">Devuelta</option>
                             <option value="cancelada">Cancelada</option>
                         </select>
                     </div>
@@ -293,7 +295,7 @@
 
                                     <td class="px-4 py-3">
                                         <span :class="badgeEstado(c.estado)">
-                                            {{ c.estado }}
+                                            {{ labelEstado(c.estado) }}
                                         </span>
                                     </td>
 
@@ -319,6 +321,24 @@
                                             >
                                                 <Eye class="h-4 w-4" />
                                             </button>
+                                            <RouterLink
+                                                v-if="['confirmada', 'devuelta_parcial'].includes(c.estado)"
+                                                :to="{ name: 'devoluciones-proveedor', query: { compra_id: c.id } }"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-600 transition hover:bg-amber-50"
+                                                title="Devolver al proveedor"
+                                                @click.stop
+                                            >
+                                                <Undo2 class="h-4 w-4" />
+                                            </RouterLink>
+                                            <RouterLink
+                                                v-if="c.estado === 'confirmada'"
+                                                :to="{ name: 'devoluciones-proveedor', query: { compra_id: c.id, modo: 'cancelar' } }"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
+                                                title="Cancelar compra"
+                                                @click.stop
+                                            >
+                                                <Ban class="h-4 w-4" />
+                                            </RouterLink>
                                         </div>
                                     </td>
                                 </tr>
@@ -743,6 +763,12 @@
                         <InfoItem
                             label="Pagado"
                             :value="fmt(detalle.compra.pagado ?? 0)"
+                            tone="emerald"
+                        />
+                        <InfoItem
+                            v-if="Number(detalle.compra.saldo_favor_aplicado ?? 0) > 0"
+                            label="Saldo a favor aplicado"
+                            :value="fmt(detalle.compra.saldo_favor_aplicado)"
                             tone="emerald"
                         />
                         <InfoItem
@@ -1227,6 +1253,8 @@ import {
     Wallet,
     WalletCards,
     X,
+    Undo2,
+    Ban,
 } from "lucide-vue-next";
 
 import BaseInput from "@/components/ui/BaseInput.vue";
@@ -1477,9 +1505,22 @@ function badgeEstado(e) {
     const tonos = {
         confirmada: "bg-emerald-50 text-emerald-700",
         borrador: "bg-slate-100 text-slate-600",
+        devuelta_parcial: "bg-amber-50 text-amber-700",
+        devuelta: "bg-violet-50 text-violet-700",
+        cancelada: "bg-red-50 text-red-700",
     };
 
     return `${base} ${tonos[e] ?? "bg-slate-100 text-slate-600"}`;
+}
+
+function labelEstado(estado) {
+    return {
+        confirmada: "Confirmada",
+        borrador: "Borrador",
+        devuelta_parcial: "Devuelta parcial",
+        devuelta: "Devuelta",
+        cancelada: "Cancelada",
+    }[estado] ?? estado;
 }
 
 function badgeEstatusPago(e) {

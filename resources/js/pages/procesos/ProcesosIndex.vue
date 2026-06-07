@@ -20,6 +20,7 @@ import {
     Landmark,
     PackageCheck,
     Repeat2,
+    Undo2,
 } from "lucide-vue-next";
 
 const procesos = [
@@ -27,6 +28,12 @@ const procesos = [
         label: "Ventas",
         icon: ShoppingCart,
         to: { name: "ventas" },
+        badge: "Disponible",
+    },
+        {
+        label: "Cancelacion de Venta",
+        icon: RotateCcw,
+        to: { name: "cancelaciones-devoluciones" },
         badge: "Disponible",
     },
     {
@@ -71,39 +78,18 @@ const procesos = [
         to: { name: "apartados-nuevo" },
         badge: "Disponible",
     },
+   
+
+
     {
-        label: "Consulta pedidos",
-        icon: ClipboardList,
-        to: { name: "pedidos-consulta" },
-        badge: "Disponible",
-    },
-    {
-        label: "Consulta apartados",
-        icon: ClipboardList,
-        to: { name: "apartados-consulta" },
+        label: "Devolución a proveedor",
+        icon: Undo2,
+        to: { name: "devoluciones-proveedor" },
         badge: "Disponible",
     },
     {
         label: "Cotizaciones",
         icon: FileText,
-        to: null,
-        badge: "Próximamente",
-    },
-    {
-        label: "Pagos / Abonos",
-        icon: Wallet,
-        to: null,
-        badge: "Próximamente",
-    },
-    {
-        label: "Cancelaciones y devoluciones",
-        icon: RotateCcw,
-        to: { name: "cancelaciones-devoluciones" },
-        badge: "Disponible",
-    },
-    {
-        label: "Entradas / Salidas",
-        icon: ArrowDownUp,
         to: null,
         badge: "Próximamente",
     },

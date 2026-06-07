@@ -11,6 +11,7 @@ use App\Models\Pedido;
 use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
 use App\Models\Producto;
+use App\Models\ProveedorSaldoMovimiento;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -73,6 +74,7 @@ class CompraController extends Controller
             'forma_pago'        => ['required', 'in:efectivo,credito,transferencia,tarjeta_debito,tarjeta_credito'],
             'fecha_vencimiento' => ['nullable', 'date', 'after_or_equal:fecha'],
             'notas'             => ['nullable', 'string'],
+            'aplicar_saldo_favor' => ['nullable', 'boolean'],
 
             'detalles'                 => ['required', 'array', 'min:1'],
             'detalles.*.producto_id'   => ['required', 'exists:productos,id'],
@@ -185,10 +187,28 @@ class CompraController extends Controller
 
             // ── Update final: folio + pagado + saldo en un solo query ─────
             $liquidaAlMomento = in_array($datos['forma_pago'], ['efectivo', 'transferencia', 'tarjeta_debito']);
+            $saldoFavorDisponible = 0;
+            $saldoFavorAplicado = 0;
+
+            if ($datos['aplicar_saldo_favor'] ?? false) {
+                $movimientosSaldo = ProveedorSaldoMovimiento::where([
+                    'empresa_id' => $empresaId,
+                    'sucursal_id' => $sucursalId,
+                    'proveedor_id' => $compra->proveedor_id,
+                ])->lockForUpdate()->get(['tipo', 'monto']);
+
+                $saldoFavorDisponible = (float) $movimientosSaldo->sum(
+                    fn($movimiento) => $movimiento->tipo === 'credito'
+                        ? (float) $movimiento->monto
+                        : -(float) $movimiento->monto
+                );
+                $saldoFavorAplicado = round(min(max(0, $saldoFavorDisponible), (float) $compra->total), 2);
+            }
 
             $updateFinal = [
-                'pagado' => $liquidaAlMomento ? $compra->total : 0,
-                'saldo'  => $liquidaAlMomento ? 0 : $compra->total,
+                'pagado' => $liquidaAlMomento ? $compra->total : $saldoFavorAplicado,
+                'saldo'  => $liquidaAlMomento ? 0 : max(0, (float) $compra->total - $saldoFavorAplicado),
+                'saldo_favor_aplicado' => $saldoFavorAplicado,
             ];
 
             if (empty($datos['folio'])) {
@@ -206,10 +226,25 @@ class CompraController extends Controller
                 ->where('id', $compra->id)
                 ->update($updateFinal);
 
+            if ($saldoFavorAplicado > 0) {
+                $folioCompra = $updateFinal['folio'] ?? $compra->folio ?? "#{$compra->id}";
+                ProveedorSaldoMovimiento::create([
+                    'empresa_id' => $empresaId,
+                    'sucursal_id' => $sucursalId,
+                    'proveedor_id' => $compra->proveedor_id,
+                    'user_id' => $user->id,
+                    'compra_id' => $compra->id,
+                    'tipo' => 'aplicacion',
+                    'monto' => $saldoFavorAplicado,
+                    'saldo_resultante' => max(0, $saldoFavorDisponible - $saldoFavorAplicado),
+                    'concepto' => "Aplicacion de saldo en compra {$folioCompra}",
+                ]);
+            }
+
             DB::commit();
 
             return response()->json(
-                $compra->load(['proveedor', 'detalles.producto', 'detalles.variante', 'user:id,name']),
+                $compra->fresh()->load(['proveedor', 'detalles.producto', 'detalles.variante', 'user:id,name']),
                 201
             );
         } catch (\Throwable $e) {

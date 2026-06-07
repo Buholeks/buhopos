@@ -23,6 +23,7 @@ class Compra extends Model
         'notas',
         'subtotal',
         'total',
+        'saldo_favor_aplicado',
         'estado',
     ];
 
@@ -31,6 +32,7 @@ class Compra extends Model
         'fecha_vencimiento' => 'date',
         'subtotal'          => 'decimal:2',
         'total'             => 'decimal:2',
+        'saldo_favor_aplicado' => 'decimal:2',
     ];
 
     public function empresa(): BelongsTo

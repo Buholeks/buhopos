@@ -15,7 +15,7 @@ class ReporteComprasController extends Controller
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_fin'    => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
             'proveedor_id' => ['nullable', 'integer', 'exists:proveedores,id'],
-            'estado'       => ['nullable', Rule::in(['confirmada', 'borrador', 'cancelada'])],
+            'estado'       => ['nullable', Rule::in(['confirmada', 'borrador', 'devuelta_parcial', 'devuelta', 'cancelada'])],
             'forma_pago'   => ['nullable', Rule::in(['efectivo', 'credito', 'transferencia', 'tarjeta', 'tarjeta_credito', 'tarjeta_debito'])],
             'per_page'     => ['nullable', 'integer', 'min:5', 'max:100'],
             'page'         => ['nullable', 'integer', 'min:1'],

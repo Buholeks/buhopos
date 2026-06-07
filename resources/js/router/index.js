@@ -30,6 +30,8 @@ import ReporteVentas from "@/pages/reportes/venta/Index.vue";
 import VentasAgrupado from "@/pages/reportes/venta/VentasAgrupado.vue";
 import ReporteUtilidades from "@/pages/reportes/utilidades/Index.vue";
 import reportecompras from "@/pages/compras/Reporte.vue";
+import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
+import DevolucionProveedor from "@/pages/compras/DevolucionProveedor.vue";
 
 const routes = [
   {
@@ -73,6 +75,8 @@ const routes = [
       { path: "reportes-utilidades", name: "reportes-utilidades", component: ReporteUtilidades, meta: { title: "Reporte de utilidades" } },
       { path: "reportes-compras", name: "reportes-compras", component: reportecompras, props: { vista: "compras" }, meta: { title: "Consulta de compras" } },
       { path: "reportes-pagos-proveedores", name: "reportes-pagos-proveedores", component: reportecompras, props: { vista: "pagos" }, meta: { title: "Pagos a proveedores" } },
+      { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios" } },
+      { path: "devoluciones-proveedor", name: "devoluciones-proveedor", component: DevolucionProveedor, meta: { title: "Devoluciones a proveedor" } },
     ],
   },
   {

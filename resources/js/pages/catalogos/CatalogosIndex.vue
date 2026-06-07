@@ -14,6 +14,7 @@ import {
     SlidersHorizontal,
     Ruler,
     Package,
+    UserCog,
 } from "lucide-vue-next";
 
 const Catalogos = [
@@ -51,6 +52,11 @@ const Catalogos = [
         label: "Productos",
         icon: Package,
         to: { name: "productos" },
+    },
+    {
+        label: "Usuarios",
+        icon: UserCog,
+        to: { name: "usuarios" },
     },
 ];
 </script>

@@ -132,6 +132,7 @@ const props = defineProps({
 
   // Lista local (opcional si usas fetch)
   items: { type: Array, default: () => [] },
+  selectedItem: { type: Object, default: null },
 
   // Mapeos
   labelKey: { type: [String, Function], default: 'nombre' },
@@ -202,6 +203,9 @@ const shownItems = computed(() => {
 
 const selectedLabel = computed(() => {
   if (props.modelValue == null) return ''
+  if (props.selectedItem && String(getValue(props.selectedItem)) === String(props.modelValue)) {
+    return getLabel(props.selectedItem)
+  }
   const list = props.fetcher ? remoteItems.value : props.items
   const found = (list || []).find(it => String(getValue(it)) === String(props.modelValue))
   return found ? getLabel(found) : ''

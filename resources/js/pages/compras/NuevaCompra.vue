@@ -343,6 +343,9 @@
                                 :form="compra.form"
                                 :total="compra.totalCompra"
                                 :cantidadArticulos="compra.totalArticulos"
+                                :saldoFavorDisponible="compra.saldoFavorDisponible"
+                                :saldoFavorAplicado="compra.saldoFavorAplicado"
+                                :restantePorPagar="compra.restantePorPagar"
                                 :formatPrecio="compra.formatPrecio"
                                 @update:form="
                                     ({ key, value }) =>

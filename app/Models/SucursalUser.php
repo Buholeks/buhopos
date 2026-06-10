@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class SucursalUser extends Model
 {
     protected $table = 'sucursal_user';
+
     protected $fillable = [
         'user_id',
         'sucursal_id',
-
+        'role_id',
     ];
 
     public function sucursal()
@@ -21,5 +22,10 @@ class SucursalUser extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function rol()
+    {
+        return $this->belongsTo(Rol::class, 'role_id');
     }
 }

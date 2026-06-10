@@ -10,7 +10,7 @@
             class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
             <HubCard
-                v-for="item in items"
+                v-for="item in visibleItems"
                 :key="item.label"
                 :label="item.label"
                 :to="item.to"
@@ -21,10 +21,18 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import HubCard from "./HubCard.vue";
+import { useAuthStore } from "@/stores/auth";
 
-defineProps({
+const props = defineProps({
     title: { type: String, required: true },
     items: { type: Array, required: true },
 });
+
+const auth = useAuthStore();
+
+const visibleItems = computed(() =>
+    props.items.filter((item) => !item.permiso || auth.can(item.permiso))
+);
 </script>

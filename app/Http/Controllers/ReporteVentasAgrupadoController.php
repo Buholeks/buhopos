@@ -23,6 +23,7 @@ class ReporteVentasAgrupadoController extends Controller
     // ─────────────────────────────────────────────────────────────────────
    public function buscar(Request $request, string $entidad): JsonResponse
 {
+    abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
     if (! isset(self::ENTIDADES[$entidad])) {
         return response()->json(['message' => 'Entidad no válida.'], 422);
     }
@@ -50,6 +51,7 @@ class ReporteVentasAgrupadoController extends Controller
     // ─────────────────────────────────────────────────────────────────────
     public function porCliente(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $this->validar($request);
         $user = Auth::user();
 
@@ -74,6 +76,7 @@ class ReporteVentasAgrupadoController extends Controller
     // ─────────────────────────────────────────────────────────────────────
     public function porCategoria(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $this->validar($request);
         $user = Auth::user();
 
@@ -98,6 +101,7 @@ class ReporteVentasAgrupadoController extends Controller
     // ─────────────────────────────────────────────────────────────────────
     public function porMarca(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $this->validar($request);
         $user = Auth::user();
 
@@ -122,6 +126,7 @@ class ReporteVentasAgrupadoController extends Controller
     // ─────────────────────────────────────────────────────────────────────
     public function porModelo(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $this->validar($request);
         $user = Auth::user();
 
@@ -148,6 +153,7 @@ class ReporteVentasAgrupadoController extends Controller
     // ─────────────────────────────────────────────────────────────────────
 public function porProveedor(Request $request): JsonResponse
 {
+    abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
     $this->validar($request);
     $user = Auth::user();
 
@@ -211,6 +217,7 @@ public function porProveedor(Request $request): JsonResponse
     // ─────────────────────────────────────────────────────────────────────
     public function porArticulo(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $this->validarArticulos($request);
         $user = Auth::user();
 
@@ -247,6 +254,7 @@ public function porProveedor(Request $request): JsonResponse
     // ─────────────────────────────────────────────────────────────────────
     public function detalleArticulos(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $this->validarArticulos($request);
         $user = Auth::user();
 

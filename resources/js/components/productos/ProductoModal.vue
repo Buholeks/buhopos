@@ -115,45 +115,41 @@
                             <div>
                                 <BaseSearchSelect
                                     v-model.number="formProxy.unidad_medida_id"
-                                    :items="catalogos?.unidades ?? []"
+                                    :fetcher="buscarUnidades"
+                                    :selected-item="unidadSeleccionada"
                                     label="Unidad de medida"
                                     placeholder="Buscar unidad…"
                                     :label-key="
                                         (u) => `${u.nombre} (${u.abreviatura})`
                                     "
                                     value-key="id"
-                                    :disabled="
-                                        cargando || !catalogos?.unidades?.length
-                                    "
+                                    :disabled="cargando"
                                 />
                             </div>
 
                             <div>
                                 <BaseSearchSelect
                                     v-model.number="formProxy.categoria_id"
-                                    :items="catalogos?.categorias ?? []"
+                                    :fetcher="buscarCategorias"
+                                    :selected-item="categoriaSeleccionada"
                                     label="Categoría"
                                     placeholder="Buscar categoría…"
                                     :label-key="(c) => c.nombre"
                                     value-key="id"
-                                    :disabled="
-                                        cargando ||
-                                        !catalogos?.categorias?.length
-                                    "
+                                    :disabled="cargando"
                                 />
                             </div>
 
                             <div>
                                 <BaseSearchSelect
                                     v-model.number="formProxy.marca_id"
-                                    :items="catalogos?.marcas ?? []"
+                                    :fetcher="buscarMarcas"
+                                    :selected-item="marcaSeleccionada"
                                     label="Marca"
                                     placeholder="Buscar marca…"
                                     :label-key="(m) => m.nombre"
                                     value-key="id"
-                                    :disabled="
-                                        cargando || !catalogos?.marcas?.length
-                                    "
+                                    :disabled="cargando"
                                     @change="formProxy.modelo_id = ''"
                                 />
                             </div>
@@ -161,15 +157,13 @@
                             <div>
                                 <BaseSearchSelect
                                     v-model.number="formProxy.modelo_id"
-                                    :items="modelosDeMarca ?? []"
+                                    :fetcher="buscarModelos"
+                                    :selected-item="modeloSeleccionado"
                                     label="Modelo"
                                     placeholder="Buscar modelo…"
                                     :label-key="(m) => m.nombre"
                                     value-key="id"
-                                    :disabled="
-                                        !formProxy.marca_id ||
-                                        !modelosDeMarca?.length
-                                    "
+                                    :disabled="!formProxy.marca_id || cargando"
                                     hint="Primero selecciona una marca."
                                     :error="err?.modelo_id"
                                 />
@@ -367,6 +361,29 @@
                                     series al recibir mercancía desde
                                     <strong>Inventario → Series</strong>.
                                 </p>
+                            </div>
+
+                            <div
+                                class="md:col-span-2 flex items-center gap-3 rounded-xl border px-4 py-3 transition"
+                                :class="formProxy.pedido_generico ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'"
+                            >
+                                <button
+                                    type="button"
+                                    class="relative h-6 w-11 flex-shrink-0 rounded-full transition"
+                                    :class="formProxy.pedido_generico ? 'bg-amber-600' : 'bg-slate-300'"
+                                    @click="formProxy.pedido_generico = !formProxy.pedido_generico"
+                                >
+                                    <span
+                                        class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition"
+                                        :class="formProxy.pedido_generico ? 'left-5' : 'left-0.5'"
+                                    />
+                                </button>
+                                <div>
+                                    <p class="text-sm font-medium text-slate-700">Producto genérico por encargo</p>
+                                    <p class="text-xs text-slate-500">
+                                        Para artículos tipo SHEIN o Amazon que comparten producto base, pero representan encargos diferentes.
+                                    </p>
+                                </div>
                             </div>
 
                             <div>
@@ -572,6 +589,7 @@
 
 <script setup>
 import { computed, ref } from "vue";
+import http from "@/lib/http";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import {
@@ -628,6 +646,51 @@ const formProxy = computed({
     get: () => props.form,
     set: (v) => emit("update:form", v),
 });
+
+const unidadSeleccionada = computed(() =>
+    buscarSeleccionado(props.catalogos?.unidades, formProxy.value.unidad_medida_id),
+);
+
+const categoriaSeleccionada = computed(() =>
+    buscarSeleccionado(props.catalogos?.categorias, formProxy.value.categoria_id),
+);
+
+const marcaSeleccionada = computed(() =>
+    buscarSeleccionado(props.catalogos?.marcas, formProxy.value.marca_id),
+);
+
+const modeloSeleccionado = computed(() =>
+    buscarSeleccionado(props.modelosDeMarca, formProxy.value.modelo_id),
+);
+
+function buscarSeleccionado(items, id) {
+    if (!id) return null;
+    return (items ?? []).find((item) => Number(item.id) === Number(id)) ?? null;
+}
+
+async function buscarCatalogo(endpoint, q, params = {}) {
+    const { data } = await http.get(endpoint, { params: { ...params, q } });
+    return Array.isArray(data) ? data : data?.data ?? [];
+}
+
+function buscarUnidades(q) {
+    return buscarCatalogo("/api/unidades-medida/buscar", q);
+}
+
+function buscarCategorias(q) {
+    return buscarCatalogo("/api/categorias/buscar", q);
+}
+
+function buscarMarcas(q) {
+    return buscarCatalogo("/api/marcas/buscar", q);
+}
+
+function buscarModelos(q) {
+    if (!formProxy.value.marca_id) return [];
+    return buscarCatalogo("/api/modelos/buscar", q, {
+        marca_id: formProxy.value.marca_id,
+    });
+}
 
 function setTab(id) {
     emit("update:tabActivo", id);

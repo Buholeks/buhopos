@@ -15,84 +15,38 @@
             open ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         ]"
     >
-        <div
-            class="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-4"
-        >
+        <!-- Logo -->
+        <div class="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-4">
             <div class="flex min-w-0 items-center gap-3">
                 <div class="relative shrink-0">
-                    <div
-                        class="absolute inset-0 rounded-2xl bg-emerald-600/20 blur-xl"
-                    />
-
+                    <div class="absolute inset-0 rounded-2xl bg-emerald-600/20 blur-xl" />
                     <div
                         class="brand-mark relative grid h-10 w-10 place-items-center rounded-2xl bg-emerald-600/10 ring-1 ring-emerald-500/30"
                         title="BuhoSoft"
                     >
-                        <svg
-                            viewBox="0 0 64 64"
-                            class="h-6 w-6 text-emerald-400"
-                            fill="none"
-                            stroke="currentColor"
-                        >
-                            <path
-                                d="M16 28c0-9 7-16 16-16s16 7 16 16v16c0 6-5 10-16 10S16 50 16 44V28z"
-                                stroke-width="2.6"
-                            />
-                            <path
-                                d="M20 20l-6-8M44 20l6-8"
-                                stroke-width="2.6"
-                                stroke-linecap="round"
-                            />
-                            <circle
-                                cx="24"
-                                cy="34"
-                                r="6.5"
-                                stroke-width="2.6"
-                            />
-                            <circle
-                                cx="40"
-                                cy="34"
-                                r="6.5"
-                                stroke-width="2.6"
-                            />
-                            <path
-                                d="M32 36l-3 4h6l-3-4z"
-                                stroke-width="2.6"
-                                stroke-linejoin="round"
-                            />
-                            <path
-                                class="brand-lid"
-                                d="M18 34c2-2 5-3 6-3s4 1 6 3"
-                                stroke-width="3"
-                                stroke-linecap="round"
-                            />
-                            <path
-                                class="brand-lid"
-                                d="M34 34c2-2 5-3 6-3s4 1 6 3"
-                                stroke-width="3"
-                                stroke-linecap="round"
-                            />
+                        <svg viewBox="0 0 64 64" class="h-6 w-6 text-emerald-400" fill="none" stroke="currentColor">
+                            <path d="M16 28c0-9 7-16 16-16s16 7 16 16v16c0 6-5 10-16 10S16 50 16 44V28z" stroke-width="2.6" />
+                            <path d="M20 20l-6-8M44 20l6-8" stroke-width="2.6" stroke-linecap="round" />
+                            <circle cx="24" cy="34" r="6.5" stroke-width="2.6" />
+                            <circle cx="40" cy="34" r="6.5" stroke-width="2.6" />
+                            <path d="M32 36l-3 4h6l-3-4z" stroke-width="2.6" stroke-linejoin="round" />
+                            <path class="brand-lid" d="M18 34c2-2 5-3 6-3s4 1 6 3" stroke-width="3" stroke-linecap="round" />
+                            <path class="brand-lid" d="M34 34c2-2 5-3 6-3s4 1 6 3" stroke-width="3" stroke-linecap="round" />
                         </svg>
                     </div>
                 </div>
-
                 <div class="min-w-0 leading-tight">
-                    <div class="truncate text-sm font-semibold text-white">
-                        BuhoPOS
-                    </div>
+                    <div class="truncate text-sm font-semibold text-white">BuhoPOS</div>
                     <div class="truncate text-xs text-slate-400">
-                        Inventario, ventas y caja
+                        {{ auth.rolActual ?? (auth.esSuperAdmin ? 'Super Admin' : 'Sin rol') }}
                     </div>
                 </div>
             </div>
 
             <div class="flex shrink-0 items-center gap-2">
-                <span
-                    class="rounded-full bg-emerald-600/10 px-2 py-1 text-[11px] text-emerald-300 ring-1 ring-emerald-500/30"
-                >
+                <span class="rounded-full bg-emerald-600/10 px-2 py-1 text-[11px] text-emerald-300 ring-1 ring-emerald-500/30">
                     v1
                 </span>
-
                 <button
                     class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white md:hidden"
                     @click="closeNav"
@@ -102,48 +56,38 @@
             </div>
         </div>
 
+        <!-- Nav -->
         <nav class="flex-1 space-y-5 overflow-y-auto px-3 py-4">
             <section v-for="section in navSections" :key="section.title">
-                <p
-                    class="px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                >
+                <p class="px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                     {{ section.title }}
                 </p>
-
                 <div class="mt-2 space-y-1">
                     <RouterLink
                         v-for="item in section.items"
                         :key="item.to"
                         :to="item.to"
-                        :class="[
-                            'nav-item',
-                            item.emphasis ? 'nav-item--quick' : '',
-                        ]"
+                        :class="['nav-item', item.emphasis ? 'nav-item--quick' : '']"
                         :active-class="item.exact ? '' : 'nav-item--active'"
                         exact-active-class="nav-item--active"
                         @click="closeNav"
                     >
                         <component :is="item.icon" class="nav-ic" />
-                        <span class="min-w-0 flex-1 truncate">
-                            {{ item.label }}
-                        </span>
-                        <span v-if="item.badge" class="nav-badge">
-                            {{ item.badge }}
-                        </span>
+                        <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+                        <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
                     </RouterLink>
                 </div>
             </section>
         </nav>
 
         <div class="shrink-0 border-t border-slate-800 px-4 py-3">
-            <p class="text-[11px] text-slate-500">
-                © {{ new Date().getFullYear() }} BuhoSoft
-            </p>
+            <p class="text-[11px] text-slate-500">© {{ new Date().getFullYear() }} BuhoSoft</p>
         </div>
     </aside>
 </template>
 
 <script setup>
+import { computed } from "vue";
 import {
     BadgeDollarSign,
     Boxes,
@@ -156,90 +100,72 @@ import {
     Repeat2,
     ScanSearch,
     ReceiptText,
+    ShieldCheck,
     ShoppingCart,
+    UsersRound,
     Workflow,
     X,
 } from "lucide-vue-next";
+import { useAuthStore } from "@/stores/auth";
 
 defineProps({ open: { type: Boolean, default: false } });
 const emit = defineEmits(["update:open"]);
 
-const navSections = [
+const auth = useAuthStore();
+
+// Cada item puede tener permiso: null (siempre visible) o 'clave.permiso'
+const allSections = [
     {
         title: "Principal",
         items: [
-            {
-                label: "Inicio",
-                to: "/",
-                icon: LayoutDashboard,
-                exact: true,
-            },
+            { label: "Inicio",   to: "/",       icon: LayoutDashboard, exact: true, permiso: null },
         ],
     },
     {
         title: "Trabajo diario",
         items: [
-            {
-                label: "Ventas",
-                to: "/ventas",
-                icon: ShoppingCart,
-                emphasis: true,
-            },
-            {
-                label: "Compras",
-                to: "/compras",
-                icon: ReceiptText,
-                emphasis: true,
-            },
-            {
-                label: "Corte de caja",
-                to: "/caja",
-                icon: Landmark,
-                emphasis: true,
-            },
+            { label: "Ventas",        to: "/ventas",   icon: ShoppingCart, emphasis: true, permiso: "ventas.crear"  },
+            { label: "Compras",       to: "/compras",  icon: ReceiptText,  emphasis: true, permiso: "compras.crear" },
+            { label: "Corte de caja", to: "/caja",     icon: Landmark,     emphasis: true, permiso: "caja.abrir"    },
         ],
     },
     {
         title: "Inventario",
         items: [
-            {
-                label: "Productos",
-                to: "/productos",
-                icon: Boxes,
-            },
-            {
-                label: "Lista de precios",
-                to: "/catalogo-precios",
-                icon: ScanSearch,
-            },
-            {
-                label: "Exhibición",
-                to: "/exhibicion",
-                icon: PackageCheck,
-            },
+            { label: "Productos",       to: "/productos",        icon: Boxes,        permiso: "productos.ver"     },
+            { label: "Lista de precios",to: "/catalogo-precios", icon: ScanSearch,   permiso: "productos.precios" },
+            { label: "Exhibición",      to: "/exhibicion",       icon: PackageCheck, permiso: "inventario.ver"    },
+            { label: "Traspasos",       to: "/traspasos/nuevo",  icon: Repeat2,      permiso: "inventario.traspasos" },
         ],
     },
     {
         title: "Gestión",
         items: [
-            {
-                label: "Procesos",
-                to: "/procesos",
-                icon: Workflow,
-            },
-            {
-                label: "Catálogos",
-                to: "/catalogos",
-                icon: LibraryBig,
-            },
-            {
-                label: "Consultas y reportes",
-                to: "/consultasreportes",
-                icon: ChartColumn,
-            },
+            { label: "Procesos",              to: "/procesos",          icon: Workflow,      permiso: null            },
+            { label: "Catálogos",             to: "/catalogos",         icon: LibraryBig,    permiso: null            },
+            { label: "Consultas y reportes",  to: "/consultasreportes", icon: ChartColumn,   permiso: "reportes.ver"  },
+        ],
+    },
+    {
+        title: "Administración",
+        items: [
+            { label: "Usuarios",       to: "/usuarios", icon: UsersRound,  permiso: "usuarios.gestionar" },
+            { label: "Roles y permisos", to: "/roles",  icon: ShieldCheck, permiso: "usuarios.gestionar" },
         ],
     },
 ];
+
+// Filtra secciones e items según permisos del usuario actual
+const navSections = computed(() =>
+    allSections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter(
+                (item) => item.permiso === null || auth.can(item.permiso)
+            ),
+        }))
+        .filter((section) => section.items.length > 0)
+);
 
 function closeNav() {
     emit("update:open", false);
@@ -256,11 +182,7 @@ function closeNav() {
     border-radius: 0.8rem;
     padding: 0.625rem 0.75rem 0.625rem 0.95rem;
     color: rgba(148, 163, 184, 0.95);
-    transition:
-        background-color 160ms ease,
-        color 160ms ease,
-        transform 160ms ease,
-        box-shadow 160ms ease;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
 .nav-item::before {
@@ -273,10 +195,7 @@ function closeNav() {
     border-radius: 999px;
     background: rgba(16, 185, 129, 0);
     transform: scaleY(0.6);
-    transition:
-        background-color 160ms ease,
-        transform 160ms ease,
-        box-shadow 160ms ease;
+    transition: background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
 .nav-ic {
@@ -305,9 +224,7 @@ function closeNav() {
     transform: translateX(1px);
 }
 
-.nav-item:hover .nav-ic {
-    color: rgba(52, 211, 153, 0.98);
-}
+.nav-item:hover .nav-ic { color: rgba(52, 211, 153, 0.98); }
 
 .nav-item:hover::before {
     background: rgba(16, 185, 129, 0.35);
@@ -320,9 +237,7 @@ function closeNav() {
     box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.35);
 }
 
-.nav-item--active .nav-ic {
-    color: rgba(52, 211, 153, 0.98);
-}
+.nav-item--active .nav-ic { color: rgba(52, 211, 153, 0.98); }
 
 .nav-item--active::before {
     background: rgba(16, 185, 129, 1);
@@ -335,57 +250,26 @@ function closeNav() {
     box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.16);
 }
 
-.brand-mark {
-    animation: brandFloat 4.2s ease-in-out infinite;
-}
+.brand-mark { animation: brandFloat 4.2s ease-in-out infinite; }
 
 @keyframes brandFloat {
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-
-    50% {
-        transform: translateY(-5px);
-    }
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-5px); }
 }
 
 .brand-lid {
     opacity: 0;
     animation: brandBlink 6.2s infinite;
 }
-
-.brand-lid:nth-of-type(1) {
-    animation-delay: 0s;
-}
-
-.brand-lid:nth-of-type(2) {
-    animation-delay: 0.08s;
-}
+.brand-lid:nth-of-type(1) { animation-delay: 0s; }
+.brand-lid:nth-of-type(2) { animation-delay: 0.08s; }
 
 @keyframes brandBlink {
-    0%,
-    93%,
-    100% {
-        opacity: 0;
-    }
-
-    95% {
-        opacity: 1;
-    }
-
-    96.5% {
-        opacity: 0;
-    }
+    0%, 93%, 100% { opacity: 0; }
+    95%           { opacity: 1; }
+    96.5%         { opacity: 0; }
 }
 
-.nav-fade-enter-active,
-.nav-fade-leave-active {
-    transition: opacity 250ms ease;
-}
-
-.nav-fade-enter-from,
-.nav-fade-leave-to {
-    opacity: 0;
-}
+.nav-fade-enter-active, .nav-fade-leave-active { transition: opacity 250ms ease; }
+.nav-fade-enter-from, .nav-fade-leave-to       { opacity: 0; }
 </style>

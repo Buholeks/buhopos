@@ -132,6 +132,7 @@
                         </button>
 
                         <button
+                            v-if="auth.can('productos.editar')"
                             @click.stop="$emit('editar', p)"
                             title="Editar"
                             class="rounded-md p-2 text-amber-600 hover:bg-amber-50"
@@ -148,6 +149,7 @@
                         </button>
 
                         <button
+                            v-if="auth.can('productos.eliminar')"
                             @click.stop="$emit('eliminar', p)"
                             title="Eliminar"
                             class="rounded-md p-2 text-red-600 hover:bg-red-50"
@@ -169,6 +171,9 @@ import {
     Copy,
     Trash2,
 } from "lucide-vue-next";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 const props = defineProps({
     productos: { type: Array, default: () => [] },

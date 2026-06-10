@@ -11,6 +11,7 @@ class ReporteUtilidadesController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.utilidades'), 403, 'Sin permiso: reportes.utilidades');
         $data = $request->validate([
             'fecha_desde'  => ['required', 'date'],
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],

@@ -139,13 +139,6 @@
                             <span class="font-medium text-slate-900">{{ formatPrecio(descuento) }}</span>
                         </div>
 
-                        <div class="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
-                            <span class="text-sm font-semibold text-slate-700">Total</span>
-                            <span class="text-2xl font-bold text-emerald-600">
-                                {{ formatPrecio(total) }}
-                            </span>
-                        </div>
-
                         <div
                             v-if="saldoAplicado > 0"
                             class="flex items-center justify-between gap-3"
@@ -156,21 +149,56 @@
                             </span>
                         </div>
 
-                        <div class="flex items-center justify-between gap-3">
-                            <span class="text-slate-500">Restante a pagar</span>
-                            <span class="font-semibold text-slate-900">
-                                {{ formatPrecio(totalACobrar) }}
-                            </span>
+                        <div class="grid gap-3 border-t border-slate-200 pt-4">
+                            <div class="rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                                <p class="text-xs font-black uppercase tracking-wide text-emerald-700">
+                                    Total de la venta
+                                </p>
+                                <p class="mt-1 font-mono text-3xl font-black tabular-nums text-emerald-700">
+                                    {{ formatPrecio(total) }}
+                                </p>
+                            </div>
+
+                            <div
+                                class="rounded-2xl border px-4 py-3"
+                                :class="totalACobrar > 0
+                                    ? 'border-amber-300 bg-amber-50'
+                                    : 'border-emerald-200 bg-emerald-50'"
+                            >
+                                <p
+                                    class="text-xs font-black uppercase tracking-wide"
+                                    :class="totalACobrar > 0 ? 'text-amber-700' : 'text-emerald-700'"
+                                >
+                                    Restante a pagar
+                                </p>
+                                <p
+                                    class="mt-1 font-mono text-3xl font-black tabular-nums"
+                                    :class="totalACobrar > 0 ? 'text-amber-950' : 'text-emerald-800'"
+                                >
+                                    {{ formatPrecio(totalACobrar) }}
+                                </p>
+                            </div>
                         </div>
 
                         <div
                             v-if="formaPago === 'efectivo'"
-                            class="flex items-center justify-between gap-3"
+                            class="rounded-2xl border px-4 py-4 text-center shadow-sm"
+                            :class="cambio > 0
+                                ? 'border-sky-300 bg-sky-100 ring-4 ring-sky-50'
+                                : 'border-slate-200 bg-white'"
                         >
-                            <span class="text-slate-500">Cambio</span>
-                            <span class="font-semibold text-slate-900">
+                            <p
+                                class="text-xs font-black uppercase tracking-[0.18em]"
+                                :class="cambio > 0 ? 'text-sky-700' : 'text-slate-500'"
+                            >
+                                Cambio a entregar
+                            </p>
+                            <p
+                                class="mt-1 font-mono text-4xl font-black tabular-nums sm:text-5xl"
+                                :class="cambio > 0 ? 'text-sky-950' : 'text-slate-700'"
+                            >
                                 {{ formatPrecio(cambio) }}
-                            </span>
+                            </p>
                         </div>
                     </div>
                 </div>

@@ -7,18 +7,24 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use App\Models\User;
+use App\Models\Rol;
 use App\Models\Sucursal;
+use App\Models\SucursalUser;
+use App\Models\User;
 
 class UserController extends Controller
 {
+    // ── GET /api/users ────────────────────────────────────────────────────────
+
     public function index(Request $request): JsonResponse
     {
-        $user = Auth::user();
-        $texto = trim((string) $request->query('q', ''));
+        $actor  = Auth::user();
+        $texto  = trim((string) $request->query('q', ''));
+
+        abort_unless($actor->tienePermiso('usuarios.gestionar'), 403, 'Sin permiso para ver usuarios.');
 
         $usuarios = User::query()
-            ->where('empresa_id', $user->empresa_id)
+            ->where('empresa_id', $actor->empresa_id)
             ->with('sucursal:id,nombre')
             ->when($texto !== '', fn($q) => $q->where(fn($sub) => $sub
                 ->where('name', 'like', "%{$texto}%")
@@ -28,6 +34,210 @@ class UserController extends Controller
 
         return response()->json($usuarios);
     }
+
+    // ── POST /api/users ───────────────────────────────────────────────────────
+
+    public function store(Request $request): JsonResponse
+    {
+        $actor = Auth::user();
+
+        abort_unless($actor->tienePermiso('usuarios.gestionar'), 403, 'Sin permiso para crear usuarios.');
+
+        $data = $request->validate([
+            'name'       => ['required', 'string', 'min:2', 'max:255'],
+            'email'      => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password'   => ['required', 'string', 'min:8', 'confirmed'],
+            'sucursal_id' => [
+                'required', 'integer',
+                Rule::exists('sucursales', 'id')->where(fn($q) => $q
+                    ->where('empresa_id', $actor->empresa_id)
+                    ->where('activo', true)),
+            ],
+            'role_id' => [
+                'nullable', 'integer',
+                Rule::exists('roles', 'id')->where(fn($q) => $q
+                    ->where('empresa_id', $actor->empresa_id)),
+            ],
+        ], [
+            'email.unique'           => 'Ya existe un usuario con ese correo.',
+            'password.confirmed'     => 'La confirmación de contraseña no coincide.',
+            'password.min'           => 'La contraseña debe tener al menos 8 caracteres.',
+            'sucursal_id.exists'     => 'La sucursal seleccionada no pertenece a la empresa activa.',
+            'role_id.exists'         => 'El rol seleccionado no pertenece a esta empresa.',
+        ]);
+
+        $usuario = DB::transaction(function () use ($actor, $data) {
+            $usuario = User::create([
+                'empresa_id'  => $actor->empresa_id,
+                'sucursal_id' => $data['sucursal_id'],
+                'name'        => $data['name'],
+                'email'       => $data['email'],
+                'password'    => $data['password'],
+                'activo'      => true,
+            ]);
+
+            $usuario->sucursales()->attach($data['sucursal_id'], [
+                'role_id' => $data['role_id'] ?? null,
+            ]);
+
+            return $usuario;
+        });
+
+        return response()->json(
+            $usuario->load(['empresa:id,nombre', 'sucursal:id,nombre']),
+            201
+        );
+    }
+
+    // ── PUT /api/users/{user} ─────────────────────────────────────────────────
+
+    public function update(Request $request, User $user): JsonResponse
+    {
+        $actor = Auth::user();
+
+        abort_unless($actor->tienePermiso('usuarios.gestionar'), 403);
+        abort_unless($user->empresa_id === $actor->empresa_id, 403);
+
+        // Protección: no se puede quitar es_super_admin ni desactivar
+        // al único super admin activo de la empresa
+        if ($user->es_super_admin && $user->id === $actor->id) {
+            $otrosSuperAdmins = User::where('empresa_id', $actor->empresa_id)
+                ->where('es_super_admin', true)
+                ->where('activo', true)
+                ->where('id', '!=', $user->id)
+                ->exists();
+
+            if (! $otrosSuperAdmins && $request->has('activo') && ! $request->boolean('activo')) {
+                return response()->json([
+                    'message' => 'No puedes desactivar el único super administrador activo.',
+                ], 422);
+            }
+        }
+
+        $data = $request->validate([
+            'name'   => ['sometimes', 'string', 'min:2', 'max:255'],
+            'activo' => ['sometimes', 'boolean'],
+        ]);
+
+        $user->update($data);
+
+        return response()->json($user->load('sucursal:id,nombre'));
+    }
+
+    // ── GET /api/users/{user}/sucursales ──────────────────────────────────────
+
+    public function sucursalesDeUsuario(User $user): JsonResponse
+    {
+        $actor = Auth::user();
+
+        abort_unless($actor->tienePermiso('usuarios.gestionar'), 403);
+        abort_unless($user->empresa_id === $actor->empresa_id, 403);
+
+        // Todas las sucursales de la empresa
+        $todasSucursales = Sucursal::where('empresa_id', $actor->empresa_id)
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'direccion']);
+
+        // Sucursales asignadas al usuario con su rol
+        $asignadas = SucursalUser::where('user_id', $user->id)
+            ->whereIn('sucursal_id', $todasSucursales->pluck('id'))
+            ->get(['sucursal_id', 'role_id'])
+            ->keyBy('sucursal_id');
+
+        $resultado = $todasSucursales->map(fn($sucursal) => [
+            'id'        => $sucursal->id,
+            'nombre'    => $sucursal->nombre,
+            'direccion' => $sucursal->direccion,
+            'asignada'  => $asignadas->has($sucursal->id),
+            'role_id'   => $asignadas->get($sucursal->id)?->role_id,
+        ]);
+
+        return response()->json($resultado);
+    }
+
+    // ── PUT /api/users/{user}/sucursales ──────────────────────────────────────
+    // Sincroniza las sucursales + roles de un usuario de una sola vez
+
+    public function sincronizarSucursales(Request $request, User $user): JsonResponse
+    {
+        $actor = Auth::user();
+
+        abort_unless($actor->tienePermiso('usuarios.gestionar'), 403);
+        abort_unless($user->empresa_id === $actor->empresa_id, 403);
+
+        // No se puede modificar las sucursales de un super admin
+        // (siempre tiene todas, gestionado por el observer)
+        if ($user->es_super_admin) {
+            return response()->json([
+                'message' => 'Las sucursales del super administrador se gestionan automáticamente.',
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'sucursales'           => ['required', 'array'],
+            'sucursales.*.id'      => [
+                'required', 'integer',
+                Rule::exists('sucursales', 'id')->where(fn($q) => $q
+                    ->where('empresa_id', $actor->empresa_id)),
+            ],
+            'sucursales.*.role_id' => [
+                'nullable', 'integer',
+                Rule::exists('roles', 'id')->where(fn($q) => $q
+                    ->where('empresa_id', $actor->empresa_id)),
+            ],
+        ]);
+
+        DB::transaction(function () use ($user, $data, $actor) {
+            // Construir mapa id => [role_id]
+            $sync = collect($data['sucursales'])
+                ->mapWithKeys(fn($s) => [
+                    $s['id'] => ['role_id' => $s['role_id'] ?? null],
+                ])
+                ->toArray();
+
+            // Si la sucursal activa del usuario queda sin asignar, ajustar
+            $sucursalActivaIncluida = collect($data['sucursales'])
+                ->pluck('id')
+                ->contains($user->sucursal_id);
+
+            $user->sucursales()->sync($sync);
+
+            // Si la sucursal activa ya no está asignada, reasignarla o limpiarla
+            if (! $sucursalActivaIncluida) {
+                $user->update([
+                    'sucursal_id' => ! empty($data['sucursales'])
+                        ? $data['sucursales'][0]['id']
+                        : null,
+                ]);
+            }
+        });
+
+        return response()->json(['message' => 'Sucursales actualizadas correctamente.']);
+    }
+
+    // ── GET /api/users/vendedores ─────────────────────────────────────────────
+
+    public function buscarVendedores(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        abort_unless($user->tienePermiso('ventas.crear'), 403, 'Sin permiso: ventas.crear');
+        $q    = trim((string) $request->get('q', ''));
+
+        $items = User::query()
+            ->where('empresa_id', $user->empresa_id)
+            ->when($q !== '', fn($query) => $query->where(fn($sub) => $sub
+                ->where('name', 'like', "%{$q}%")
+                ->orWhere('email', 'like', "%{$q}%")))
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->limit(20)
+            ->get();
+
+        return response()->json($items);
+    }
+
+    // ── GET /api/users/sucursales-disponibles ─────────────────────────────────
 
     public function sucursalesDisponibles(): JsonResponse
     {
@@ -41,69 +251,5 @@ class UserController extends Controller
             ->get();
 
         return response()->json($sucursales);
-    }
-
-    public function store(Request $request): JsonResponse
-    {
-        $actor = Auth::user();
-
-        $data = $request->validate([
-            'name' => ['required', 'string', 'min:2', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'sucursal_id' => [
-                'required',
-                'integer',
-                Rule::exists('sucursales', 'id')->where(fn($q) => $q
-                    ->where('empresa_id', $actor->empresa_id)
-                    ->where('activo', true)),
-            ],
-        ], [
-            'email.unique' => 'Ya existe un usuario con ese correo.',
-            'password.confirmed' => 'La confirmación de contraseña no coincide.',
-            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
-            'sucursal_id.exists' => 'La sucursal seleccionada no pertenece a la empresa activa.',
-        ]);
-
-        $usuario = DB::transaction(function () use ($actor, $data) {
-            $usuario = User::create([
-                'empresa_id' => $actor->empresa_id,
-                'sucursal_id' => $data['sucursal_id'],
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'password' => $data['password'],
-                'activo' => true,
-            ]);
-
-            $usuario->sucursales()->attach($data['sucursal_id']);
-
-            return $usuario;
-        });
-
-        return response()->json(
-            $usuario->load(['empresa:id,nombre', 'sucursal:id,nombre']),
-            201
-        );
-    }
-
-    public function buscarVendedores(Request $request): JsonResponse
-    {
-        $user = Auth::user();
-        $q = trim((string) $request->get('q', ''));
-
-        $items = User::query()
-            ->where('empresa_id', $user->empresa_id)
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($sub) use ($q) {
-                    $sub->where('name', 'like', "%{$q}%")
-                        ->orWhere('email', 'like', "%{$q}%");
-                });
-            })
-            ->select('id', 'name', 'email')
-            ->orderBy('name')
-            ->limit(20)
-            ->get();
-
-        return response()->json($items);
     }
 }

@@ -36,6 +36,7 @@ class Producto extends Model
         'peso',
         'tiene_variantes',
         'tiene_series',
+        'pedido_generico',
         'activo',
         // NOTA: precio_oferta/oferta_activa/oferta_hasta se manejan por variante
     ];
@@ -51,6 +52,8 @@ class Producto extends Model
         'stock_minimo'    => 'decimal:2',
         'peso'            => 'decimal:3',
         'tiene_variantes' => 'boolean',
+        'tiene_series'     => 'boolean',
+        'pedido_generico'  => 'boolean',
         'activo'          => 'boolean',
     ];
 
@@ -100,6 +103,11 @@ class Producto extends Model
     public function scopeActivos($query)
     {
         return $query->where('activo', true);
+    }
+
+    public function scopePedidoGenerico($query)
+    {
+        return $query->where('pedido_generico', true);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

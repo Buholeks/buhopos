@@ -4,12 +4,13 @@
             <div class="border-b border-slate-200 px-6 py-4">
                 <h2 class="text-lg font-semibold text-slate-900">Datos de la venta</h2>
                 <p class="mt-1 text-sm text-slate-500">
-                    Selecciona el vendedor y, si aplica, el cliente.
+                    {{ cliente ? "Selecciona el vendedor." : "Selecciona el vendedor y, si aplica, el cliente." }}
                 </p>
             </div>
 
             <div class="space-y-4 px-6 py-5">
                 <BaseSearchSelect
+                    v-if="!cliente"
                     ref="clienteRef"
                     :model-value="cliente?.id ?? null"
                     label="Cliente (opcional)"
@@ -23,7 +24,20 @@
                     @selected="$emit('select-cliente', $event)"
                 />
 
+                <div
+                    v-else
+                    class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3"
+                >
+                    <p class="text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                        Cliente seleccionado
+                    </p>
+                    <p class="mt-1 text-sm font-semibold text-emerald-950">
+                        {{ cliente.nombre || cliente.name || "Sin nombre" }}
+                    </p>
+                </div>
+
                 <BaseSearchSelect
+                    ref="vendedorRef"
                     :model-value="vendedor?.id ?? vendedorId ?? null"
                     label="Vendedor"
                     placeholder="Buscar vendedor..."
@@ -63,7 +77,7 @@ import { nextTick, onMounted, ref } from "vue";
 import http from "@/lib/http";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 
-defineProps({
+const props = defineProps({
     cliente: { type: Object, default: null },
     vendedorId: { type: [String, Number, null], default: null },
     vendedor: { type: Object, default: null },
@@ -77,8 +91,16 @@ defineEmits([
 ]);
 
 const clienteRef = ref(null);
+const vendedorRef = ref(null);
 
-onMounted(() => nextTick(() => clienteRef.value?.focus?.()));
+onMounted(() => nextTick(() => {
+    if (props.cliente) {
+        vendedorRef.value?.focus?.();
+        return;
+    }
+
+    clienteRef.value?.focus?.();
+}));
 
 async function buscarClientes(q) {
     const { data } = await http.get("/api/clientes/buscar", { params: { q } });

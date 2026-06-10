@@ -11,6 +11,7 @@ class ClienteController extends Controller
 {
     public function index(Request $request)
     {
+        abort_unless(Auth::user()->tienePermiso('clientes.ver'), 403, 'Sin permiso: clientes.ver');
         $user = $request->user();
 
         $q = Cliente::query()
@@ -38,6 +39,7 @@ class ClienteController extends Controller
 
     public function store(Request $request)
     {
+        abort_unless(Auth::user()->tienePermiso('clientes.editar'), 403, 'Sin permiso: clientes.editar');
         $user = $request->user();
 
         $data = $request->validate([
@@ -72,12 +74,14 @@ class ClienteController extends Controller
 
     public function show(Request $request, Cliente $cliente)
     {
+        abort_unless(Auth::user()->tienePermiso('clientes.ver'), 403, 'Sin permiso: clientes.ver');
         $this->assertTenant($request, $cliente);
         return response()->json($cliente);
     }
 
     public function update(Request $request, Cliente $cliente)
     {
+        abort_unless(Auth::user()->tienePermiso('clientes.editar'), 403, 'Sin permiso: clientes.editar');
         $this->assertTenant($request, $cliente);
 
         $data = $request->validate([
@@ -109,6 +113,7 @@ class ClienteController extends Controller
 
     public function destroy(Request $request, Cliente $cliente)
     {
+        abort_unless(Auth::user()->tienePermiso('clientes.editar'), 403, 'Sin permiso: clientes.editar');
         $this->assertTenant($request, $cliente);
 
         // recomendación: borrado lógico (soft delete) si te interesa historial
@@ -130,6 +135,7 @@ class ClienteController extends Controller
 
     public function setActivo(Request $request, Cliente $cliente)
     {
+        abort_unless(Auth::user()->tienePermiso('clientes.editar'), 403, 'Sin permiso: clientes.editar');
         $this->assertTenant($request, $cliente);
 
         $data = $request->validate([
@@ -143,6 +149,7 @@ class ClienteController extends Controller
 
     public function buscar(Request $request): JsonResponse
 {
+    abort_unless(Auth::user()->tienePermiso('clientes.ver'), 403, 'Sin permiso: clientes.ver');
     $user = Auth::user();
     $q = trim((string) $request->get('q', ''));
 

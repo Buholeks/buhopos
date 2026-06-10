@@ -39,6 +39,7 @@ use App\Http\Controllers\ReporteVentasController;
 use App\Http\Controllers\ReporteVentasAgrupadoController;
 use App\Http\Controllers\ReporteUtilidadesController;
 use App\Http\Controllers\DevolucionProveedorController;
+use App\Http\Controllers\RolController;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,22 +52,7 @@ Route::post('/register', [AuthController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
-
-    Route::get('/me', function (Request $request) {
-        $user = $request->user();
-
-        if (!$user->activo) {
-            Auth::logout();
-            abort(403, 'Tu cuenta está pendiente de activación. Contacta al administrador.');
-        }
-
-        if (!$user->empresa_id || !$user->sucursal_id) {
-            Auth::logout();
-            abort(403, 'Usuario sin empresa o sucursal asignada');
-        }
-
-        return $user->load(['empresa:id,nombre', 'sucursal:id,nombre']);
-    });
+    Route::get('/me', [AuthController::class, 'me']);
 
     /*
     |--------------------------------------------------------------------------
@@ -92,6 +78,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/sucursales-disponibles', [UserController::class, 'sucursalesDisponibles']);
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
+    Route::put('/users/{user}', [UserController::class, 'update']);
+    Route::get('/users/{user}/sucursales', [UserController::class, 'sucursalesDeUsuario']);
+    Route::put('/users/{user}/sucursales', [UserController::class, 'sincronizarSucursales']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Roles y Permisos
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/permisos', [RolController::class, 'listarPermisos']);
+    Route::apiResource('roles', RolController::class);
 
     /*
     |--------------------------------------------------------------------------
@@ -99,15 +97,19 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
 
+    Route::get('/categorias/buscar', [CategoriaController::class, 'buscar']);
     Route::apiResource('categorias', CategoriaController::class);
 
+    Route::get('/marcas/buscar', [MarcaController::class, 'buscar']);
     Route::apiResource('marcas', MarcaController::class);
+    Route::get('/modelos/buscar', [ModeloController::class, 'buscar']);
     Route::apiResource('modelos', ModeloController::class);
 
     Route::apiResource('tipo-atributos', TipoAtributoController::class);
     Route::apiResource('atributos', AtributoController::class);
 
     Route::get('/unidades-medida/tipos', [UnidadMedidaController::class, 'listarTipos']);
+    Route::get('/unidades-medida/buscar', [UnidadMedidaController::class, 'buscar']);
     Route::apiResource('unidades-medida', UnidadMedidaController::class);
 
     /*
@@ -136,6 +138,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('compras')->group(function () {
         Route::get('/', [CompraController::class, 'index']);
         Route::get('/buscar-variantes', [CompraController::class, 'buscarVariantes']);
+        Route::get('/pedidos-pendientes', [CompraController::class, 'pedidosPendientes']);
         Route::post('/', [CompraController::class, 'store']);
         Route::get('/{id}', [CompraController::class, 'show']);
         Route::delete('/{id}', [CompraController::class, 'destroy']);
@@ -188,10 +191,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/clientes/{cliente}/pedidos-resumen', [PedidoController::class, 'clienteResumen']);
     Route::get('/pedidos/buscar-catalogo', [PedidoController::class, 'buscarCatalogo']);
+    Route::get('/pedidos/pendientes-compra', [PedidoController::class, 'pendientesCompra']);
     Route::get('/pedidos', [PedidoController::class, 'index']);
     Route::post('/pedidos', [PedidoController::class, 'store']);
     Route::get('/pedidos/{pedido}', [PedidoController::class, 'show']);
     Route::post('/pedidos/{pedido}/abonos', [PedidoController::class, 'abonar']);
+    Route::delete('/pedidos/{pedido}/abonos/{abono}', [PedidoController::class, 'eliminarAbono']);
     Route::post('/pedidos/{pedido}/cancelar', [PedidoController::class, 'cancelar']);
 
     Route::prefix('cancelaciones-devoluciones')->group(function () {

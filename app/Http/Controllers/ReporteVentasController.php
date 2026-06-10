@@ -15,6 +15,7 @@ class ReporteVentasController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $request->validate([
             'fecha_desde' => ['nullable', 'date'],
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
@@ -119,6 +120,7 @@ class ReporteVentasController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function show(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $user = Auth::user();
 
         $venta = Venta::where('empresa_id', $user->empresa_id)

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -11,6 +12,7 @@ class ReporteComprasController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $data = $request->validate([
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_fin'    => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
@@ -107,6 +109,7 @@ class ReporteComprasController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $user = $request->user();
 
         $compra = DB::table('compras')
@@ -176,6 +179,7 @@ class ReporteComprasController extends Controller
 
     public function cuentasPorPagar(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $data = $request->validate([
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_fin'    => ['nullable', 'date', 'after_or_equal:fecha_inicio'],

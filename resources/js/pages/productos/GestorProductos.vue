@@ -40,6 +40,7 @@
                     />
                 </div>
                 <BtnAgregar
+                    v-if="auth.can('productos.editar')"
                     type="button"
                     @click="abrirModal()"
                 >
@@ -72,7 +73,11 @@
                         : "Crea tu primer producto"
                 }}
             </p>
-            <BtnAgregar v-if="!busqueda" @click="abrirModal()" class="mt-5">
+            <BtnAgregar
+                v-if="!busqueda && auth.can('productos.editar')"
+                @click="abrirModal()"
+                class="mt-5"
+            >
                 Crear Producto
             </BtnAgregar>
         </div>
@@ -182,6 +187,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
 import http from "@/lib/http";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 import Swal from "sweetalert2";
 import { toastSuccess, toastError } from "@/lib/alert";
 
@@ -239,6 +247,7 @@ const form = reactive({
     peso: null,
     activo: true,
     tiene_series: false, // ← nuevo
+    pedido_generico: false,
 });
 
 const err = reactive({
@@ -330,42 +339,8 @@ const algunAtributoSeleccionado = computed(() =>
 onMounted(() => Promise.all([cargarProductos(), cargarCatalogos()]));
 
 async function cargarCatalogos() {
-    const [cats, marcas, unidades, tipos] = await Promise.all([
-        http.get("/api/categorias"),
-        http.get("/api/marcas"),
-        http.get("/api/unidades-medida"),
-        http.get("/api/productos/atributos-empresa"),
-    ]);
-
-const aplanar = (catsArr, resultado = [], ruta = "", nivel = 0) => {
-  for (const cat of catsArr) {
-    const nombreCompleto = ruta ? `${ruta} > ${cat.nombre}` : cat.nombre
-
-    resultado.push({
-      id: cat.id,
-      nombre: `${"  ".repeat(nivel)}${nombreCompleto}`,
-      ruta: nombreCompleto,
-      activo: cat.activo,
-      nivel,
-    })
-
-    if (cat.hijos_recursivos?.length) {
-      aplanar(cat.hijos_recursivos, resultado, nombreCompleto, nivel + 1)
-    }
-  }
-  return resultado
-}
-
-    catalogos.categorias = aplanar(cats.data ?? []);
-    if (modal.editando && modal.idEditando) {
-        asegurarCategoriaSeleccionada(
-            productos.value.find((p) => Number(p.id) === Number(modal.idEditando)),
-        );
-    }
-    
-    catalogos.marcas = marcas.data?.data ?? marcas.data;
-    catalogos.unidades = unidades.data?.data ?? unidades.data;
-    catalogos.tiposAtributo = tipos.data?.data ?? tipos.data;
+    const { data } = await http.get("/api/productos/atributos-empresa");
+    catalogos.tiposAtributo = data?.data ?? data;
     formVar.atributos = {};
     catalogos.tiposAtributo.forEach((t) => {
         formVar.atributos[t.id] = "";
@@ -417,8 +392,9 @@ function categoriaNombre(p) {
     if (!p?.categoria_id) return "Sin categoria";
 
     return (
-        catalogos.categorias.find((c) => Number(c.id) === Number(p.categoria_id))
-            ?.ruta ??
+        catalogos.categorias.find(
+            (c) => Number(c.id) === Number(p.categoria_id),
+        )?.ruta ??
         p.categoria?.nombre ??
         "Categoria asignada"
     );
@@ -426,7 +402,7 @@ function categoriaNombre(p) {
 
 function duplicarProducto(p) {
     abrirModal();
-    asegurarCategoriaSeleccionada(p);
+    asegurarCatalogosSeleccionados(p);
     Object.assign(form, {
         nombre: `Copia de ${p.nombre}`,
         codigo: "",
@@ -446,6 +422,7 @@ function duplicarProducto(p) {
         peso: p.peso,
         activo: p.activo,
         tiene_series: p.tiene_series ?? false,
+        pedido_generico: p.pedido_generico ?? false,
         imagenActualUrl: null,
     });
     modal.editando = false;
@@ -462,7 +439,9 @@ async function toggleActivoProducto(p) {
         toastSuccess(p.activo ? "Producto desactivado" : "Producto activado");
         await cargarProductos(paginacion.value.current_page);
     } catch (e) {
-        toastError(e.response?.data?.message ?? "No se pudo actualizar el estado");
+        toastError(
+            e.response?.data?.message ?? "No se pudo actualizar el estado",
+        );
     }
 }
 
@@ -492,6 +471,7 @@ function formDataDesdeProducto(p) {
     });
     fd.append("activo", p.activo ? "1" : "0");
     fd.append("tiene_series", p.tiene_series ? "1" : "0");
+    fd.append("pedido_generico", p.pedido_generico ? "1" : "0");
     return fd;
 }
 
@@ -527,7 +507,7 @@ function resumenPorTipo(tipoId) {
 function abrirModal(p = null) {
     resetForm();
     if (p) {
-        asegurarCategoriaSeleccionada(p);
+        asegurarCatalogosSeleccionados(p);
         modal.editando = true;
         modal.idEditando = p.id;
         Object.assign(form, {
@@ -549,6 +529,7 @@ function abrirModal(p = null) {
             peso: p.peso,
             activo: p.activo,
             tiene_series: p.tiene_series ?? false, // ← nuevo
+            pedido_generico: p.pedido_generico ?? false,
             imagenActualUrl: p.imagen_url,
         });
     }
@@ -556,19 +537,28 @@ function abrirModal(p = null) {
     modal.mostrar = true;
 }
 
-function asegurarCategoriaSeleccionada(p) {
-    if (!p?.categoria_id || !p?.categoria) return;
+function asegurarCatalogosSeleccionados(p) {
+    agregarSiFalta(catalogos.categorias, p?.categoria);
+    agregarSiFalta(catalogos.unidades, p?.unidad_medida);
 
-    const existe = catalogos.categorias.some(
-        (c) => Number(c.id) === Number(p.categoria_id),
-    );
+    if (p?.marca) {
+        let marca = catalogos.marcas.find(
+            (actual) => Number(actual.id) === Number(p.marca.id),
+        );
 
-    if (existe) return;
+        if (!marca) {
+            marca = { ...p.marca, modelos: [] };
+            catalogos.marcas.push(marca);
+        }
 
-    catalogos.categorias.push({
-        id: p.categoria_id,
-        nombre: p.categoria.nombre ?? "Categoria asignada",
-    });
+        agregarSiFalta(marca.modelos, p.modelo);
+    }
+}
+
+function agregarSiFalta(items, item) {
+    if (!item?.id) return;
+    if (items.some((actual) => Number(actual.id) === Number(item.id))) return;
+    items.push(item);
 }
 
 function cerrarModal() {
@@ -600,6 +590,7 @@ function resetForm() {
         peso: null,
         activo: true,
         tiene_series: false, // ← nuevo
+        pedido_generico: false,
     });
     Object.assign(err, {
         nombre: "",
@@ -678,6 +669,7 @@ async function enviarForm() {
     });
     fd.append("activo", form.activo ? "1" : "0");
     fd.append("tiene_series", form.tiene_series ? "1" : "0"); // ← nuevo
+    fd.append("pedido_generico", form.pedido_generico ? "1" : "0");
     if (form.eliminarImagen) fd.append("eliminar_imagen", "1");
     if (form.imagen) fd.append("imagen", form.imagen);
     try {
@@ -813,7 +805,9 @@ function abrirEditarVariante(v) {
     const atributosEdit = {};
     catalogos.tiposAtributo.forEach((t) => {
         const actual = (v.atributos ?? []).find(
-            (a) => Number(a.tipo_atributo_id ?? a.tipo_atributo?.id) === Number(t.id),
+            (a) =>
+                Number(a.tipo_atributo_id ?? a.tipo_atributo?.id) ===
+                Number(t.id),
         );
         atributosEdit[t.id] = actual?.atributo_id ?? actual?.atributo?.id ?? "";
     });
@@ -930,11 +924,13 @@ async function guardarEditarVariante(varianteId) {
         camposPrecios.forEach((campo) => {
             fd.append(campo, formEditVar[campo] ?? "");
         });
-        Object.entries(formEditVar.atributos ?? {}).forEach(([tipoId, atributoId]) => {
-            if (atributoId !== null && atributoId !== "") {
-                fd.append(`atributos[${tipoId}]`, atributoId);
-            }
-        });
+        Object.entries(formEditVar.atributos ?? {}).forEach(
+            ([tipoId, atributoId]) => {
+                if (atributoId !== null && atributoId !== "") {
+                    fd.append(`atributos[${tipoId}]`, atributoId);
+                }
+            },
+        );
         fd.append("oferta_activa", formEditVar.oferta_activa ? "1" : "0");
         fd.append("oferta_hasta", formEditVar.oferta_hasta || "");
         fd.append("activo", formEditVar.activo ? "1" : "0");

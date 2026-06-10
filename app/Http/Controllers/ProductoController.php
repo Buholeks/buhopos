@@ -31,6 +31,7 @@ class ProductoController extends Controller
     // ── GET /api/productos ────────────────────────────────────────────────────
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
         $query = Producto::deEmpresa($this->empresaId())
             ->with([
                 'categoria:id,nombre',
@@ -91,6 +92,7 @@ class ProductoController extends Controller
     // ── POST /api/productos ───────────────────────────────────────────────────
     public function store(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
         $datos = $request->validate(
             $this->reglas($empresaId),
@@ -143,6 +145,7 @@ class ProductoController extends Controller
     // ── GET /api/productos/{id} ───────────────────────────────────────────────
     public function show(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
         $producto = Producto::deEmpresa($this->empresaId())
             ->with(['categoria', 'marca', 'modelo', 'unidadMedida', 'variantes.atributos'])
             ->findOrFail($id);
@@ -153,6 +156,7 @@ class ProductoController extends Controller
     // ── POST /api/productos/{id} (con _method=PUT para imagen) ───────────────
     public function update(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
 
         $producto = Producto::deEmpresa($empresaId)->findOrFail($id);
@@ -197,6 +201,7 @@ class ProductoController extends Controller
     // ── DELETE /api/productos/{id} ────────────────────────────────────────────
     public function destroy(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.eliminar'), 403, 'Sin permiso: productos.eliminar');
         $empresaId = $this->empresaId();
 
         $producto = Producto::deEmpresa($empresaId)
@@ -230,6 +235,7 @@ class ProductoController extends Controller
     // ── GET /api/productos/atributos-empresa ──────────────────────────────────
     public function atributosEmpresa(): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
         $tipos = TipoAtributo::deEmpresa($this->empresaId())
             ->activos()
             ->with(['atributos' => fn($q) => $q->activos()->orderBy('valor')])
@@ -242,6 +248,7 @@ class ProductoController extends Controller
     // ── GET /api/productos/{id}/variantes ─────────────────────────────────────
     public function variantes(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
         $producto = Producto::deEmpresa($this->empresaId())->findOrFail($id);
 
         $variantes = $producto->variantes()
@@ -259,6 +266,7 @@ class ProductoController extends Controller
     // ── POST /api/productos/{id}/variantes ────────────────────────────────────
     public function storeVariante(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
         $producto = Producto::deEmpresa($empresaId)->findOrFail($id);
 
@@ -400,6 +408,7 @@ class ProductoController extends Controller
     // ── PUT /api/productos/{id}/variantes/{varianteId} ────────────────────────
     public function updateVariante(Request $request, int $id, int $varianteId): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $variante = ProductoVariante::where('empresa_id', $this->empresaId())
             ->where('producto_id', $id)
             ->findOrFail($varianteId);
@@ -538,6 +547,7 @@ class ProductoController extends Controller
     // ── DELETE /api/productos/{id}/variantes/{varianteId} ─────────────────────
     public function destroyVariante(int $id, int $varianteId): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.eliminar'), 403, 'Sin permiso: productos.eliminar');
         $empresaId = $this->empresaId();
 
         $variante = ProductoVariante::where('empresa_id', $empresaId)
@@ -591,10 +601,35 @@ class ProductoController extends Controller
             'nombre'           => ['required', 'string', 'min:2', 'max:200'],
             'codigo'           => ['nullable', 'string', 'max:100', $uniCodigo],
             'descripcion'      => ['nullable', 'string'],
-            'categoria_id'     => ['nullable', 'integer', 'exists:categorias,id'],
-            'marca_id'         => ['nullable', 'integer', 'exists:marcas,id'],
-            'modelo_id'        => ['nullable', 'integer', 'exists:modelos,id'],
-            'unidad_medida_id' => ['nullable', 'integer', 'exists:unidades_medida,id'],
+            'categoria_id'     => [
+                'nullable',
+                'integer',
+                Rule::exists('categorias', 'id')->where(fn($q) => $q
+                    ->where('empresa_id', $empresaId)
+                    ->where('sucursal_id', $this->sucursalId())
+                    ->whereNull('deleted_at')),
+            ],
+            'marca_id'         => [
+                'nullable',
+                'integer',
+                Rule::exists('marcas', 'id')->where(fn($q) => $q
+                    ->where('empresa_id', $empresaId)
+                    ->whereNull('deleted_at')),
+            ],
+            'modelo_id'        => [
+                'nullable',
+                'integer',
+                Rule::exists('modelos', 'id')->where(fn($q) => $q
+                    ->where('empresa_id', $empresaId)
+                    ->whereNull('deleted_at')),
+            ],
+            'unidad_medida_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('unidades_medida', 'id')->where(fn($q) => $q
+                    ->where('empresa_id', $empresaId)
+                    ->whereNull('deleted_at')),
+            ],
             'imagen'           => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'eliminar_imagen'  => ['nullable', 'boolean'],
             'precio_costo'     => ['required', 'numeric', 'min:0'],
@@ -608,6 +643,7 @@ class ProductoController extends Controller
             'peso'             => ['nullable', 'numeric', 'min:0'],
             'activo'           => ['nullable', 'boolean'],
             'tiene_series'     => ['nullable', 'boolean'],
+            'pedido_generico'  => ['nullable', 'boolean'],
         ];
     }
 
@@ -632,6 +668,7 @@ class ProductoController extends Controller
         $pertenece = DB::table('modelos')
             ->where('id', $datos['modelo_id'])
             ->where('marca_id', $datos['marca_id'])
+            ->where('empresa_id', $this->empresaId())
             ->whereNull('deleted_at')
             ->exists();
 

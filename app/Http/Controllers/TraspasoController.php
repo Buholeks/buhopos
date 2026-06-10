@@ -11,12 +11,14 @@ use App\Models\Traspaso;
 use App\Models\TraspasoDetalle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class TraspasoController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.ver'), 403, 'Sin permiso: inventario.ver');
         $user = $request->user();
         $empresaId = (int) $user->empresa_id;
 
@@ -86,6 +88,7 @@ class TraspasoController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.ver'), 403, 'Sin permiso: inventario.ver');
         $traspaso = Traspaso::where('empresa_id', (int) $request->user()->empresa_id)
             ->with([
                 'origen:id,nombre',
@@ -105,6 +108,7 @@ class TraspasoController extends Controller
 
     public function sucursales(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.traspasos'), 403, 'Sin permiso: inventario.traspasos');
         $user = $request->user();
 
         $sucursales = Sucursal::query()
@@ -145,6 +149,7 @@ class TraspasoController extends Controller
 
     public function inventario(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.ver'), 403, 'Sin permiso: inventario.ver');
         $user = $request->user();
         $empresaId = (int) $user->empresa_id;
         $sucursalId = (int) $user->sucursal_id;
@@ -193,6 +198,7 @@ class TraspasoController extends Controller
 
     public function seriesDisponibles(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.ver'), 403, 'Sin permiso: inventario.ver');
         $data = $request->validate([
             'producto_id' => ['required', 'integer', 'exists:productos,id'],
             'variante_id' => ['nullable', 'integer', 'exists:producto_variantes,id'],
@@ -236,6 +242,7 @@ class TraspasoController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.traspasos'), 403, 'Sin permiso: inventario.traspasos');
         $data = $request->validate([
             'destino_sucursal_id' => ['required', 'integer', 'exists:sucursales,id'],
             'notas' => ['nullable', 'string', 'max:1000'],
@@ -305,6 +312,7 @@ class TraspasoController extends Controller
 
     public function recibir(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.traspasos'), 403, 'Sin permiso: inventario.traspasos');
         $data = $request->validate([
             'detalle_ids' => ['nullable', 'array'],
             'detalle_ids.*' => ['integer'],
@@ -365,6 +373,7 @@ class TraspasoController extends Controller
 
     public function rechazar(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.traspasos'), 403, 'Sin permiso: inventario.traspasos');
         $data = $request->validate([
             'motivo_rechazo' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -405,6 +414,7 @@ class TraspasoController extends Controller
 
     public function cancelar(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('inventario.traspasos'), 403, 'Sin permiso: inventario.traspasos');
         $data = $request->validate([
             'motivo_cancelacion' => ['nullable', 'string', 'max:1000'],
         ]);

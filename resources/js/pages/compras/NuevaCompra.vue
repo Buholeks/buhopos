@@ -53,6 +53,7 @@
                     </button>
 
                     <button
+                        v-if="auth.can('compras.crear')"
                         type="button"
                         @click="compra.confirmarGuardar"
                         :disabled="
@@ -283,6 +284,7 @@
                 </div>
 
                 <button
+                    v-if="auth.can('compras.crear')"
                     type="button"
                     @click="compra.confirmarGuardar"
                     :disabled="compra.guardando || compra.detalles.length === 0"
@@ -372,6 +374,8 @@
         <ModalCantidadCompra
             :mostrar="compra.modalCantidad.mostrar"
             :item="compra.modalCantidad.item"
+            :pedidos-pendientes="compra.modalCantidad.pedidosPendientes"
+            :cargando-pedidos="compra.modalCantidad.cargandoPedidos"
             @confirmar="compra.confirmarCantidad"
             @cancelar="compra.cancelarModal"
         />
@@ -397,6 +401,9 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 import {
     PackagePlus,
     Loader2,
@@ -412,6 +419,7 @@ import {
 } from "lucide-vue-next";
 
 import { useCompraStore } from "@/stores/useCompraStore";
+import { consumirCompraDesdePedidos } from "@/helpers/compraDesdePedidos";
 
 import CompraForm from "@/components/compras/CompraForm.vue";
 import CompraBuscador from "@/components/compras/CompraBuscador.vue";
@@ -447,6 +455,10 @@ const formaPagoLabel = computed(() => {
 });
 
 onMounted(() => {
+    const pedidos = consumirCompraDesdePedidos();
+    if (pedidos.length) {
+        compra.precargarDesdePedidos(pedidos);
+    }
     compra.cargarProveedores();
 });
 </script>

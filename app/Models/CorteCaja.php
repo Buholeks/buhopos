@@ -26,6 +26,7 @@ class CorteCaja extends Model
         'ventas_tarjeta',
         'ventas_transferencia',
         'ventas_credito',
+        'ventas_saldo_favor',
         'num_ventas',
 
         // OJO: tus columnas reales
@@ -59,6 +60,7 @@ class CorteCaja extends Model
         'ventas_tarjeta'       => 'decimal:2',
         'ventas_transferencia' => 'decimal:2',
         'ventas_credito'       => 'decimal:2',
+        'ventas_saldo_favor'   => 'decimal:2',
 
         // OJO: tus columnas reales
         'movs_efectivo'      => 'decimal:2',
@@ -105,6 +107,7 @@ class CorteCaja extends Model
             SUM(CASE WHEN forma_pago = 'tarjeta' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as tarjeta,
             SUM(CASE WHEN forma_pago = 'transferencia' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as transferencia,
             SUM(CASE WHEN forma_pago = 'credito' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as credito,
+            SUM(COALESCE(saldo_aplicado, 0)) as saldo_favor,
             COUNT(*) as num
         ")
             ->first();
@@ -114,6 +117,7 @@ class CorteCaja extends Model
             'ventas_tarjeta'       => $ventas->tarjeta       ?? 0,
             'ventas_transferencia' => $ventas->transferencia ?? 0,
             'ventas_credito'       => $ventas->credito       ?? 0,
+            'ventas_saldo_favor'   => $ventas->saldo_favor   ?? 0,
             'num_ventas'           => $ventas->num           ?? 0,
         ]);
 

@@ -43,6 +43,7 @@
         </button>
 
         <button
+          v-if="auth.can('productos.editar')"
           type="button"
           @click="$emit('editar-marca', marca)"
           title="Editar marca"
@@ -52,6 +53,7 @@
         </button>
 
         <button
+          v-if="auth.can('productos.eliminar')"
           type="button"
           @click="$emit('eliminar-marca', marca)"
           title="Eliminar marca"
@@ -98,6 +100,7 @@
         </button>
 
         <button
+          v-if="auth.can('productos.editar')"
           type="button"
           @click="$emit('editar-marca', marca)"
           class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-amber-50"
@@ -107,6 +110,7 @@
         </button>
 
         <button
+          v-if="auth.can('productos.eliminar')"
           type="button"
           @click="$emit('eliminar-marca', marca)"
           class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-rose-50"
@@ -142,6 +146,9 @@
 <script setup>
 import ModeloRow from "@/components/marcas/ModeloRow.vue";
 import { ImageOff, Plus, Pencil, Trash2, ChevronRight } from "lucide-vue-next";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 const props = defineProps({
   marca: { type: Object, required: true },

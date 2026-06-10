@@ -16,12 +16,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class CompraController extends Controller
 {
     // ── GET /api/compras ────────────────────────────────────────────────────
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('compras.ver'), 403, 'Sin permiso: compras.ver');
         $empresaId = Auth::user()->empresa_id;
 
         $compras = Compra::where('empresa_id', $empresaId)
@@ -46,6 +48,7 @@ class CompraController extends Controller
     // ── GET /api/compras/{id} ───────────────────────────────────────────────
     public function show(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('compras.ver'), 403, 'Sin permiso: compras.ver');
         $empresaId = Auth::user()->empresa_id;
 
         $compra = Compra::where('empresa_id', $empresaId)
@@ -63,6 +66,7 @@ class CompraController extends Controller
     // ── POST /api/compras ───────────────────────────────────────────────────
     public function store(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('compras.crear'), 403, 'Sin permiso: compras.crear');
         $user       = Auth::user();
         $empresaId  = (int) $user->empresa_id;
         $sucursalId = (int) $user->sucursal_id;
@@ -84,6 +88,8 @@ class CompraController extends Controller
             'detalles.*.precio_venta'  => ['nullable', 'numeric', 'min:0'],
             'detalles.*.imeis'         => ['nullable', 'array'],
             'detalles.*.imeis.*'       => ['nullable', 'string', 'max:20'],
+            'detalles.*.pedido_detalle_ids' => ['nullable', 'array'],
+            'detalles.*.pedido_detalle_ids.*' => ['integer', 'distinct'],
         ]);
 
         DB::beginTransaction();
@@ -144,13 +150,13 @@ class CompraController extends Controller
                 $inv->stock = (float) $inv->stock + $cantidad;
                 $inv->save();
 
-                $this->vincularPedidosPendientes(
+                $this->vincularPedidosSeleccionados(
                     $empresaId,
                     $sucursalId,
                     $productoId,
                     $varianteId,
                     $compraDetalle,
-                    $inv
+                    $det['pedido_detalle_ids'] ?? []
                 );
 
                 // ── Actualizar precios ─────────────────────────────────────
@@ -247,6 +253,9 @@ class CompraController extends Controller
                 $compra->fresh()->load(['proveedor', 'detalles.producto', 'detalles.variante', 'user:id,name']),
                 201
             );
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
@@ -254,65 +263,116 @@ class CompraController extends Controller
     }
 
     // ── POST /api/compras/{id}/cancelar ────────────────────────────────────
-    private function vincularPedidosPendientes(
+    private function vincularPedidosSeleccionados(
         int $empresaId,
         int $sucursalId,
         int $productoId,
         ?int $varianteId,
         CompraDetalle $compraDetalle,
-        Inventario $inventario
+        array $pedidoDetalleIds
     ): void {
-        $reservado = (float) InventarioReserva::where([
-            'empresa_id' => $empresaId,
-            'sucursal_id' => $sucursalId,
-            'producto_id' => $productoId,
-            'variante_id' => $varianteId,
-            'estado' => 'activa',
-        ])->sum('cantidad');
-
-        $disponible = min(
-            (float) $compraDetalle->cantidad,
-            max(0, (float) $inventario->stock - $reservado)
-        );
-        if ($disponible <= 0) {
-            return;
-        }
+        $pedidoDetalleIds = collect($pedidoDetalleIds)
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
 
         $variante = $varianteId
             ? ProductoVariante::with(['atributos.atributo'])->find($varianteId)
             : null;
 
-        $detalles = PedidoDetalle::query()
-            ->where('producto_id', $productoId)
-            ->where(function ($q) use ($varianteId) {
-                $q->where('variante_id', $varianteId);
+        if ($pedidoDetalleIds->isEmpty()) {
+            $productoGenerico = Producto::where('id', $productoId)
+                ->where('empresa_id', $empresaId)
+                ->value('pedido_generico');
 
-                if ($varianteId) {
-                    $q->orWhereNull('variante_id');
+            if ($productoGenerico) {
+                $tienePedidosPendientes = PedidoDetalle::query()
+                    ->where('producto_id', $productoId)
+                    ->where('estado', 'pendiente')
+                    ->whereNull('compra_detalle_id')
+                    ->whereHas('pedido', fn($q) => $q
+                        ->where('empresa_id', $empresaId)
+                        ->where('sucursal_id', $sucursalId)
+                        ->where('tipo', 'pedido')
+                        ->whereIn('estado', ['pendiente', 'en_proceso', 'parcial']))
+                    ->lockForUpdate()
+                    ->get()
+                    ->contains(fn($detalle) => $this->detallePedidoCoincideConCompra($detalle, $varianteId, $variante));
+
+                if ($tienePedidosPendientes) {
+                    throw ValidationException::withMessages([
+                        'detalles' => ['Selecciona al menos un pedido pendiente para vincular la compra del producto genérico.'],
+                    ]);
                 }
-            })
-            ->where('estado', 'pendiente')
-            ->whereNull('compra_detalle_id')
+
+                return;
+            }
+
+            $cantidadDisponible = (float) $compraDetalle->cantidad;
+            $pedidoDetalleIds = PedidoDetalle::query()
+                ->where('producto_id', $productoId)
+                ->where('estado', 'pendiente')
+                ->whereNull('compra_detalle_id')
+                ->whereHas('pedido', fn($q) => $q
+                    ->where('empresa_id', $empresaId)
+                    ->where('sucursal_id', $sucursalId)
+                    ->where('tipo', 'pedido')
+                    ->whereIn('estado', ['pendiente', 'en_proceso', 'parcial']))
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->filter(fn($detalle) => $this->detallePedidoCoincideConCompra($detalle, $varianteId, $variante))
+                ->filter(function ($detalle) use (&$cantidadDisponible) {
+                    $cantidad = (float) $detalle->cantidad;
+                    if ($cantidad > $cantidadDisponible) {
+                        return false;
+                    }
+                    $cantidadDisponible -= $cantidad;
+                    return true;
+                })
+                ->pluck('id')
+                ->values();
+
+            if ($pedidoDetalleIds->isEmpty()) {
+                return;
+            }
+        }
+
+        $detalles = PedidoDetalle::query()
+            ->whereIn('id', $pedidoDetalleIds)
+            ->where('producto_id', $productoId)
+            ->whereIn('estado', ['pendiente', 'disponible'])
             ->whereHas('pedido', fn($q) => $q
                 ->where('empresa_id', $empresaId)
                 ->where('sucursal_id', $sucursalId)
                 ->where('tipo', 'pedido')
                 ->whereIn('estado', ['pendiente', 'en_proceso', 'parcial']))
             ->with('pedido')
-            ->orderBy('id')
             ->lockForUpdate()
             ->get();
 
+        if ($detalles->count() !== $pedidoDetalleIds->count()) {
+            throw ValidationException::withMessages([
+                'detalles' => ['Uno o más renglones de pedido seleccionados ya no están disponibles o no corresponden al producto.'],
+            ]);
+        }
+
+        $cantidadPedidos = (float) $detalles->sum('cantidad');
+        if ($cantidadPedidos > (float) $compraDetalle->cantidad) {
+            throw ValidationException::withMessages([
+                'detalles' => ['La cantidad de pedidos seleccionados supera la cantidad comprada.'],
+            ]);
+        }
+
         foreach ($detalles as $detalle) {
             if (! $this->detallePedidoCoincideConCompra($detalle, $varianteId, $variante)) {
-                continue;
+                throw ValidationException::withMessages([
+                    'detalles' => ["El renglón del pedido {$detalle->pedido?->folio} no coincide con la variante comprada."],
+                ]);
             }
 
             $cantidad = (float) $detalle->cantidad;
-            if ($cantidad > $disponible) {
-                continue;
-            }
-
             $detalle->update([
                 'compra_detalle_id' => $compraDetalle->id,
                 'estado' => 'disponible',
@@ -329,9 +389,51 @@ class CompraController extends Controller
                 'estado' => 'activa',
             ]);
 
-            $disponible -= $cantidad;
             $this->actualizarEstadoPedido($detalle->pedido);
         }
+    }
+
+    public function pedidosPendientes(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('compras.crear'), 403, 'Sin permiso: compras.crear');
+        $user = Auth::user();
+        $data = $request->validate([
+            'producto_id' => ['required', 'integer'],
+            'variante_id' => ['nullable', 'integer'],
+        ]);
+
+        $productoId = (int) $data['producto_id'];
+        $varianteId = isset($data['variante_id']) ? (int) $data['variante_id'] : null;
+        $variante = $varianteId
+            ? ProductoVariante::with(['atributos.atributo'])->find($varianteId)
+            : null;
+
+        $detalles = PedidoDetalle::query()
+            ->where('producto_id', $productoId)
+            ->where('estado', 'pendiente')
+            ->whereNull('compra_detalle_id')
+            ->whereHas('pedido', fn($q) => $q
+                ->where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->where('tipo', 'pedido')
+                ->whereIn('estado', ['pendiente', 'en_proceso', 'parcial']))
+            ->with('pedido.cliente:id,nombre')
+            ->orderBy('id')
+            ->limit(50)
+            ->get()
+            ->filter(fn($detalle) => $this->detallePedidoCoincideConCompra($detalle, $varianteId, $variante))
+            ->values()
+            ->map(fn($detalle) => [
+                'id' => $detalle->id,
+                'pedido_id' => $detalle->pedido_id,
+                'folio' => $detalle->pedido?->folio,
+                'cliente' => $detalle->pedido?->cliente?->nombre,
+                'descripcion' => $detalle->descripcion,
+                'cantidad' => (float) $detalle->cantidad,
+                'precio_acordado' => (float) $detalle->precio_acordado,
+            ]);
+
+        return response()->json($detalles);
     }
 
     private function detallePedidoCoincideConCompra(
@@ -440,6 +542,7 @@ class CompraController extends Controller
 
     public function cancelar(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('compras.crear'), 403, 'Sin permiso: compras.crear');
         $user      = Auth::user();
         $empresaId = (int) $user->empresa_id;
 
@@ -504,6 +607,7 @@ class CompraController extends Controller
     // ── DELETE /api/compras/{id} ────────────────────────────────────────────
     public function destroy(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('compras.crear'), 403, 'Sin permiso: compras.crear');
         $empresaId = (int) Auth::user()->empresa_id;
         $compra    = Compra::where('empresa_id', $empresaId)->findOrFail($id);
 
@@ -526,6 +630,7 @@ class CompraController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     public function buscarVariantes(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('compras.crear'), 403, 'Sin permiso: compras.crear');
         $empresaId = (int) Auth::user()->empresa_id;
         $q         = trim($request->q ?? '');
 
@@ -542,6 +647,8 @@ class CompraController extends Controller
                     ->where('nombre', 'like', "%{$q}%")
                     ->orWhere('codigo', 'like', "%{$q}%")
             )
+            ->orderByDesc('pedido_generico')
+            ->orderBy('nombre')
             ->limit(10)
             ->get()
             ->map(fn($p) => [
@@ -556,7 +663,8 @@ class CompraController extends Controller
                 'precio_venta'    => (float) ($p->precio_venta ?? 0),
                 'imagen_url'      => $p->imagen_url,
                 'tiene_variantes' => false,
-                'tiene_series'    => (bool) $p->tiene_series, // ← nuevo
+                'tiene_series'    => (bool) $p->tiene_series,
+                'pedido_generico' => (bool) $p->pedido_generico,
             ]);
 
         $resultados = $resultados->merge($productos);
@@ -570,7 +678,7 @@ class CompraController extends Controller
                 ->where('tiene_variantes', true)  // solo de productos con variantes
         )
             ->with([
-                'producto:id,nombre,codigo,precio_costo,precio_venta,imagen,tiene_series',
+                'producto:id,nombre,codigo,precio_costo,precio_venta,imagen,tiene_series,pedido_generico',
                 'atributos.tipoAtributo:id,nombre',
                 'atributos.atributo:id,valor',
             ])
@@ -599,10 +707,14 @@ class CompraController extends Controller
                 'precio_venta'    => (float) ($v->precio_venta ?? $v->producto->precio_venta ?? 0),
                 'imagen_url'      => $v->imagen_url,
                 'tiene_variantes' => true,
-                'tiene_series'    => (bool) $v->producto->tiene_series, // ← nuevo
+                'tiene_series'    => (bool) $v->producto->tiene_series,
+                'pedido_generico' => (bool) $v->producto->pedido_generico,
             ]);
 
         $resultados = $resultados->merge($variantes)->values();
+        $resultados = $resultados
+            ->sortByDesc(fn($resultado) => (int) ($resultado['pedido_generico'] ?? false))
+            ->values();
 
         return response()->json($resultados);
     }

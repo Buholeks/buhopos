@@ -16,6 +16,8 @@ export const useCompraStore = defineStore("compra", () => {
     const modalCantidad = reactive({
         mostrar: false,
         item: null,
+        pedidosPendientes: [],
+        cargandoPedidos: false,
     });
 
     const modalImei = reactive({
@@ -24,6 +26,7 @@ export const useCompraStore = defineStore("compra", () => {
         cantidad: 1,
         precio_compra: 0,
         precio_venta: 0,
+        pedido_detalle_ids: [],
     });
 
     const modalEditar = reactive({
@@ -136,12 +139,29 @@ export const useCompraStore = defineStore("compra", () => {
             .flatMap((d) => d.imeis ?? []);
     }
 
-    function seleccionarItem(item) {
+    async function seleccionarItem(item) {
         modalCantidad.item = item;
+        modalCantidad.pedidosPendientes = [];
         modalCantidad.mostrar = true;
+
+        modalCantidad.cargandoPedidos = true;
+        try {
+            const { data } = await http.get("/api/compras/pedidos-pendientes", {
+                params: {
+                    producto_id: item.producto_id,
+                    variante_id: item.id ?? null,
+                },
+            });
+            modalCantidad.pedidosPendientes = Array.isArray(data) ? data : [];
+        } catch {
+            modalCantidad.pedidosPendientes = [];
+            toastError("No se pudieron cargar los pedidos pendientes");
+        } finally {
+            modalCantidad.cargandoPedidos = false;
+        }
     }
 
-    function confirmarCantidad({ cantidad, precio_compra, precio_venta }) {
+    function confirmarCantidad({ cantidad, precio_compra, precio_venta, pedido_detalle_ids }) {
         modalCantidad.mostrar = false;
 
         const item = modalCantidad.item;
@@ -152,11 +172,12 @@ export const useCompraStore = defineStore("compra", () => {
             modalImei.cantidad = cantidad;
             modalImei.precio_compra = precio_compra;
             modalImei.precio_venta = precio_venta;
+            modalImei.pedido_detalle_ids = pedido_detalle_ids;
             modalImei.mostrar = true;
             return;
         }
 
-        agregarDetalle(item, cantidad, precio_compra, precio_venta, []);
+        agregarDetalle(item, cantidad, precio_compra, precio_venta, [], pedido_detalle_ids);
         enfocarBuscador();
     }
 
@@ -168,7 +189,8 @@ export const useCompraStore = defineStore("compra", () => {
             modalImei.cantidad,
             modalImei.precio_compra,
             modalImei.precio_venta,
-            imeis
+            imeis,
+            modalImei.pedido_detalle_ids
         );
 
         enfocarBuscador();
@@ -183,23 +205,34 @@ export const useCompraStore = defineStore("compra", () => {
         modalCantidad.mostrar = false;
         modalImei.mostrar = false;
         modalCantidad.item = null;
+        modalCantidad.pedidosPendientes = [];
         enfocarBuscador();
     }
 
-    function agregarDetalle(item, cantidad, precio_compra, precio_venta, imeis = []) {
+    function agregarDetalle(item, cantidad, precio_compra, precio_venta, imeis = [], pedidoDetalleIds = [], notificar = true) {
         if (!item) return;
 
-        const idKey = item.id ? `v:${item.id}` : `p:${item.producto_id}`;
+        const baseIdKey = item.id ? `v:${item.id}` : `p:${item.producto_id}`;
+        const pedidosKey = [...pedidoDetalleIds].map(Number).sort((a, b) => a - b).join(",");
+        const idKey = pedidosKey ? `${baseIdKey}:pedidos:${pedidosKey}` : baseIdKey;
 
-        const existe = detalles.value.find((d) => d._idkey === idKey);
+        const existe = detalles.value.find((d) =>
+            d._idkey === idKey
+            && Number(d.precio_compra) === Number(precio_compra)
+            && Number(d.precio_venta) === Number(precio_venta)
+        );
 
         if (existe && !item.tiene_series) {
             existe.cantidad = Number(existe.cantidad) + Number(cantidad);
             existe.precio_compra = precio_compra;
             existe.precio_venta = precio_venta;
+            existe.pedido_detalle_ids = Array.from(new Set([
+                ...(existe.pedido_detalle_ids ?? []),
+                ...pedidoDetalleIds,
+            ]));
 
             normalizeLinea(existe);
-            toastSuccess(`+${cantidad} a ${item.nombre}`);
+            if (notificar) toastSuccess(`+${cantidad} a ${item.nombre}`);
             return;
         }
 
@@ -218,6 +251,7 @@ export const useCompraStore = defineStore("compra", () => {
             precio_venta,
             subtotal: 0,
             imeis,
+            pedido_detalle_ids: pedidoDetalleIds,
         };
 
         normalizeLinea(det);
@@ -225,9 +259,33 @@ export const useCompraStore = defineStore("compra", () => {
         // Nuevo arriba. Más POS, menos “lo mandé al sótano”.
         detalles.value.unshift(det);
 
-        if (item.tiene_series) {
+        if (item.tiene_series && notificar) {
             toastSuccess(
                 `${cantidad} IMEI${cantidad !== 1 ? "s" : ""} registrados`
+            );
+        }
+    }
+
+    function precargarDesdePedidos(pedidos) {
+        detalles.value = [];
+
+        for (const pedido of pedidos) {
+            agregarDetalle(
+                {
+                    id: pedido.variante_id ?? null,
+                    producto_id: pedido.producto_id,
+                    nombre: pedido.producto || pedido.descripcion,
+                    nombre_variante: pedido.sku ?? null,
+                    codigo: pedido.codigo,
+                    imagen_url: pedido.imagen_url,
+                    tiene_series: false,
+                },
+                Number(pedido.cantidad || 1),
+                Number(pedido.precio_compra || 0),
+                Number(pedido.precio_venta || pedido.precio_acordado || 0),
+                [],
+                [pedido.id],
+                false,
             );
         }
     }
@@ -334,6 +392,7 @@ export const useCompraStore = defineStore("compra", () => {
                     precio_compra: Number(d.precio_compra),
                     precio_venta: Number(d.precio_venta) || null,
                     imeis: d.imeis ?? [],
+                    pedido_detalle_ids: d.pedido_detalle_ids ?? [],
                 })),
             });
 
@@ -420,6 +479,7 @@ export const useCompraStore = defineStore("compra", () => {
         guardarImeisEditados,
         cerrarEditarImeis,
         imeisDeOtrosDetalles,
+        precargarDesdePedidos,
 
         resetear,
         confirmarGuardar,

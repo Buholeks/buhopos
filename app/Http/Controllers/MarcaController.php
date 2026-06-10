@@ -26,6 +26,7 @@ class MarcaController extends Controller
     // GET /api/marcas
     public function index(): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
         $marcas = Marca::deEmpresa($this->empresaId())
             ->with('modelos')
             ->orderBy('nombre')
@@ -35,9 +36,29 @@ class MarcaController extends Controller
         return response()->json($marcas);
     }
 
+    public function buscar(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
+        $data = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+        ]);
+
+        $q = trim($data['q'] ?? '');
+
+        $marcas = Marca::deEmpresa($this->empresaId())
+            ->activas()
+            ->when($q !== '', fn($query) => $query->where('nombre', 'like', "{$q}%"))
+            ->orderBy('nombre')
+            ->limit(20)
+            ->get(['id', 'nombre']);
+
+        return response()->json($marcas);
+    }
+
     // POST /api/marcas
     public function store(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
 
         $datos = $request->validate([
@@ -86,6 +107,7 @@ class MarcaController extends Controller
     // POST /api/marcas/{id}  (usamos POST para poder enviar archivo con _method=PUT)
     public function update(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
         $marca     = Marca::deEmpresa($empresaId)->findOrFail($id);
 
@@ -130,6 +152,7 @@ class MarcaController extends Controller
     // DELETE /api/marcas/{id}
     public function destroy(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.eliminar'), 403, 'Sin permiso: productos.eliminar');
         $marca = Marca::deEmpresa($this->empresaId())->findOrFail($id);
 
         // Eliminar logo del storage

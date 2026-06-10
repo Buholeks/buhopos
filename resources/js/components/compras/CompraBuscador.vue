@@ -104,6 +104,12 @@
                                 </p>
                                 <div class="mt-0.5 flex items-center gap-2">
                                     <span
+                                        v-if="r.pedido_generico"
+                                        class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-700"
+                                    >
+                                        Pedido genérico
+                                    </span>
+                                    <span
                                         class="font-mono text-xs text-slate-400"
                                     >
                                         {{ r.codigo }}

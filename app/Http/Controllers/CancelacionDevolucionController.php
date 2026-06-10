@@ -12,12 +12,14 @@ use App\Models\VentaDetalle;
 use App\Services\FolioService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class CancelacionDevolucionController extends Controller
 {
     public function buscar(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.cancelar'), 403, 'Sin permiso: ventas.cancelar');
         $data = $request->validate([
             'folio' => ['required', 'string', 'max:100'],
         ]);
@@ -36,6 +38,7 @@ class CancelacionDevolucionController extends Controller
 
     public function cancelar(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.cancelar'), 403, 'Sin permiso: ventas.cancelar');
         $data = $request->validate([
             'folio' => ['required', 'string', 'max:100'],
             'motivo' => ['required', 'string', 'max:255'],
@@ -84,6 +87,7 @@ class CancelacionDevolucionController extends Controller
 
     public function devolver(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.cancelar'), 403, 'Sin permiso: ventas.cancelar');
         $data = $request->validate([
             'folio' => ['required', 'string', 'max:100'],
             'motivo' => ['required', 'string', 'max:255'],

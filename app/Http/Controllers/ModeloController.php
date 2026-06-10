@@ -41,6 +41,27 @@ class ModeloController extends Controller
         return response()->json($modelos);
     }
 
+    public function buscar(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
+        $data = $request->validate([
+            'marca_id' => ['required', 'integer'],
+            'q' => ['nullable', 'string', 'max:150'],
+        ]);
+
+        $q = trim($data['q'] ?? '');
+
+        $modelos = Modelo::deEmpresa($this->empresaId())
+            ->activos()
+            ->where('marca_id', $data['marca_id'])
+            ->when($q !== '', fn($query) => $query->where('nombre', 'like', "{$q}%"))
+            ->orderBy('nombre')
+            ->limit(20)
+            ->get(['id', 'marca_id', 'nombre']);
+
+        return response()->json($modelos);
+    }
+
     // POST /api/modelos
     public function store(Request $request): JsonResponse
     {

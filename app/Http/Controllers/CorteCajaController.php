@@ -15,6 +15,7 @@ class CorteCajaController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
         $user      = Auth::user();
         $sucursalID = (int) $user->sucursal_id;
 
@@ -49,6 +50,7 @@ class CorteCajaController extends Controller
 
     public function abrir(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('caja.abrir'), 403, 'Sin permiso: caja.abrir');
         $user = Auth::user();
 
         $abierto = CorteCaja::where('empresa_id', $user->empresa_id)
@@ -75,6 +77,7 @@ class CorteCajaController extends Controller
 
     public function agregarMovimiento(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('caja.abrir'), 403, 'Sin permiso: caja.abrir');
         $user = Auth::user();
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
@@ -107,6 +110,7 @@ class CorteCajaController extends Controller
 
 public function cerrar(Request $request, int $id): JsonResponse
 {
+    abort_unless(Auth::user()->tienePermiso('caja.cerrar'), 403, 'Sin permiso: caja.cerrar');
     $user = Auth::user();
 
     $corte = CorteCaja::where('empresa_id', $user->empresa_id)
@@ -241,6 +245,7 @@ public function cerrar(Request $request, int $id): JsonResponse
 
     public function show(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
         $user = Auth::user();
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
@@ -280,6 +285,7 @@ public function cerrar(Request $request, int $id): JsonResponse
 
     public function ventas(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
         $user = Auth::user();
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)

@@ -86,10 +86,11 @@
                                 <button
                                     type="button"
                                     class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                                    :disabled="detallePedido.estado === 'entregado'"
+                                    :disabled="detallePedido.estado === 'entregado' || detalles.some((d) => Number(d.pedido_detalle_id) === Number(detallePedido.id))"
+                                    :title="detalles.some((d) => Number(d.pedido_detalle_id) === Number(detallePedido.id)) ? 'Ya en la venta' : ''"
                                     @click="agregarPedidoAlCarrito(pedido, detallePedido)"
                                 >
-                                    Agregar
+                                    {{ detalles.some((d) => Number(d.pedido_detalle_id) === Number(detallePedido.id)) ? '✓ Agregado' : 'Agregar' }}
                                 </button>
                             </div>
                         </div>
@@ -265,6 +266,14 @@ const ventaSoloProductosPendientes = computed(() =>
 const saldoBloqueado = computed(() =>
     tieneProductosPendientes.value && !ventaSoloProductosPendientes.value,
 );
+// Suma del anticipo de los pedidos que están representados en el carrito actual
+const anticipoPedidosEnCarrito = computed(() => {
+    if (!ventaSoloProductosPendientes.value) return 0;
+    const pedidoIds = new Set(detalles.value.map((d) => Number(d.pedido_id)).filter(Boolean));
+    return pedidosDisponibles.value
+        .filter((p) => pedidoIds.has(Number(p.id)))
+        .reduce((sum, p) => sum + Number(p.anticipo || 0), 0);
+});
 
 
 const modalMov = ref(false);
@@ -322,6 +331,9 @@ watch(
         if (bloqueado) cobro.value.saldo_aplicado = 0;
     },
 );
+
+// Cuando cambian qué pedidos están en el carrito, recalcular saldo sugerido
+watch(anticipoPedidosEnCarrito, () => aplicarSaldoAutomatico());
 
 // ── Fila seleccionada ─────────────────────────────────────────────────────────
 const selectedIdx = ref(null);
@@ -850,7 +862,10 @@ async function agregarPedidoAlCarrito(pedido, detallePedido) {
 
     try {
         const { data } = await http.get("/api/ventas/buscar-variantes", {
-            params: { q },
+            params: {
+                q,
+                pedido_detalle_id: detallePedido.id,
+            },
         });
 
         const items = Array.isArray(data) ? data : [];
@@ -864,7 +879,12 @@ async function agregarPedidoAlCarrito(pedido, detallePedido) {
             return;
         }
 
-        const det = store.agregarDetalle(item);
+        const det = store.agregarDetalle({
+            ...item,
+            pedido_id: pedido.id,
+            pedido_detalle_id: detallePedido.id,
+            precio_venta: Number(detallePedido.precio_acordado || item.precio_venta || 0),
+        });
         det.cantidad = Number(detallePedido.cantidad || 1);
         det.precio_venta = Number(detallePedido.precio_acordado || item.precio_venta || 0);
         det.pedido_id = pedido.id;
@@ -1048,10 +1068,14 @@ function aplicarSaldoAutomatico() {
         return;
     }
 
-    cobro.value.saldo_aplicado = Math.min(
-        Number(cobro.value.saldo_disponible || 0),
-        Number(total.value || 0),
-    );
+    // Si la venta es de pedidos específicos, limitamos el saldo al anticipo de esos pedidos
+    // para no consumir anticipos de otros pedidos del mismo cliente
+    const topePorPedido =
+        ventaSoloProductosPendientes.value && anticipoPedidosEnCarrito.value > 0
+            ? Math.min(Number(cobro.value.saldo_disponible || 0), anticipoPedidosEnCarrito.value)
+            : Number(cobro.value.saldo_disponible || 0);
+
+    cobro.value.saldo_aplicado = Math.min(topePorPedido, Number(total.value || 0));
 
     if (cobro.value.forma_pago === "efectivo") {
         cobro.value.monto_recibido = totalACobrar.value > 0 ? totalACobrar.value : 0;

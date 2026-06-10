@@ -17,6 +17,7 @@ class ClienteSaldoMovimiento extends Model
         'pedido_id',
         'venta_id',
         'corte_id',
+        'movimiento_caja_id',
         'user_id',
         'tipo',
         'forma_pago',

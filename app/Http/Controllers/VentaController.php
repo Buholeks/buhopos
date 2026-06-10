@@ -26,6 +26,7 @@ class VentaController extends Controller
     // ── GET /api/ventas ─────────────────────────────────────────────────────
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.ver'), 403, 'Sin permiso: ventas.ver');
         $empresaId = Auth::user()->empresa_id;
 
         $ventas = Venta::where('empresa_id', $empresaId)
@@ -46,6 +47,7 @@ class VentaController extends Controller
     // ── GET /api/ventas/{id} ────────────────────────────────────────────────
     public function show(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.ver'), 403, 'Sin permiso: ventas.ver');
         $empresaId = Auth::user()->empresa_id;
 
         $venta = Venta::where('empresa_id', $empresaId)
@@ -63,6 +65,7 @@ class VentaController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.crear'), 403, 'Sin permiso: ventas.crear');
         $user       = Auth::user();
         $empresaId  = (int) $user->empresa_id;
         $sucursalId = (int) $user->sucursal_id;
@@ -125,6 +128,51 @@ class VentaController extends Controller
                 'message' => 'El vendedor seleccionado no pertenece a esta empresa.',
             ], 422);
         }
+
+        $pedidoDetalleIds = collect($datos['detalles'])
+            ->pluck('pedido_detalle_id')
+            ->filter()
+            ->map(fn($id) => (int) $id);
+
+        if ($pedidoDetalleIds->count() !== $pedidoDetalleIds->unique()->count()) {
+            return response()->json([
+                'message' => 'Un mismo renglón de pedido no puede agregarse dos veces a la venta.',
+                'campo' => 'pedido_detalle_id',
+            ], 422);
+        }
+
+        $pedidoDetalles = PedidoDetalle::whereIn('id', $pedidoDetalleIds->unique())
+            ->whereIn('estado', ['disponible', 'reservado'])
+            ->whereHas('pedido', fn($query) => $query
+                ->where('empresa_id', $empresaId)
+                ->where('sucursal_id', $sucursalId))
+            ->with(['pedido:id,cliente_id', 'compraDetalle:id,precio_compra'])
+            ->get()
+            ->keyBy('id');
+
+        foreach ($datos['detalles'] as $i => &$det) {
+            if (empty($det['pedido_detalle_id'])) {
+                continue;
+            }
+
+            $pedidoDetalle = $pedidoDetalles->get((int) $det['pedido_detalle_id']);
+            $coincide = $pedidoDetalle
+                && (int) $pedidoDetalle->producto_id === (int) $det['producto_id']
+                && (int) ($pedidoDetalle->variante_id ?? 0) === (int) ($det['variante_id'] ?? 0)
+                && abs((float) $pedidoDetalle->cantidad - (float) $det['cantidad']) < 0.0001
+                && (int) $pedidoDetalle->pedido?->cliente_id === (int) ($datos['cliente_id'] ?? 0);
+
+            if (! $coincide) {
+                return response()->json([
+                    'message' => 'Uno de los renglones de pedido ya no está disponible o no corresponde al cliente/producto seleccionado.',
+                    'campo' => "detalles.{$i}.pedido_detalle_id",
+                ], 422);
+            }
+
+            $det['pedido_id'] = $pedidoDetalle->pedido_id;
+            $det['precio_venta'] = (float) $pedidoDetalle->precio_acordado;
+        }
+        unset($det);
 
         $subtotalCalculado = collect($datos['detalles'])
             ->sum(fn($det) => ((float) $det['precio_venta']) * ((int) $det['cantidad']));
@@ -233,7 +281,7 @@ class VentaController extends Controller
 
             foreach ($datos['detalles'] as $det) {
                 $productoId  = (int) $det['producto_id'];
-                $varianteId  = $det['variante_id'] ? (int) $det['variante_id'] : null;
+                $varianteId  = !empty($det['variante_id']) ? (int) $det['variante_id'] : null;
                 $cantidad    = (int) $det['cantidad'];
                 $precioVenta = (float) $det['precio_venta'];
 
@@ -291,6 +339,13 @@ class VentaController extends Controller
 
                 if ($serieObj?->precio_costo) {
                     $precioCosto = (float) $serieObj->precio_costo;
+                }
+
+                if (!empty($det['pedido_detalle_id'])) {
+                    $precioCosto = (float) (
+                        $pedidoDetalles->get((int) $det['pedido_detalle_id'])?->compraDetalle?->precio_compra
+                        ?? $precioCosto
+                    );
                 }
 
                 $precioOriginal = $varianteId
@@ -396,6 +451,7 @@ class VentaController extends Controller
     // ── DELETE /api/ventas/{id} — solo cancela, no borra ───────────────────
     public function destroy(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.cancelar'), 403, 'Sin permiso: ventas.cancelar');
         $user      = Auth::user();
         $empresaId = (int) $user->empresa_id;
 
@@ -645,10 +701,12 @@ class VentaController extends Controller
 
     public function buscarVariantes(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.crear'), 403, 'Sin permiso: ventas.crear');
         $user       = Auth::user();
         $empresaId  = (int) $user->empresa_id;
         $sucursalId = (int) $user->sucursal_id;
         $q          = trim($request->q ?? '');
+        $pedidoDetalleId = $request->integer('pedido_detalle_id') ?: null;
 
         if (strlen($q) < 1) return response()->json([]);
 
@@ -666,6 +724,43 @@ class VentaController extends Controller
             'variante_id' => $varianteId,
         ])->first();
 
+        // ── Helper: stock comprometido — construye un bulk lookup con 2 queries ─
+        // Se invoca una vez por caso con todos los (producto_id, variante_id) del
+        // resultado, evitando 2×N queries individuales dentro del map().
+        $buildStockComprometido = function (array $pares) use ($empresaId, $sucursalId, $pedidoDetalleId): \Closure {
+            // $pares = [['producto_id' => X, 'variante_id' => Y|null], ...]
+            $productoIds = array_unique(array_column($pares, 'producto_id'));
+
+            $reservas = InventarioReserva::where('empresa_id', $empresaId)
+                ->where('sucursal_id', $sucursalId)
+                ->whereIn('producto_id', $productoIds)
+                ->where('estado', 'activa')
+                ->when($pedidoDetalleId, fn($q) => $q->where('pedido_detalle_id', '!=', $pedidoDetalleId))
+                ->selectRaw('producto_id, variante_id, SUM(cantidad) as total')
+                ->groupBy('producto_id', 'variante_id')
+                ->get()
+                ->keyBy(fn($r) => $r->producto_id . '-' . ($r->variante_id ?? 'null'));
+
+            $pedidoDisponibles = PedidoDetalle::whereIn('producto_id', $productoIds)
+                ->where('estado', 'disponible')
+                ->when($pedidoDetalleId, fn($q) => $q->where('id', '!=', $pedidoDetalleId))
+                ->whereDoesntHave('reservas', fn($q) => $q->where('estado', 'activa'))
+                ->whereHas('pedido', fn($q) => $q
+                    ->where('empresa_id', $empresaId)
+                    ->where('sucursal_id', $sucursalId)
+                    ->whereNotIn('estado', ['entregado', 'cancelado']))
+                ->selectRaw('producto_id, variante_id, SUM(cantidad) as total')
+                ->groupBy('producto_id', 'variante_id')
+                ->get()
+                ->keyBy(fn($r) => $r->producto_id . '-' . ($r->variante_id ?? 'null'));
+
+            return function (int $productoId, ?int $varianteId) use ($reservas, $pedidoDisponibles): float {
+                $key = $productoId . '-' . ($varianteId ?? 'null');
+                return (float) ($reservas[$key]->total ?? 0)
+                    + (float) ($pedidoDisponibles[$key]->total ?? 0);
+            };
+        };
+
         // ══════════════════════════════════════════════════════════════════════
         // CASO 1 — Búsqueda por IMEI (prioridad máxima)
         // Si el query coincide exactamente con un IMEI disponible, devolver ese
@@ -678,8 +773,11 @@ class VentaController extends Controller
             ->first();
 
         if ($serie) {
+            $stockComprometido = $buildStockComprometido([
+                ['producto_id' => $serie->producto_id, 'variante_id' => $serie->variante_id],
+            ]);
             $inv   = $getStock($empresaId, $sucursalId, $serie->producto_id, $serie->variante_id);
-            $stock = (float) ($inv?->stock ?? 0);
+            $stock = max(0, (float) ($inv?->stock ?? 0) - $stockComprometido($serie->producto_id, $serie->variante_id));
 
             // Precios: serie > variante > producto
             $precioVenta = ($serie->precio_venta && (float)$serie->precio_venta > 0)
@@ -740,10 +838,17 @@ class VentaController extends Controller
                 'tiene_series'
             )
             ->limit(10)
-            ->get()
-            ->map(function ($p) use ($empresaId, $sucursalId, $getStock) {
+            ->get();
+
+        // ── Bulk stock comprometido para productos sin variante ───────────────
+        $paresProductos = $productos->map(fn($p) => ['producto_id' => $p->id, 'variante_id' => null])->all();
+        $stockComprometidoP = count($paresProductos) > 0
+            ? $buildStockComprometido($paresProductos)
+            : fn($p, $v) => 0.0;
+
+        $productos = $productos->map(function ($p) use ($empresaId, $sucursalId, $getStock, $stockComprometidoP) {
                 $inv      = $getStock($empresaId, $sucursalId, $p->id, null);
-                $stock    = (float) ($inv?->stock ?? 0);
+                $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoP($p->id, null));
                 $exhibido = (bool)  ($inv?->exhibido ?? false);
 
                 return [
@@ -812,10 +917,17 @@ class VentaController extends Controller
                     )
             )
             ->limit(15)
-            ->get()
-            ->map(function ($v) use ($empresaId, $sucursalId, $getStock, $resolverPrecio) {
+            ->get();
+
+        // ── Bulk stock comprometido para variantes ────────────────────────────
+        $paresVariantes = $variantes->map(fn($v) => ['producto_id' => $v->producto_id, 'variante_id' => $v->id])->all();
+        $stockComprometidoV = count($paresVariantes) > 0
+            ? $buildStockComprometido($paresVariantes)
+            : fn($p, $v) => 0.0;
+
+        $variantes = $variantes->map(function ($v) use ($empresaId, $sucursalId, $getStock, $resolverPrecio, $stockComprometidoV) {
                 $inv      = $getStock($empresaId, $sucursalId, $v->producto_id, $v->id);
-                $stock    = (float) ($inv?->stock ?? 0);
+                $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoV($v->producto_id, $v->id));
                 $exhibido = (bool)  ($inv?->exhibido ?? false);
 
                 return [

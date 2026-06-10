@@ -41,6 +41,29 @@ class UnidadMedidaController extends Controller
         return response()->json($query->get());
     }
 
+    public function buscar(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
+        $data = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $q = trim($data['q'] ?? '');
+
+        $unidades = UnidadMedida::deEmpresa($this->empresaId())
+            ->activas()
+            ->when($q !== '', fn($query) => $query->where(function ($subquery) use ($q) {
+                $subquery
+                    ->where('nombre', 'like', "{$q}%")
+                    ->orWhere('abreviatura', 'like', "{$q}%");
+            }))
+            ->orderBy('nombre')
+            ->limit(20)
+            ->get(['id', 'nombre', 'abreviatura', 'tipo']);
+
+        return response()->json($unidades);
+    }
+
     // POST /api/unidades-medida
     public function store(Request $request): JsonResponse
     {

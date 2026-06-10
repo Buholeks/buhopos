@@ -150,6 +150,7 @@
                 </button>
 
                 <button
+                    v-if="auth.can('ventas.descuento')"
                     type="button"
                     class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="disableAccionesVenta"
@@ -217,6 +218,9 @@ import {
     Printer,
 } from "lucide-vue-next";
 import VentaClienteSelector from "@/components/ventas/VentaClienteSelector.vue";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 const props = defineProps({
     guardando: { type: Boolean, default: false },

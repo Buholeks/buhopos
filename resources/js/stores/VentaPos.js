@@ -98,7 +98,11 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
     }
 
     function agregarDetalle(r) {
-        const _idkey = r.id ? `v:${r.id}` : `p:${r.producto_id}`;
+        const _idkey = r.pedido_detalle_id
+            ? `pedido:${r.pedido_detalle_id}`
+            : r.id
+              ? `v:${r.id}`
+              : `p:${r.producto_id}`;
         const existe = detalles.value.find((d) => d._idkey === _idkey);
 
         if (existe) {

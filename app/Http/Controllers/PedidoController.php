@@ -23,6 +23,7 @@ class PedidoController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('pedidos.ver'), 403, 'Sin permiso: pedidos.ver');
         $user = Auth::user();
 
         $pedidos = Pedido::query()
@@ -57,6 +58,7 @@ class PedidoController extends Controller
 
     public function show(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('pedidos.ver'), 403, 'Sin permiso: pedidos.ver');
         $user = Auth::user();
 
         $pedido = Pedido::where('empresa_id', $user->empresa_id)
@@ -74,6 +76,7 @@ class PedidoController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
         $user = Auth::user();
         $empresaId = (int) $user->empresa_id;
         $sucursalId = (int) $user->sucursal_id;
@@ -208,6 +211,7 @@ class PedidoController extends Controller
 
     public function buscarCatalogo(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('pedidos.ver'), 403, 'Sin permiso: pedidos.ver');
         $empresaId = (int) Auth::user()->empresa_id;
         $q = trim((string) $request->q);
 
@@ -267,8 +271,62 @@ class PedidoController extends Controller
         return response()->json($productos->merge($variantes)->values());
     }
 
+    public function pendientesCompra(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
+        $user = Auth::user();
+        $buscar = trim((string) $request->input('buscar', ''));
+
+        $detalles = PedidoDetalle::query()
+            ->where('estado', 'pendiente')
+            ->whereNull('compra_detalle_id')
+            ->whereNotNull('producto_id')
+            ->whereHas('pedido', fn($query) => $query
+                ->where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->where('tipo', 'pedido')
+                ->whereIn('estado', ['pendiente', 'en_proceso', 'parcial']))
+            ->whereHas('producto', fn($query) => $query->where('pedido_generico', true))
+            ->when($buscar !== '', fn($query) => $query->where(function ($subquery) use ($buscar) {
+                $subquery
+                    ->where('descripcion', 'like', "%{$buscar}%")
+                    ->orWhereHas('pedido', fn($pedido) => $pedido
+                        ->where('folio', 'like', "%{$buscar}%")
+                        ->orWhereHas('cliente', fn($cliente) => $cliente->where('nombre', 'like', "%{$buscar}%")));
+            }))
+            ->with([
+                'pedido:id,cliente_id,folio,created_at',
+                'pedido.cliente:id,nombre',
+                'producto:id,nombre,codigo,precio_costo,precio_venta,pedido_generico,imagen',
+                'variante:id,producto_id,sku,precio_costo,precio_venta,imagen',
+            ])
+            ->orderBy('id')
+            ->limit(500)
+            ->get()
+            ->map(fn($detalle) => [
+                'id' => $detalle->id,
+                'pedido_id' => $detalle->pedido_id,
+                'folio' => $detalle->pedido?->folio,
+                'cliente' => $detalle->pedido?->cliente?->nombre,
+                'producto_id' => $detalle->producto_id,
+                'variante_id' => $detalle->variante_id,
+                'producto' => $detalle->producto?->nombre,
+                'codigo' => $detalle->producto?->codigo,
+                'sku' => $detalle->variante?->sku,
+                'descripcion' => $detalle->descripcion,
+                'cantidad' => (float) $detalle->cantidad,
+                'precio_acordado' => (float) $detalle->precio_acordado,
+                'precio_compra' => (float) ($detalle->variante?->precio_costo ?? $detalle->producto?->precio_costo ?? 0),
+                'precio_venta' => (float) $detalle->precio_acordado,
+                'imagen_url' => $detalle->variante?->imagen_url ?? $detalle->producto?->imagen_url,
+            ]);
+
+        return response()->json($detalles);
+    }
+
     public function abonar(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
         $user = Auth::user();
         $pedido = Pedido::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
@@ -310,8 +368,71 @@ class PedidoController extends Controller
         }
     }
 
+    public function eliminarAbono(int $pedidoId, int $abonoId): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
+        $user = Auth::user();
+
+        $pedido = Pedido::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->findOrFail($pedidoId);
+
+        if (in_array($pedido->estado, ['entregado', 'cancelado'])) {
+            return response()->json(['message' => 'No se puede modificar un pedido cerrado.'], 422);
+        }
+
+        $abono = ClienteSaldoMovimiento::where('pedido_id', $pedido->id)
+            ->where('tipo', 'abono')
+            ->findOrFail($abonoId);
+
+        DB::beginTransaction();
+        try {
+            $monto = (float) $abono->monto;
+            $cajaMensaje = '';
+
+            // Si el corte sigue abierto, eliminar el movimiento de caja asociado por FK exacto
+            if ($abono->corte_id) {
+                $corte = CorteCaja::where('id', $abono->corte_id)->where('estado', 'abierto')->first();
+                if ($corte) {
+                    if ($abono->movimiento_caja_id) {
+                        MovimientoCaja::where('id', $abono->movimiento_caja_id)->delete();
+                    } else {
+                        // Fallback para abonos antiguos sin FK: búsqueda heurística
+                        MovimientoCaja::where('corte_id', $abono->corte_id)
+                            ->where('tipo', 'ingreso')
+                            ->where('monto', $abono->monto)
+                            ->where('concepto', 'like', "%{$pedido->folio}%")
+                            ->orderByDesc('id')
+                            ->limit(1)
+                            ->delete();
+                    }
+                    $corte->recalcularMovimientos();
+                } else {
+                    $cajaMensaje = ' El corte de caja ya está cerrado; ajusta manualmente si es necesario.';
+                }
+            }
+
+            $pedido->anticipo = max(0, (float) $pedido->anticipo - $monto);
+            $pedido->saldo_pendiente = max(0, (float) $pedido->subtotal - (float) $pedido->anticipo);
+            $pedido->estado_pago = $this->estadoPago((float) $pedido->subtotal, (float) $pedido->anticipo);
+            $pedido->save();
+
+            $abono->delete();
+
+            DB::commit();
+            return response()->json([
+                'message' => 'Abono eliminado.' . $cajaMensaje,
+                'pedido' => $pedido->fresh()->load(['cliente', 'detalles', 'saldos']),
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
     public function clienteResumen(int $clienteId): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('ventas.crear'), 403, 'Sin permiso: ventas.crear');
         $user = Auth::user();
 
         $saldo = ClienteSaldoMovimiento::where('empresa_id', $user->empresa_id)
@@ -329,6 +450,7 @@ class PedidoController extends Controller
                 'detalles.compraDetalle:id,compra_id',
             ])
             ->orderByDesc('id')
+            ->limit(50)
             ->get();
 
         $tieneProductosPendientes = PedidoDetalle::whereHas('pedido', fn($query) => $query
@@ -348,6 +470,7 @@ class PedidoController extends Controller
 
     public function cancelar(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('pedidos.cancelar'), 403, 'Sin permiso: pedidos.cancelar');
         $user = Auth::user();
 
         $pedido = Pedido::where('empresa_id', $user->empresa_id)
@@ -360,10 +483,18 @@ class PedidoController extends Controller
 
         DB::beginTransaction();
         try {
-            // Liberar reservas de inventario (solo apartados)
+            // Liberar reservas de inventario activas
             InventarioReserva::where('pedido_id', $pedido->id)
                 ->where('estado', 'activa')
                 ->update(['estado' => 'liberada']);
+
+            // Cancelar todos los detalles y limpiar vínculo con compra
+            PedidoDetalle::where('pedido_id', $pedido->id)
+                ->whereNotIn('estado', ['entregado', 'cancelado'])
+                ->update([
+                    'estado' => 'cancelado',
+                    'compra_detalle_id' => null,
+                ]);
 
             // Si tiene anticipo, acreditarlo al saldo a favor del cliente
             $anticipo = (float) $pedido->anticipo;
@@ -407,7 +538,7 @@ class PedidoController extends Controller
 
     private function registrarAnticipo(Pedido $pedido, CorteCaja $corte, float $monto, string $formaPago): void
     {
-        MovimientoCaja::create([
+        $movimientoCaja = MovimientoCaja::create([
             'corte_id' => $corte->id,
             'user_id' => Auth::id(),
             'tipo' => 'ingreso',
@@ -422,17 +553,18 @@ class PedidoController extends Controller
             ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END"));
 
         ClienteSaldoMovimiento::create([
-            'empresa_id' => $pedido->empresa_id,
-            'sucursal_id' => $pedido->sucursal_id,
-            'cliente_id' => $pedido->cliente_id,
-            'pedido_id' => $pedido->id,
-            'corte_id' => $corte->id,
-            'user_id' => Auth::id(),
-            'tipo' => 'abono',
-            'forma_pago' => $formaPago,
-            'monto' => $monto,
-            'saldo_resultante' => (float) $saldoAnterior + $monto,
-            'concepto' => "Anticipo {$pedido->folio}",
+            'empresa_id'         => $pedido->empresa_id,
+            'sucursal_id'        => $pedido->sucursal_id,
+            'cliente_id'         => $pedido->cliente_id,
+            'pedido_id'          => $pedido->id,
+            'corte_id'           => $corte->id,
+            'movimiento_caja_id' => $movimientoCaja->id,
+            'user_id'            => Auth::id(),
+            'tipo'               => 'abono',
+            'forma_pago'         => $formaPago,
+            'monto'              => $monto,
+            'saldo_resultante'   => (float) $saldoAnterior + $monto,
+            'concepto'           => "Anticipo {$pedido->folio}",
         ]);
 
         $corte->recalcularMovimientos();

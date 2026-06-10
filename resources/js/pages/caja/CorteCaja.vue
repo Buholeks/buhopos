@@ -62,7 +62,7 @@
                         </div>
 
                         <button
-                            v-if="!corte?.id"
+                            v-if="!corte?.id && auth.can('caja.abrir')"
                             type="button"
                             @click="abrirCaja"
                             :disabled="abriendo"
@@ -77,7 +77,7 @@
                         </button>
 
                         <button
-                            v-else
+                            v-if="corte?.id && auth.can('caja.cerrar')"
                             type="button"
                             @click="modalCerrar = true"
                             :disabled="cerrandoCaja"
@@ -115,6 +115,7 @@
                 </p>
 
                 <button
+                    v-if="auth.can('caja.abrir')"
                     type="button"
                     @click="abrirCaja"
                     :disabled="abriendo"
@@ -198,6 +199,7 @@
 
                         <div class="flex items-center gap-2">
                             <button
+                                v-if="auth.can('caja.cerrar')"
                                 type="button"
                                 @click="modalCerrar = true"
                                 :disabled="cerrandoCaja"
@@ -257,6 +259,9 @@ import MovimientosList from "@/components/caja/MovimientosList.vue";
 import DesgloseTable from "@/components/caja/DesgloseTable.vue";
 import NuevoMovimientoModal from "@/components/caja/NuevoMovimientoModal.vue";
 import CerrarCajaModal from "@/components/caja/CerrarCajaModal.vue";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 import {
     Wallet,

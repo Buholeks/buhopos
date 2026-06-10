@@ -46,7 +46,7 @@
 
         <div v-else-if="corte" class="mx-auto max-w-7xl space-y-6 px-3 sm:px-6 py-4 sm:py-6">
             <!-- RESUMEN TOTALES -->
-            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
                 <TarjetaResumen
                     label="Efectivo"
                     :valor="corte.ventas_efectivo"
@@ -66,6 +66,11 @@
                     label="Crédito"
                     :valor="corte.ventas_credito"
                     color="orange"
+                />
+                <TarjetaResumen
+                    label="Saldo a favor"
+                    :valor="corte.ventas_saldo_favor"
+                    color="cyan"
                 />
             </div>
 
@@ -210,7 +215,7 @@
                             @click="toggleVenta(v.id)"
                             class="flex w-full items-center justify-between px-5 py-3 text-left transition-colors hover:bg-slate-50"
                         >
-                            <div class="flex items-center gap-4">
+                            <div class="flex flex-wrap items-center gap-2">
                                 <span
                                     class="rounded bg-cyan-50 px-2 py-0.5 text-xs font-mono font-semibold text-cyan-700"
                                 >
@@ -220,9 +225,16 @@
                                     formatFecha(v.fecha)
                                 }}</span>
                                 <span
-                                    class="rounded bg-slate-100 px-2 py-0.5 text-xs capitalize text-slate-500"
+                                    class="rounded px-2 py-0.5 text-xs capitalize"
+                                    :class="formaPagoClase(v.forma_pago)"
                                 >
-                                    {{ v.forma_pago }}
+                                    {{ etiquetaFormaPago(v.forma_pago) }}
+                                </span>
+                                <span
+                                    v-if="v.saldo_aplicado > 0"
+                                    class="rounded bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700"
+                                >
+                                    Saldo: {{ fmt(v.saldo_aplicado) }}
                                 </span>
                                 <span class="text-xs text-slate-400">{{
                                     v.user?.name
@@ -302,7 +314,7 @@
                                 </tbody>
                             </table>
 
-                            <div class="mt-3 flex justify-end gap-6 text-sm">
+                            <div class="mt-3 flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm">
                                 <span
                                     v-if="v.descuento > 0"
                                     class="text-slate-500"
@@ -315,6 +327,21 @@
                                 <span class="font-semibold text-slate-900"
                                     >Total: {{ fmt(v.total) }}</span
                                 >
+                                <span
+                                    v-if="v.saldo_aplicado > 0"
+                                    class="text-teal-600"
+                                >
+                                    Saldo a favor aplicado:
+                                    <span class="font-semibold">-{{ fmt(v.saldo_aplicado) }}</span>
+                                </span>
+                                <span
+                                    v-if="v.saldo_aplicado > 0"
+                                    class="font-semibold"
+                                    :class="formaPagoClase(v.forma_pago)"
+                                >
+                                    {{ etiquetaFormaPago(v.forma_pago) }}:
+                                    {{ fmt(Math.max(0, v.total - v.saldo_aplicado)) }}
+                                </span>
                             </div>
 
                             <p
@@ -493,4 +520,23 @@ const formatFecha = (f) =>
               timeStyle: "short",
           })
         : "—";
+
+const ETIQUETAS_PAGO = {
+    efectivo:      "Efectivo",
+    tarjeta:       "Tarjeta",
+    transferencia: "Transferencia",
+    credito:       "Crédito",
+    saldo_favor:   "Saldo a favor",
+};
+
+const CLASES_PAGO = {
+    efectivo:      "bg-emerald-50 text-emerald-700",
+    tarjeta:       "bg-blue-50 text-blue-700",
+    transferencia: "bg-violet-50 text-violet-700",
+    credito:       "bg-orange-50 text-orange-700",
+    saldo_favor:   "bg-teal-50 text-teal-700",
+};
+
+const etiquetaFormaPago = (fp) => ETIQUETAS_PAGO[fp] ?? fp;
+const formaPagoClase    = (fp) => CLASES_PAGO[fp] ?? "bg-slate-100 text-slate-600";
 </script>

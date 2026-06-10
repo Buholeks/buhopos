@@ -24,6 +24,7 @@ class CategoriaController extends Controller
     // GET /api/categorias
     public function index(): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
         $categorias = Categoria::deEmpresa($this->empresaId(), $this->sucursalId())
             ->raiz()
             ->with('hijosRecursivos')
@@ -34,9 +35,29 @@ class CategoriaController extends Controller
         return response()->json($categorias);
     }
 
+    public function buscar(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
+        $data = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+        ]);
+
+        $q = trim($data['q'] ?? '');
+
+        $categorias = Categoria::deEmpresa($this->empresaId(), $this->sucursalId())
+            ->activas()
+            ->when($q !== '', fn($query) => $query->where('nombre', 'like', "{$q}%"))
+            ->orderBy('nombre')
+            ->limit(20)
+            ->get(['id', 'nombre', 'categoria_padre_id']);
+
+        return response()->json($categorias);
+    }
+
     // POST /api/categorias
 public function store(Request $request): JsonResponse
 {
+    abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
     $empresaId  = $this->empresaId();
     $sucursalId = $this->sucursalId();
     $padreId    = $request->input('categoria_padre_id'); // puede ser null
@@ -97,6 +118,7 @@ public function store(Request $request): JsonResponse
     // PUT /api/categorias/{id}
     public function update(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
         $sucursalId = $this->sucursalId();
 
@@ -144,6 +166,7 @@ public function store(Request $request): JsonResponse
     // DELETE /api/categorias/{id}
     public function destroy(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('productos.eliminar'), 403, 'Sin permiso: productos.eliminar');
         $categoria = Categoria::deEmpresa($this->empresaId(), $this->sucursalId())
             ->with('hijosRecursivos')
             ->findOrFail($id);

@@ -192,6 +192,7 @@
 <script setup>
 import { ref, reactive, defineComponent, h } from "vue";
 import axios from "axios";
+import { useAuthStore } from "@/stores/auth";
 import Swal from "sweetalert2";
 import BaseInput from "../../components/ui/BaseInput.vue";
 
@@ -357,6 +358,7 @@ const CategoriasNode = defineComponent({
 
   setup(props, { emit }) {
     const abierto = ref(true);
+    const auth = useAuthStore();
 
     const obtenerHijos = () =>
       Array.isArray(props.categoria.hijos_recursivos)
@@ -526,7 +528,7 @@ const CategoriasNode = defineComponent({
                   ],
                 ),
 
-                h(
+                auth.can('productos.editar') && h(
                   "button",
                   {
                     title: "Editar",
@@ -550,7 +552,7 @@ const CategoriasNode = defineComponent({
                   ],
                 ),
 
-                h(
+                auth.can('productos.eliminar') && h(
                   "button",
                   {
                     title: "Eliminar",

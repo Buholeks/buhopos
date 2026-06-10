@@ -6,6 +6,8 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Http\Request;
+use App\Models\Sucursal;
+use App\Observers\SucursalObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,5 +23,7 @@ class AppServiceProvider extends ServiceProvider
                 $request->user()?->id ?: $request->ip()
             );
         });
+
+        Sucursal::observe(SucursalObserver::class);
     }
 }

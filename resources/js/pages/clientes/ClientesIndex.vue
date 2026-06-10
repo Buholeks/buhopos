@@ -22,6 +22,7 @@
             </div>
 
             <button
+                v-if="auth.can('clientes.editar')"
                 type="button"
                 class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 @click="openCreate"
@@ -199,6 +200,7 @@
                             <td class="px-4 py-3">
                                 <div class="flex justify-end gap-2">
                                     <button
+                                        v-if="auth.can('clientes.editar')"
                                         type="button"
                                         class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
                                         title="Editar"
@@ -208,6 +210,7 @@
                                     </button>
 
                                     <button
+                                        v-if="auth.can('clientes.editar')"
                                         type="button"
                                         class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600"
                                         title="Eliminar"
@@ -336,6 +339,9 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import http from "@/lib/http";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 import { confirm, toastSuccess, toastWarning, error } from "@/lib/alert";
 import BaseModal from "@/components/ui/BaseModal.vue";
 import ClienteForm from "@/components/clientes/ClienteForm.vue";

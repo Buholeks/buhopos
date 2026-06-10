@@ -1,5 +1,6 @@
 <template>
     <main class="space-y-4 p-3 sm:p-6">
+        <!-- Header -->
         <section class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">
                 <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
@@ -7,7 +8,7 @@
                 </div>
                 <div>
                     <h1 class="text-lg font-semibold">Usuarios</h1>
-                    <p class="text-xs text-slate-500">Crea cuentas y asigna manualmente su sucursal inicial.</p>
+                    <p class="text-xs text-slate-500">Crea cuentas, asigna sucursales y roles.</p>
                 </div>
             </div>
             <span class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
@@ -16,6 +17,7 @@
         </section>
 
         <div class="grid gap-4 xl:grid-cols-[420px_1fr]">
+            <!-- ── Formulario de creación ──────────────────────────────────── -->
             <section class="self-start rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 px-4 py-3">
                     <h2 class="text-sm font-semibold">Crear usuario</h2>
@@ -43,6 +45,21 @@
                         :error="fieldError('sucursal_id')"
                         required
                     />
+
+                    <!-- Rol para la sucursal inicial -->
+                    <div>
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            Rol en la sucursal inicial
+                        </label>
+                        <select
+                            v-model="form.role_id"
+                            class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                        >
+                            <option :value="null">Sin rol (acceso total legacy)</option>
+                            <option v-for="rol in roles" :key="rol.id" :value="rol.id">{{ rol.nombre }}</option>
+                        </select>
+                        <p class="mt-1 text-[11px] text-slate-400">Puedes cambiar las sucursales y roles después.</p>
+                    </div>
 
                     <BaseInput
                         v-model="form.name"
@@ -104,11 +121,12 @@
                 </form>
             </section>
 
+            <!-- ── Tabla de usuarios ──────────────────────────────────────── -->
             <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="flex flex-col gap-3 border-b border-slate-200 p-4 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h2 class="text-sm font-semibold">Usuarios de {{ auth.empresaNombre }}</h2>
-                        <p class="mt-0.5 text-xs text-slate-500">La sucursal mostrada es la sucursal inicial de acceso.</p>
+                        <p class="mt-0.5 text-xs text-slate-500">Gestiona accesos, sucursales y roles.</p>
                     </div>
                     <BaseInput v-model="busqueda" placeholder="Buscar nombre o correo" root-class="w-full sm:w-72" @input="debounceBuscar">
                         <template #icon><Search class="h-4 w-4" /></template>
@@ -120,27 +138,54 @@
                         <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                             <tr>
                                 <th class="px-4 py-3 text-left">Usuario</th>
-                                <th class="px-4 py-3 text-left">Sucursal inicial</th>
+                                <th class="px-4 py-3 text-left">Sucursal activa</th>
                                 <th class="px-4 py-3 text-left">Estado</th>
                                 <th class="px-4 py-3 text-left">Creado</th>
+                                <th class="px-4 py-3 text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr v-for="usuario in usuarios" :key="usuario.id" class="hover:bg-slate-50">
                                 <td class="px-4 py-3">
-                                    <p class="font-medium text-slate-900">{{ usuario.name }}</p>
-                                    <p class="text-xs text-slate-500">{{ usuario.email }}</p>
+                                    <div class="flex items-center gap-2">
+                                        <div>
+                                            <p class="font-medium text-slate-900">
+                                                {{ usuario.name }}
+                                                <span v-if="usuario.es_super_admin" class="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                                    Super Admin
+                                                </span>
+                                            </p>
+                                            <p class="text-xs text-slate-500">{{ usuario.email }}</p>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3 text-slate-600">{{ usuario.sucursal?.nombre ?? "Sin sucursal" }}</td>
                                 <td class="px-4 py-3">
-                                    <span
-                                        class="rounded-full px-2.5 py-1 text-xs font-medium"
-                                        :class="usuario.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'"
+                                    <button
+                                        type="button"
+                                        class="rounded-full px-2.5 py-1 text-xs font-medium transition"
+                                        :class="usuario.activo
+                                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'"
+                                        :disabled="usuario.es_super_admin && usuario.id === auth.user?.id"
+                                        @click="toggleActivo(usuario)"
                                     >
                                         {{ usuario.activo ? "Activo" : "Inactivo" }}
-                                    </span>
+                                    </button>
                                 </td>
                                 <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{{ fmtFecha(usuario.created_at) }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    <button
+                                        v-if="!usuario.es_super_admin"
+                                        type="button"
+                                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                        @click="abrirModalSucursales(usuario)"
+                                    >
+                                        <Building2 class="h-3.5 w-3.5" />
+                                        Sucursales
+                                    </button>
+                                    <span v-else class="text-xs text-slate-400">—</span>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -155,6 +200,81 @@
                 </div>
             </section>
         </div>
+
+        <!-- ── Modal: Gestionar sucursales del usuario ──────────────────────── -->
+        <Teleport to="body">
+            <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100" leave-active-class="transition duration-100 ease-in" leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
+                <div v-if="modalSucursales" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" @mousedown.self="cerrarModalSucursales">
+                    <div class="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                        <!-- Header -->
+                        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                            <div>
+                                <p class="font-semibold text-slate-900">Sucursales de {{ usuarioEditando?.name }}</p>
+                                <p class="text-xs text-slate-400">Asigna sucursales y el rol en cada una.</p>
+                            </div>
+                            <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" @click="cerrarModalSucursales">
+                                <X class="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <!-- Body -->
+                        <div class="max-h-[60vh] overflow-y-auto p-5">
+                            <div v-if="cargandoSucursalesModal" class="py-8 text-center text-sm text-slate-400">
+                                Cargando sucursales…
+                            </div>
+                            <div v-else class="space-y-3">
+                                <div
+                                    v-for="suc in sucursalesModal"
+                                    :key="suc.id"
+                                    class="flex items-center gap-4 rounded-xl border p-3"
+                                    :class="suc.asignada ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100'"
+                                >
+                                    <!-- Toggle asignada -->
+                                    <input
+                                        type="checkbox"
+                                        v-model="suc.asignada"
+                                        class="h-4 w-4 accent-emerald-600"
+                                    />
+
+                                    <!-- Info sucursal -->
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-semibold text-slate-800">{{ suc.nombre }}</p>
+                                        <p v-if="suc.direccion" class="truncate text-xs text-slate-400">{{ suc.direccion }}</p>
+                                    </div>
+
+                                    <!-- Selector de rol -->
+                                    <select
+                                        v-if="suc.asignada"
+                                        v-model="suc.role_id"
+                                        class="rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-emerald-500"
+                                    >
+                                        <option :value="null">Sin rol</option>
+                                        <option v-for="rol in roles" :key="rol.id" :value="rol.id">{{ rol.nombre }}</option>
+                                    </select>
+                                    <span v-else class="text-xs text-slate-300">—</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer -->
+                        <div class="flex justify-end gap-3 border-t border-slate-100 px-5 py-4">
+                            <button type="button" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="cerrarModalSucursales">
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                class="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                :disabled="guardandoSucursales"
+                                @click="guardarSucursales"
+                            >
+                                <Loader2 v-if="guardandoSucursales" class="h-4 w-4 animate-spin" />
+                                {{ guardandoSucursales ? "Guardando…" : "Guardar cambios" }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Transition>
+        </Teleport>
     </main>
 </template>
 
@@ -163,26 +283,41 @@ import { computed, onMounted, reactive, ref } from "vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import http from "@/lib/http";
-import { toastSuccess } from "@/lib/alert";
+import { toastSuccess, toastError } from "@/lib/alert";
 import { useAuthStore } from "@/stores/auth";
-import { Building2, Loader2, LockKeyhole, Mail, Search, UserPlus, UserRound, UsersRound } from "lucide-vue-next";
+import {
+    Building2, Loader2, LockKeyhole, Mail, Search,
+    UserPlus, UserRound, UsersRound, X,
+} from "lucide-vue-next";
 
 const auth = useAuthStore();
-const sucursales = ref([]);
-const usuarios = ref([]);
-const cargando = ref(false);
-const guardando = ref(false);
-const busqueda = ref("");
-const errors = ref({});
-const mensajeError = ref("");
-const meta = ref({ total: 0 });
+
+// ── Estado general ────────────────────────────────────────────────────────────
+const sucursales        = ref([]);
+const roles             = ref([]);
+const usuarios          = ref([]);
+const cargando          = ref(false);
+const guardando         = ref(false);
+const busqueda          = ref("");
+const errors            = ref({});
+const mensajeError      = ref("");
+const meta              = ref({ total: 0 });
 let timer;
 
+// ── Estado modal sucursales ───────────────────────────────────────────────────
+const modalSucursales          = ref(false);
+const usuarioEditando          = ref(null);
+const sucursalesModal          = ref([]);
+const cargandoSucursalesModal  = ref(false);
+const guardandoSucursales      = ref(false);
+
+// ── Formulario de creación ────────────────────────────────────────────────────
 const form = reactive({
-    sucursal_id: null,
-    name: "",
-    email: "",
-    password: "",
+    sucursal_id:           null,
+    role_id:               null,
+    name:                  "",
+    email:                 "",
+    password:              "",
     password_confirmation: "",
 });
 
@@ -194,8 +329,9 @@ const puedeGuardar = computed(() =>
     form.password === form.password_confirmation
 );
 
+// ── Carga inicial ─────────────────────────────────────────────────────────────
 onMounted(async () => {
-    await Promise.all([cargarSucursales(), cargarUsuarios()]);
+    await Promise.all([cargarSucursales(), cargarRoles(), cargarUsuarios()]);
 });
 
 async function cargarSucursales() {
@@ -203,12 +339,21 @@ async function cargarSucursales() {
     sucursales.value = data ?? [];
 }
 
+async function cargarRoles() {
+    try {
+        const { data } = await http.get("/api/roles");
+        roles.value = data ?? [];
+    } catch {
+        roles.value = [];
+    }
+}
+
 async function cargarUsuarios() {
     cargando.value = true;
     try {
         const { data } = await http.get("/api/users", { params: { q: busqueda.value || undefined } });
-        usuarios.value = data.data ?? [];
-        meta.value = { total: data.total ?? 0 };
+        usuarios.value  = data.data ?? [];
+        meta.value      = { total: data.total ?? 0 };
     } finally {
         cargando.value = false;
     }
@@ -219,9 +364,10 @@ function debounceBuscar() {
     timer = setTimeout(cargarUsuarios, 350);
 }
 
+// ── Crear usuario ─────────────────────────────────────────────────────────────
 async function crearUsuario() {
     guardando.value = true;
-    errors.value = {};
+    errors.value    = {};
     mensajeError.value = "";
     try {
         const { data } = await http.post("/api/users", form);
@@ -229,7 +375,7 @@ async function crearUsuario() {
         limpiarFormulario();
         await cargarUsuarios();
     } catch (error) {
-        errors.value = error?.response?.data?.errors ?? {};
+        errors.value       = error?.response?.data?.errors ?? {};
         mensajeError.value = error?.response?.data?.message || "No se pudo crear el usuario.";
     } finally {
         guardando.value = false;
@@ -237,10 +383,11 @@ async function crearUsuario() {
 }
 
 function limpiarFormulario() {
-    form.sucursal_id = null;
-    form.name = "";
-    form.email = "";
-    form.password = "";
+    form.sucursal_id           = null;
+    form.role_id               = null;
+    form.name                  = "";
+    form.email                 = "";
+    form.password              = "";
     form.password_confirmation = "";
 }
 
@@ -248,6 +395,63 @@ function fieldError(campo) {
     return errors.value?.[campo]?.[0] ?? "";
 }
 
+// ── Activar / desactivar ──────────────────────────────────────────────────────
+async function toggleActivo(usuario) {
+    try {
+        const { data } = await http.put(`/api/users/${usuario.id}`, { activo: !usuario.activo });
+        usuario.activo = data.activo;
+        toastSuccess(data.activo ? "Usuario activado." : "Usuario desactivado.");
+    } catch (e) {
+        toastError(e?.response?.data?.message || "No se pudo actualizar el usuario.");
+    }
+}
+
+// ── Modal sucursales ──────────────────────────────────────────────────────────
+async function abrirModalSucursales(usuario) {
+    usuarioEditando.value         = usuario;
+    modalSucursales.value         = true;
+    cargandoSucursalesModal.value = true;
+    sucursalesModal.value         = [];
+
+    try {
+        const { data } = await http.get(`/api/users/${usuario.id}/sucursales`);
+        sucursalesModal.value = data;
+    } catch {
+        toastError("No se pudieron cargar las sucursales.");
+        cerrarModalSucursales();
+    } finally {
+        cargandoSucursalesModal.value = false;
+    }
+}
+
+function cerrarModalSucursales() {
+    modalSucursales.value  = false;
+    usuarioEditando.value  = null;
+    sucursalesModal.value  = [];
+}
+
+async function guardarSucursales() {
+    guardandoSucursales.value = true;
+    try {
+        const payload = sucursalesModal.value
+            .filter((s) => s.asignada)
+            .map((s) => ({ id: s.id, role_id: s.role_id ?? null }));
+
+        await http.put(`/api/users/${usuarioEditando.value.id}/sucursales`, {
+            sucursales: payload,
+        });
+
+        toastSuccess("Sucursales actualizadas.");
+        cerrarModalSucursales();
+        await cargarUsuarios();
+    } catch (e) {
+        toastError(e?.response?.data?.message || "No se pudo guardar.");
+    } finally {
+        guardandoSucursales.value = false;
+    }
+}
+
+// ── Utilidades ────────────────────────────────────────────────────────────────
 function fmtFecha(valor) {
     if (!valor) return "—";
     return new Date(valor).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });

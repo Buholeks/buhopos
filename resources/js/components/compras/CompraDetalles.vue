@@ -98,6 +98,12 @@
                                                     {{ det.imeis?.length ?? 0 }}
                                                     IMEI
                                                 </span>
+                                                <span
+                                                    v-if="det.pedido_detalle_ids?.length"
+                                                    class="inline-flex shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+                                                >
+                                                    {{ det.pedido_detalle_ids.length }} pedido(s)
+                                                </span>
                                             </div>
 
                                             <p
@@ -268,6 +274,12 @@
                                     >
                                         <Smartphone class="h-3 w-3" />
                                         {{ det.imeis?.length ?? 0 }} IMEI
+                                    </span>
+                                    <span
+                                        v-if="det.pedido_detalle_ids?.length"
+                                        class="inline-flex shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+                                    >
+                                        {{ det.pedido_detalle_ids.length }} pedido(s)
                                     </span>
                                 </div>
 

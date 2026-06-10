@@ -18,6 +18,7 @@ class ReporteCajaController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function index(Request $request): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $request->validate([
             'fecha_desde' => ['nullable', 'date'],
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
@@ -108,6 +109,7 @@ class ReporteCajaController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function show(int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $user = Auth::user();
 
         $corte = CorteCaja::query()
@@ -149,6 +151,7 @@ class ReporteCajaController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function movimientos(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $request->validate([
             'tipo'       => ['nullable', 'in:ingreso,egreso'],
             'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
@@ -184,6 +187,7 @@ class ReporteCajaController extends Controller
     // ─────────────────────────────────────────────────────────────
     public function ventas(Request $request, int $id): JsonResponse
     {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $request->validate([
             'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
             'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],

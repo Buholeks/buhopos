@@ -992,6 +992,7 @@ import {
 } from "lucide-vue-next";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import { imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
+import { toastError } from "@/lib/alert";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 const props = defineProps({
@@ -1104,7 +1105,7 @@ async function reimprimirVenta(id) {
         imprimirTicketVenta(crearTicketVenta({ ...data, reimpresion: true }));
     } catch (e) {
         console.error("reimprimirVenta", e);
-        window.alert("No se pudo reimprimir el ticket.");
+        toastError("No se pudo reimprimir el ticket.");
     }
 }
 

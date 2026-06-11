@@ -309,7 +309,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import http from "@/lib/http";
-import { toastSuccess, toastError } from "@/lib/alert";
+import { confirm, toastSuccess, toastError } from "@/lib/alert";
 import { useAuthStore } from "@/stores/auth";
 import {
     Building2, Crown, Loader2, LockKeyhole, Mail, Search,
@@ -459,7 +459,13 @@ async function toggleSuperAdmin(usuario) {
     const promover = !usuario.es_super_admin;
     const accion = promover ? "promover como superadministrador" : "retirar el nivel de superadministrador";
 
-    if (!confirm(`¿Deseas ${accion} a ${usuario.name}?`)) return;
+    const ok = await confirm({
+        title: promover ? "¿Promover a super administrador?" : "¿Retirar nivel de super administrador?",
+        text: `${usuario.name} ${promover ? "tendrá acceso total a la empresa." : "perderá el acceso total."}`,
+        confirmText: promover ? "Sí, promover" : "Sí, retirar",
+        icon: promover ? "question" : "warning",
+    });
+    if (!ok) return;
 
     try {
         await http.put(`/api/users/${usuario.id}/super-admin`, {

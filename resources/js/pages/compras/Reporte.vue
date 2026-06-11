@@ -1239,7 +1239,7 @@
 <script setup>
 import { computed, defineComponent, h, onMounted, ref } from "vue";
 import axios from "axios";
-import { toastError } from "@/lib/alert";
+import { confirm, toastError, toastWarning } from "@/lib/alert";
 
 import {
     AlertTriangle,
@@ -1717,7 +1717,7 @@ async function registrarPago() {
     const monto = Number(formPago.value.monto);
 
     if (!monto || monto <= 0) {
-        alert("Ingresa un monto válido");
+        toastWarning("Ingresa un monto válido");
         return;
     }
 
@@ -1745,16 +1745,18 @@ async function registrarPago() {
             await cargarCuentas();
         }
     } catch (e) {
-        alert(e.response?.data?.message ?? "Error al registrar el pago");
+        toastError(e.response?.data?.message ?? "Error al registrar el pago");
     } finally {
         guardandoPago.value = false;
     }
 }
 
 async function eliminarPago(pago) {
-    const ok = confirm(
-        `¿Eliminar el pago de ${fmt(pago.monto)} del ${fmtFecha(pago.fecha_pago)}?`,
-    );
+    const ok = await confirm({
+        title: "¿Eliminar pago?",
+        text: `¿Eliminar el pago de ${fmt(pago.monto)} del ${fmtFecha(pago.fecha_pago)}?`,
+        confirmText: "Sí, eliminar",
+    });
 
     if (!ok) return;
 
@@ -1778,7 +1780,7 @@ async function eliminarPago(pago) {
             await cargarCuentas();
         }
     } catch (e) {
-        alert("Error al eliminar el pago");
+        toastError("Error al eliminar el pago");
     }
 }
 

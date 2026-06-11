@@ -190,7 +190,7 @@
 import { ref, computed, onMounted } from "vue";
 import { ChevronRight, Loader2, Plus, ShieldCheck, Trash2 } from "lucide-vue-next";
 import http from "@/lib/http";
-import { toastSuccess, toastError } from "@/lib/alert";
+import { confirm, toastSuccess, toastError } from "@/lib/alert";
 
 // ── Estado ────────────────────────────────────────────────────────────────────
 
@@ -329,7 +329,12 @@ async function guardar() {
 
 async function eliminarRol() {
     if (!rolSeleccionado.value) return;
-    if (!confirm(`¿Eliminar el rol "${rolSeleccionado.value.nombre}"? Esta acción no se puede deshacer.`)) return;
+    const ok = await confirm({
+        title: `¿Eliminar el rol "${rolSeleccionado.value.nombre}"?`,
+        text: "Esta acción no se puede deshacer.",
+        confirmText: "Sí, eliminar",
+    });
+    if (!ok) return;
 
     try {
         await http.delete(`/api/roles/${rolSeleccionado.value.id}`);

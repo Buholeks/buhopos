@@ -408,16 +408,17 @@ async function save() {
 }
 
 async function removeProveedor(c) {
-    const ok = await confirm(
-        "Eliminar proveedor",
-        `¿Deseas eliminar a "${c.nombre_comercial}"? Esta acción no se puede deshacer.`,
-    );
+    const ok = await confirm({
+        title: "Eliminar proveedor",
+        text: `¿Deseas eliminar a "${c.nombre_comercial}"? Esta acción no se puede deshacer.`,
+        confirmText: "Sí, eliminar",
+    });
 
     if (!ok) return;
 
     try {
         await http.delete(`/api/proveedores/${c.id}`);
-        toastSuccess("Eliminado", "Proveedor eliminado.");
+        toastSuccess("Proveedor eliminado.");
         await fetchProveedores(meta.value?.current_page ?? 1);
     } catch (e) {
         error("Error", "No se pudo eliminar el proveedor.");

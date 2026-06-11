@@ -40,6 +40,7 @@ use App\Http\Controllers\ReporteVentasAgrupadoController;
 use App\Http\Controllers\ReporteUtilidadesController;
 use App\Http\Controllers\DevolucionProveedorController;
 use App\Http\Controllers\RolController;
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,6 +54,10 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::get('/perfil', [ProfileController::class, 'show']);
+    Route::put('/perfil/usuario', [ProfileController::class, 'updateUser']);
+    Route::put('/perfil/empresa', [ProfileController::class, 'updateEmpresa']);
+    Route::put('/perfil/sucursal', [ProfileController::class, 'updateSucursal']);
 
     /*
     |--------------------------------------------------------------------------
@@ -79,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::put('/users/{user}', [UserController::class, 'update']);
+    Route::put('/users/{user}/super-admin', [UserController::class, 'actualizarSuperAdmin']);
     Route::get('/users/{user}/sucursales', [UserController::class, 'sucursalesDeUsuario']);
     Route::put('/users/{user}/sucursales', [UserController::class, 'sincronizarSucursales']);
 

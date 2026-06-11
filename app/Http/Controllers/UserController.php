@@ -32,7 +32,17 @@ class UserController extends Controller
             ->orderBy('name')
             ->paginate(20);
 
-        return response()->json($usuarios);
+        $superAdminsActivos = User::where('empresa_id', $actor->empresa_id)
+            ->where('es_super_admin', true)
+            ->where('activo', true)
+            ->count();
+
+        $page = $usuarios->toArray();
+        $page['super_admins_activos']           = $superAdminsActivos;
+        $page['puede_gestionar_super_admins']   = (bool) $actor->es_super_admin;
+        $page['puede_promover_primer_super_admin'] = $superAdminsActivos === 0;
+
+        return response()->json($page);
     }
 
     // ── POST /api/users ───────────────────────────────────────────────────────
@@ -98,16 +108,20 @@ class UserController extends Controller
         abort_unless($actor->tienePermiso('usuarios.gestionar'), 403);
         abort_unless($user->empresa_id === $actor->empresa_id, 403);
 
-        // Protección: no se puede quitar es_super_admin ni desactivar
-        // al único super admin activo de la empresa
-        if ($user->es_super_admin && $user->id === $actor->id) {
+        // Solo un super admin puede editar a otro super admin.
+        if ($user->es_super_admin && ! $actor->es_super_admin) {
+            abort(403, 'Solo un super administrador puede editar a otro super administrador.');
+        }
+
+        // No se puede desactivar al único super administrador activo.
+        if ($user->es_super_admin && $request->has('activo') && ! $request->boolean('activo')) {
             $otrosSuperAdmins = User::where('empresa_id', $actor->empresa_id)
                 ->where('es_super_admin', true)
                 ->where('activo', true)
                 ->where('id', '!=', $user->id)
                 ->exists();
 
-            if (! $otrosSuperAdmins && $request->has('activo') && ! $request->boolean('activo')) {
+            if (! $otrosSuperAdmins) {
                 return response()->json([
                     'message' => 'No puedes desactivar el único super administrador activo.',
                 ], 422);
@@ -122,6 +136,66 @@ class UserController extends Controller
         $user->update($data);
 
         return response()->json($user->load('sucursal:id,nombre'));
+    }
+
+    // ── PUT /api/users/{user}/super-admin ───────────────────────────────────
+
+    public function actualizarSuperAdmin(Request $request, User $user): JsonResponse
+    {
+        $actor = Auth::user();
+
+        abort_unless($actor->tienePermiso('usuarios.gestionar'), 403);
+        abort_unless($user->empresa_id === $actor->empresa_id, 403);
+
+        $data = $request->validate([
+            'es_super_admin' => ['required', 'boolean'],
+        ]);
+
+        $promover = (bool) $data['es_super_admin'];
+
+        $totalSuperAdminsActivos = User::where('empresa_id', $actor->empresa_id)
+            ->where('es_super_admin', true)
+            ->where('activo', true)
+            ->count();
+
+        if ($promover) {
+            $puedePromoverPrimero = $totalSuperAdminsActivos === 0 && $user->activo;
+
+            abort_unless(
+                $actor->es_super_admin || $puedePromoverPrimero,
+                403,
+                'Solo un super administrador puede otorgar este nivel.'
+            );
+
+            DB::transaction(function () use ($user, $actor) {
+                $user->update(['es_super_admin' => true]);
+
+                $sucursales = Sucursal::where('empresa_id', $actor->empresa_id)
+                    ->where('activo', true)
+                    ->pluck('id');
+
+                $user->sucursales()->syncWithoutDetaching($sucursales->all());
+
+                if (! $user->sucursal_id && $sucursales->isNotEmpty()) {
+                    $user->update(['sucursal_id' => $sucursales->first()]);
+                }
+            });
+        } else {
+            abort_unless($actor->es_super_admin, 403, 'Solo un super administrador puede retirar este nivel.');
+
+            // El usuario objetivo cuenta en el total; si es el único activo, no se puede retirar.
+            $esElUnico = $user->activo && $totalSuperAdminsActivos === 1;
+
+            if ($esElUnico) {
+                return response()->json([
+                    'message' => 'No puedes retirar al único super administrador activo.',
+                ], 422);
+            }
+
+            $user->update(['es_super_admin' => false]);
+        }
+
+        return response()->json($user->fresh()->load('sucursal:id,nombre'));
     }
 
     // ── GET /api/users/{user}/sucursales ──────────────────────────────────────

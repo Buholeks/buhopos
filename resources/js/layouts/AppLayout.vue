@@ -88,7 +88,12 @@
                     </button>
 
                     <!-- User avatar + info -->
-                    <div class="flex items-center gap-2 sm:gap-3">
+                    <button
+                        type="button"
+                        class="flex items-center gap-2 rounded-xl p-1 transition hover:bg-slate-50 sm:gap-3"
+                        title="Abrir mi perfil"
+                        @click="router.push({ name: 'perfil' })"
+                    >
                         <div
                             class="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-700 grid place-items-center font-semibold text-sm shrink-0"
                         >
@@ -107,7 +112,7 @@
                                 {{ auth.user?.email }}
                             </span>
                         </div>
-                    </div>
+                    </button>
 
                     <!-- Logout -->
                     <button

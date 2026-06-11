@@ -103,6 +103,7 @@ import {
     ShieldCheck,
     ShoppingCart,
     UsersRound,
+    UserRoundCog,
     Workflow,
     X,
 } from "lucide-vue-next";
@@ -119,6 +120,7 @@ const allSections = [
         title: "Principal",
         items: [
             { label: "Inicio",   to: "/",       icon: LayoutDashboard, exact: true, permiso: null },
+            { label: "Mi perfil", to: "/perfil", icon: UserRoundCog, permiso: null },
         ],
     },
     {

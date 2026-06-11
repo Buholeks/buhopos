@@ -52,6 +52,7 @@ import ReporteUtilidades from "@/pages/reportes/utilidades/Index.vue";
 import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
 import RolesIndex from "@/pages/roles/RolesIndex.vue";
 import SinPermiso from "@/pages/errores/SinPermiso.vue";
+import PerfilIndex from "@/pages/perfil/PerfilIndex.vue";
 
 const routes = [
   {
@@ -109,6 +110,7 @@ const routes = [
 
       { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios",permiso: "usuarios.gestionar" } },
       { path: "roles",    name: "roles",    component: RolesIndex,    meta: { title: "Roles y permisos", permiso: "usuarios.gestionar" } },
+      { path: "perfil",   name: "perfil",   component: PerfilIndex,   meta: { title: "Mi perfil" } },
 
       { path: "sin-permiso", name: "sin-permiso", component: SinPermiso, meta: { title: "Sin permiso" } },
     ],

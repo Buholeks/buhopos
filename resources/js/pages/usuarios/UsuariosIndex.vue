@@ -16,6 +16,19 @@
             </span>
         </section>
 
+        <section
+            v-if="meta.puede_promover_primer_super_admin"
+            class="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div class="flex items-start gap-3">
+                <Crown class="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                    <p class="text-sm font-semibold">Esta empresa todavía no tiene superadministrador.</p>
+                    <p class="text-xs text-amber-700">Promueve a un usuario activo desde la columna de acciones. Después, solo un superadministrador podrá otorgar o retirar ese nivel.</p>
+                </div>
+            </div>
+        </section>
+
         <div class="grid gap-4 xl:grid-cols-[420px_1fr]">
             <!-- ── Formulario de creación ──────────────────────────────────── -->
             <section class="self-start rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -174,17 +187,30 @@
                                     </button>
                                 </td>
                                 <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{{ fmtFecha(usuario.created_at) }}</td>
-                                <td class="px-4 py-3 text-right">
-                                    <button
-                                        v-if="!usuario.es_super_admin"
-                                        type="button"
-                                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                        @click="abrirModalSucursales(usuario)"
-                                    >
-                                        <Building2 class="h-3.5 w-3.5" />
-                                        Sucursales
-                                    </button>
-                                    <span v-else class="text-xs text-slate-400">—</span>
+                                <td class="px-4 py-3">
+                                    <div class="flex justify-end gap-2">
+                                        <button
+                                            v-if="!usuario.es_super_admin"
+                                            type="button"
+                                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                            @click="abrirModalSucursales(usuario)"
+                                        >
+                                            <Building2 class="h-3.5 w-3.5" />
+                                            Sucursales
+                                        </button>
+                                        <button
+                                            v-if="puedeCambiarSuperAdmin(usuario)"
+                                            type="button"
+                                            class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                                            :class="usuario.es_super_admin
+                                                ? 'border-rose-200 text-rose-600 hover:bg-rose-50'
+                                                : 'border-amber-200 text-amber-700 hover:bg-amber-50'"
+                                            @click="toggleSuperAdmin(usuario)"
+                                        >
+                                            <Crown class="h-3.5 w-3.5" />
+                                            {{ usuario.es_super_admin ? "Retirar nivel" : "Hacer super admin" }}
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
@@ -286,7 +312,7 @@ import http from "@/lib/http";
 import { toastSuccess, toastError } from "@/lib/alert";
 import { useAuthStore } from "@/stores/auth";
 import {
-    Building2, Loader2, LockKeyhole, Mail, Search,
+    Building2, Crown, Loader2, LockKeyhole, Mail, Search,
     UserPlus, UserRound, UsersRound, X,
 } from "lucide-vue-next";
 
@@ -301,7 +327,12 @@ const guardando         = ref(false);
 const busqueda          = ref("");
 const errors            = ref({});
 const mensajeError      = ref("");
-const meta              = ref({ total: 0 });
+const meta              = ref({
+    total: 0,
+    super_admins_activos: 0,
+    puede_gestionar_super_admins: false,
+    puede_promover_primer_super_admin: false,
+});
 let timer;
 
 // ── Estado modal sucursales ───────────────────────────────────────────────────
@@ -353,7 +384,14 @@ async function cargarUsuarios() {
     try {
         const { data } = await http.get("/api/users", { params: { q: busqueda.value || undefined } });
         usuarios.value  = data.data ?? [];
-        meta.value      = { total: data.total ?? 0 };
+        meta.value = {
+            total: data.total ?? 0,
+            super_admins_activos: data.super_admins_activos ?? 0,
+            puede_gestionar_super_admins: !!data.puede_gestionar_super_admins,
+            puede_promover_primer_super_admin: !!data.puede_promover_primer_super_admin,
+        };
+    } catch (e) {
+        toastError(e?.response?.data?.message || "No se pudo cargar la lista de usuarios.");
     } finally {
         cargando.value = false;
     }
@@ -403,6 +441,39 @@ async function toggleActivo(usuario) {
         toastSuccess(data.activo ? "Usuario activado." : "Usuario desactivado.");
     } catch (e) {
         toastError(e?.response?.data?.message || "No se pudo actualizar el usuario.");
+    }
+}
+
+function puedeCambiarSuperAdmin(usuario) {
+    // No mostrar el botón para retirarse el nivel a uno mismo
+    if (usuario.es_super_admin && usuario.id === auth.user?.id) return false;
+
+    if (meta.value.puede_gestionar_super_admins) return true;
+
+    return meta.value.puede_promover_primer_super_admin
+        && !usuario.es_super_admin
+        && usuario.activo;
+}
+
+async function toggleSuperAdmin(usuario) {
+    const promover = !usuario.es_super_admin;
+    const accion = promover ? "promover como superadministrador" : "retirar el nivel de superadministrador";
+
+    if (!confirm(`¿Deseas ${accion} a ${usuario.name}?`)) return;
+
+    try {
+        await http.put(`/api/users/${usuario.id}/super-admin`, {
+            es_super_admin: promover,
+        });
+
+        if (usuario.id === auth.user?.id) {
+            await auth.fetchUser();
+        }
+
+        toastSuccess(promover ? "Superadministrador asignado." : "Nivel de superadministrador retirado.");
+        await cargarUsuarios();
+    } catch (e) {
+        toastError(e?.response?.data?.message || "No se pudo actualizar el nivel del usuario.");
     }
 }
 

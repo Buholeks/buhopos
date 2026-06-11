@@ -58,7 +58,10 @@ class PermisosSeeder extends Seeder
             ['modulo' => 'catalogos',  'clave' => 'catalogos.editar',         'descripcion' => 'Crear y editar registros de catálogos'],
 
             // ── Usuarios ──────────────────────────────────────────────────────
-            ['modulo' => 'usuarios',   'clave' => 'usuarios.gestionar',       'descripcion' => 'Gestionar usuarios, roles y permisos'],
+            ['modulo' => 'usuarios',   'clave' => 'usuarios.gestionar',       'descripcion' => 'Crear, editar y activar usuarios; asignar sucursales y roles'],
+
+            ['modulo' => 'empresa',    'clave' => 'empresa.editar',           'descripcion' => 'Editar los datos generales y fiscales de la empresa'],
+            ['modulo' => 'sucursales', 'clave' => 'sucursales.editar',        'descripcion' => 'Editar los datos de la sucursal activa'],
         ];
 
         foreach ($permisos as $permiso) {

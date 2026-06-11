@@ -57,6 +57,59 @@ class UserManagementTest extends TestCase
             ->assertJsonValidationErrors('sucursal_id');
     }
 
+    public function test_permite_promover_primer_super_admin_cuando_no_existe_ninguno(): void
+    {
+        [, , , $actor] = $this->crearContexto();
+        Sanctum::actingAs($actor);
+
+        $this->putJson("/api/users/{$actor->id}/super-admin", [
+            'es_super_admin' => true,
+        ])->assertOk()
+            ->assertJsonPath('es_super_admin', true);
+
+        $this->assertTrue($actor->fresh()->es_super_admin);
+    }
+
+    public function test_solo_super_admin_puede_promover_despues_del_primero(): void
+    {
+        [$empresa, $sucursalActiva, , $actor] = $this->crearContexto();
+        $primerSuperAdmin = User::create([
+            'empresa_id' => $empresa->id,
+            'sucursal_id' => $sucursalActiva->id,
+            'name' => 'Super administrador',
+            'email' => 'super-admin-' . uniqid() . '@example.com',
+            'password' => 'password123',
+            'activo' => true,
+            'es_super_admin' => true,
+        ]);
+        $primerSuperAdmin->sucursales()->attach($sucursalActiva->id);
+
+        Sanctum::actingAs($actor);
+
+        $this->putJson("/api/users/{$actor->id}/super-admin", [
+            'es_super_admin' => true,
+        ])->assertForbidden();
+
+        Sanctum::actingAs($primerSuperAdmin);
+
+        $this->putJson("/api/users/{$actor->id}/super-admin", [
+            'es_super_admin' => true,
+        ])->assertOk();
+    }
+
+    public function test_no_permite_retirar_al_unico_super_admin_activo(): void
+    {
+        [, , , $actor] = $this->crearContexto();
+        $actor->update(['es_super_admin' => true]);
+        Sanctum::actingAs($actor);
+
+        $this->putJson("/api/users/{$actor->id}/super-admin", [
+            'es_super_admin' => false,
+        ])->assertUnprocessable();
+
+        $this->assertTrue($actor->fresh()->es_super_admin);
+    }
+
     private function crearContexto(): array
     {
         $empresa = Empresa::create(['nombre' => 'Empresa usuarios', 'activo' => true]);

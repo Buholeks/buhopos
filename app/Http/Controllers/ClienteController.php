@@ -15,8 +15,7 @@ class ClienteController extends Controller
         $user = $request->user();
 
         $q = Cliente::query()
-            ->where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id);
+            ->where('empresa_id', $user->empresa_id);
 
         if ($search = trim($request->q)) {
             $words = preg_split('/\s+/', $search);
@@ -127,7 +126,7 @@ class ClienteController extends Controller
         $user = $request->user();
 
         abort_if(
-            $cliente->empresa_id !== $user->empresa_id || $cliente->sucursal_id !== $user->sucursal_id,
+            $cliente->empresa_id !== $user->empresa_id,
             403,
             'No autorizado.'
         );

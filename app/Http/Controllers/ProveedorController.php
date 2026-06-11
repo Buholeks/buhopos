@@ -18,8 +18,7 @@ class ProveedorController extends Controller
                 ProveedorSaldoMovimiento::query()
                     ->selectRaw("COALESCE(SUM(CASE WHEN tipo='credito' THEN monto ELSE -monto END), 0)")
                     ->whereColumn('proveedor_saldo_movimientos.proveedor_id', 'proveedores.id')
-                    ->where('proveedor_saldo_movimientos.empresa_id', $u->empresa_id)
-                    ->where('proveedor_saldo_movimientos.sucursal_id', $u->sucursal_id),
+                    ->where('proveedor_saldo_movimientos.empresa_id', $u->empresa_id),
                 'saldo_favor'
             )
             ->orderBy('nombre_comercial');
@@ -133,7 +132,6 @@ class ProveedorController extends Controller
 
         $proveedor = Proveedor::where('id', $id)
             ->where('empresa_id', $u->empresa_id)
-            ->where('sucursal_id', $u->sucursal_id)
             ->firstOrFail();
 
         $proveedor->delete();

@@ -16,16 +16,11 @@ class CategoriaController extends Controller
         return (int) Auth::user()->empresa_id;
     }
 
-    private function sucursalId(): int
-    {
-        return (int) Auth::user()->sucursal_id;
-    }
-
     // GET /api/categorias
     public function index(): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
-        $categorias = Categoria::deEmpresa($this->empresaId(), $this->sucursalId())
+        $categorias = Categoria::deEmpresa($this->empresaId())
             ->raiz()
             ->with('hijosRecursivos')
             ->orderBy('orden')
@@ -44,7 +39,7 @@ class CategoriaController extends Controller
 
         $q = trim($data['q'] ?? '');
 
-        $categorias = Categoria::deEmpresa($this->empresaId(), $this->sucursalId())
+        $categorias = Categoria::deEmpresa($this->empresaId())
             ->activas()
             ->when($q !== '', fn($query) => $query->where('nombre', 'like', "{$q}%"))
             ->orderBy('nombre')
@@ -59,15 +54,13 @@ public function store(Request $request): JsonResponse
 {
     abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
     $empresaId  = $this->empresaId();
-    $sucursalId = $this->sucursalId();
-    $padreId    = $request->input('categoria_padre_id'); // puede ser null
+    $padreId    = $request->input('categoria_padre_id');
 
     $data = $request->validate([
         'nombre' => [
             'required', 'string', 'min:2', 'max:150',
             Rule::unique('categorias', 'nombre')->where(fn($q) => $q
                 ->where('empresa_id', $empresaId)
-                ->where('sucursal_id', $sucursalId)
                 ->when($padreId,
                     fn($q) => $q->where('categoria_padre_id', $padreId),
                     fn($q) => $q->whereNull('categoria_padre_id')
@@ -83,16 +76,16 @@ public function store(Request $request): JsonResponse
         'nombre.unique' => 'Ya existe una categoría con ese nombre en este nivel.',
     ]);
 
-    // Validar que el padre pertenezca a la misma empresa/sucursal
+    // Validar que el padre pertenezca a la misma empresa
     if (!empty($data['categoria_padre_id'])) {
-        $padre = Categoria::deEmpresa($empresaId, $sucursalId)->find($data['categoria_padre_id']);
+        $padre = Categoria::deEmpresa($empresaId)->find($data['categoria_padre_id']);
         if (!$padre) {
-            return response()->json(['message' => 'La categoría padre no pertenece a esta empresa/sucursal.'], 422);
+            return response()->json(['message' => 'La categoría padre no pertenece a esta empresa.'], 422);
         }
     }
 
     $data['empresa_id']  = $empresaId;
-    $data['sucursal_id'] = $sucursalId;
+    $data['sucursal_id'] = Auth::user()->sucursal_id;
     $data['user_id']     = Auth::id();
     $data['activo']      = $data['activo'] ?? true;
     $data['orden']       = $data['orden'] ?? 0;
@@ -108,7 +101,7 @@ public function store(Request $request): JsonResponse
     // GET /api/categorias/{id}
     public function show(int $id): JsonResponse
     {
-        $categoria = Categoria::deEmpresa($this->empresaId(), $this->sucursalId())
+        $categoria = Categoria::deEmpresa($this->empresaId())
             ->with('hijosRecursivos', 'padre')
             ->findOrFail($id);
 
@@ -120,9 +113,8 @@ public function store(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
-        $sucursalId = $this->sucursalId();
 
-        $categoria = Categoria::deEmpresa($empresaId, $sucursalId)->findOrFail($id);
+        $categoria = Categoria::deEmpresa($empresaId)->findOrFail($id);
 
         $data = $request->validate([
             'nombre' => [
@@ -134,7 +126,6 @@ public function store(Request $request): JsonResponse
                     ->where(
                         fn($q) => $q
                             ->where('empresa_id', $empresaId)
-                            ->where('sucursal_id', $sucursalId)
                             ->where('categoria_padre_id', $categoria->categoria_padre_id)
                             ->whereNull('deleted_at')
                     )
@@ -167,7 +158,7 @@ public function store(Request $request): JsonResponse
     public function destroy(int $id): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('productos.eliminar'), 403, 'Sin permiso: productos.eliminar');
-        $categoria = Categoria::deEmpresa($this->empresaId(), $this->sucursalId())
+        $categoria = Categoria::deEmpresa($this->empresaId())
             ->with('hijosRecursivos')
             ->findOrFail($id);
 

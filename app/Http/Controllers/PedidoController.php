@@ -103,11 +103,10 @@ class PedidoController extends Controller
 
         $clienteValido = Cliente::where('id', $data['cliente_id'])
             ->where('empresa_id', $empresaId)
-            ->where('sucursal_id', $sucursalId)
             ->exists();
 
         if (! $clienteValido) {
-            return response()->json(['message' => 'El cliente no pertenece a esta empresa/sucursal.'], 422);
+            return response()->json(['message' => 'El cliente no pertenece a esta empresa.'], 422);
         }
 
         if ($data['tipo'] === 'apartado') {

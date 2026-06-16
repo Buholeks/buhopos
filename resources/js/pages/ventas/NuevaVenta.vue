@@ -234,7 +234,7 @@ import {
 } from "@/helpers/ventasEnEspera";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import { imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
-
+import { obtenerImpresoraTicket } from "@/helpers/qzTray";
 
 const authStore = useAuthStore();
 
@@ -987,14 +987,14 @@ function resetearTodo() {
     nextTick(() => searchRef.value?.focus?.());
 }
 
-function reimprimirUltimaVenta() {
+async function reimprimirUltimaVenta() {
     if (!ultimaVentaDisponible.value) {
         toastWarning("No hay una ultima venta para reimprimir");
         return;
     }
 
     try {
-        imprimirTicketVenta(crearTicketVenta(ultimaVenta.value));
+        await imprimirTicketVenta(crearTicketVenta(ultimaVenta.value), obtenerImpresoraTicket());
     } catch (e) {
         toastError(e.message ?? "No se pudo reimprimir el ticket");
     }
@@ -1164,7 +1164,7 @@ async function guardarVentaFinal() {
 
     if (imprimir.isConfirmed) {
         try {
-            imprimirTicketVenta(crearTicketVenta(res.venta));
+            await imprimirTicketVenta(crearTicketVenta(res.venta), obtenerImpresoraTicket());
         } catch (e) {
             toastError(e.message ?? "No se pudo imprimir el ticket");
         }

@@ -9,7 +9,7 @@ class CompraDetalle extends Model
 {
     protected $fillable = [
         'compra_id', 'producto_id', 'variante_id',
-        'cantidad', 'precio_compra', 'precio_venta', 'subtotal',
+        'cantidad', 'precio_compra', 'precio_venta', 'subtotal', 'etiqueta_snapshot',
     ];
 
     protected $casts = [
@@ -17,6 +17,7 @@ class CompraDetalle extends Model
         'precio_compra' => 'decimal:2',
         'precio_venta'  => 'decimal:2',
         'subtotal'      => 'decimal:2',
+        'etiqueta_snapshot' => 'array',
     ];
 
     public function compra(): BelongsTo   { return $this->belongsTo(Compra::class); }

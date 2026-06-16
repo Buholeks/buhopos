@@ -30,6 +30,9 @@ class PermisosSeeder extends Seeder
             ['modulo' => 'compras',    'clave' => 'compras.ver',              'descripcion' => 'Consultar compras registradas'],
             ['modulo' => 'compras',    'clave' => 'compras.crear',            'descripcion' => 'Registrar nuevas compras'],
 
+            ['modulo' => 'etiquetas',  'clave' => 'etiquetas.imprimir',       'descripcion' => 'Preparar e imprimir etiquetas'],
+            ['modulo' => 'etiquetas',  'clave' => 'etiquetas.disenar',        'descripcion' => 'Crear y editar plantillas y perfiles de etiquetas'],
+
             // ── Productos ─────────────────────────────────────────────────────
             ['modulo' => 'productos',  'clave' => 'productos.ver',            'descripcion' => 'Ver catálogo de productos'],
             ['modulo' => 'productos',  'clave' => 'productos.editar',         'descripcion' => 'Crear y editar productos'],

@@ -34,11 +34,15 @@ import NuevoApartado from "@/pages/apartados/NuevoApartado.vue";
 import ConsultaApartados from "@/pages/apartados/ConsultaApartados.vue";
 
 import NuevaVenta from "../pages/ventas/NuevaVenta.vue";
+import TicketConfig from "../pages/ventas/TicketConfig.vue";
 import CancelacionesDevoluciones from "../pages/ventas/CancelacionesDevoluciones.vue";
 
 import NuevaCompra from "../pages/compras/NuevaCompra.vue";
 import reportecompras from "@/pages/compras/Reporte.vue";
 import DevolucionProveedor from "@/pages/compras/DevolucionProveedor.vue";
+import EtiquetasTrabajo from "@/pages/etiquetas/EtiquetasTrabajo.vue";
+import EtiquetasCompra from "@/pages/etiquetas/EtiquetasCompra.vue";
+import EtiquetasEditor from "@/pages/etiquetas/EtiquetasEditor.vue";
 
 import CorteCaja from "../pages/caja/CorteCaja.vue";
 import HistorialCortes from "../pages/caja/HistorialCortes.vue";
@@ -92,12 +96,16 @@ const routes = [
       { path: "apartados/consulta",name: "apartados-consulta",component: ConsultaApartados,meta: { title: "Consulta de apartados", permiso: "pedidos.ver" } },
 
       { path: "ventas",                    name: "ventas",                    component: NuevaVenta,               meta: { title: "Ventas",                     permiso: "ventas.crear" } },
+      { path: "ticket/configurar",         name: "ticket-config",             component: TicketConfig,             meta: { title: "Configuración del ticket",    permiso: "ventas.crear" } },
       { path: "cancelaciones-devoluciones",name: "cancelaciones-devoluciones",component: CancelacionesDevoluciones,meta: { title: "Cancelaciones y devoluciones",permiso: "ventas.cancelar" } },
 
       { path: "compras",                   name: "compras",                   component: NuevaCompra,       meta: { title: "Compras",                   permiso: "compras.crear" } },
       { path: "reportes-compras",          name: "reportes-compras",          component: reportecompras,    props: { vista: "compras" },                meta: { title: "Consulta de compras",       permiso: "compras.ver" } },
       { path: "reportes-pagos-proveedores",name: "reportes-pagos-proveedores",component: reportecompras,    props: { vista: "pagos" },                  meta: { title: "Pagos a proveedores",       permiso: "compras.ver" } },
       { path: "devoluciones-proveedor",    name: "devoluciones-proveedor",    component: DevolucionProveedor,                                           meta: { title: "Devoluciones a proveedor",  permiso: "compras.crear" } },
+      { path: "compras/:compraId/etiquetas", name: "compra-etiquetas", component: EtiquetasCompra, meta: { title: "Etiquetas de compra", permiso: "etiquetas.imprimir" } },
+      { path: "etiquetas-precio", name: "etiquetas-precio", component: EtiquetasTrabajo, meta: { title: "Etiquetas de precio", permiso: "etiquetas.imprimir" } },
+      { path: "etiquetas/plantillas", name: "etiquetas-plantillas", component: EtiquetasEditor, meta: { title: "Diseñador de etiquetas", permiso: "etiquetas.disenar" } },
 
       { path: "caja",          name: "caja",          component: CorteCaja,      meta: { title: "Corte de caja",   permiso: "caja.abrir" } },
       { path: "cortes-caja",   name: "cortes-caja",   component: HistorialCortes,meta: { title: "Cortes de caja",  permiso: "caja.historial" } },

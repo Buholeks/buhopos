@@ -102,6 +102,8 @@ import {
     ReceiptText,
     ShieldCheck,
     ShoppingCart,
+    Tags,
+    Ticket,
     UsersRound,
     UserRoundCog,
     Workflow,
@@ -136,6 +138,7 @@ const allSections = [
         items: [
             { label: "Productos",       to: "/productos",        icon: Boxes,        permiso: "productos.ver"     },
             { label: "Lista de precios",to: "/catalogo-precios", icon: ScanSearch,   permiso: "productos.precios" },
+            { label: "Etiquetas de precio",to: "/etiquetas-precio", icon: Tags, permiso: "etiquetas.imprimir" },
             { label: "Exhibición",      to: "/exhibicion",       icon: PackageCheck, permiso: "inventario.ver"    },
             { label: "Traspasos",       to: "/traspasos/nuevo",  icon: Repeat2,      permiso: "inventario.traspasos" },
         ],
@@ -153,6 +156,8 @@ const allSections = [
         items: [
             { label: "Usuarios",       to: "/usuarios", icon: UsersRound,  permiso: "usuarios.gestionar" },
             { label: "Roles y permisos", to: "/roles",  icon: ShieldCheck, permiso: "usuarios.gestionar" },
+            { label: "Diseñador de etiquetas", to: "/etiquetas/plantillas", icon: Tags, permiso: "etiquetas.disenar" },
+            { label: "Configurar ticket",      to: "/ticket/configurar",    icon: Ticket, permiso: "ventas.crear" },
         ],
     },
 ];

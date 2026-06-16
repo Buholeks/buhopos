@@ -720,13 +720,22 @@
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-                        @click="cerrarModal"
-                    >
-                        <X class="h-5 w-5" />
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <RouterLink
+                            v-if="detalle?.compra?.id"
+                            :to="{ name: 'compra-etiquetas', params: { compraId: detalle.compra.id } }"
+                            class="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+                        >
+                            Etiquetas
+                        </RouterLink>
+                        <button
+                            type="button"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                            @click="cerrarModal"
+                        >
+                            <X class="h-5 w-5" />
+                        </button>
+                    </div>
                 </div>
 
                 <div

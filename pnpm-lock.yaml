@@ -8,12 +8,18 @@ importers:
 
   .:
     dependencies:
+      jsbarcode:
+        specifier: ^3.12.3
+        version: 3.12.3
       lucide-vue-next:
         specifier: ^0.574.0
         version: 0.574.0(vue@3.5.26)
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(vue@3.5.26)
+      qz-tray:
+        specifier: ^2.2.6
+        version: 2.2.6
       sweetalert2:
         specifier: ^11.26.10
         version: 11.26.10
@@ -674,6 +680,9 @@ packages:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
     hasBin: true
 
+  jsbarcode@3.12.3:
+    resolution: {integrity: sha512-CuHU9hC6dPsHF5oVFMo8NW76uQVjH4L22CsP4hW+dNnGywJHC/B0ThA1CTDVLnxKLrrpYdicBLnd2xsgTfRnvg==}
+
   laravel-vite-plugin@1.3.0:
     resolution: {integrity: sha512-P5qyG56YbYxM8OuYmK2OkhcKe0AksNVJUjq9LUZ5tOekU9fBn9LujYyctI4t9XoLjuMvHJXXpCoPntY1oKltuA==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
@@ -808,6 +817,9 @@ packages:
 
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
+
+  qz-tray@2.2.6:
+    resolution: {integrity: sha512-b9w0vcjHSdKiOq1jL/KXfb3IvgaIc/BeQv9JuJ3nTEoqSUZfIGKLAyKTS+akHSXrR64R0UwEDmw20GvD2di/Pg==}
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -1468,6 +1480,8 @@ snapshots:
 
   jiti@2.6.1: {}
 
+  jsbarcode@3.12.3: {}
+
   laravel-vite-plugin@1.3.0(vite@6.4.1(jiti@2.6.1)(lightningcss@1.30.2)):
     dependencies:
       picocolors: 1.1.1
@@ -1563,6 +1577,8 @@ snapshots:
       source-map-js: 1.2.1
 
   proxy-from-env@1.1.0: {}
+
+  qz-tray@2.2.6: {}
 
   require-directory@2.1.1: {}
 

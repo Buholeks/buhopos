@@ -41,6 +41,7 @@ use App\Http\Controllers\ReporteUtilidadesController;
 use App\Http\Controllers\DevolucionProveedorController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\EtiquetaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -50,6 +51,11 @@ use App\Http\Controllers\ProfileController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+
+// Públicos — sin autenticación (cert y firma son operaciones de handshake de QZ Tray)
+Route::get('/etiquetas/qztray/cert', [EtiquetaController::class, 'qzCertificado']);
+Route::get('/etiquetas/qztray/instalador', [EtiquetaController::class, 'qzInstalador']);
+Route::post('/etiquetas/qztray/sign', [EtiquetaController::class, 'qzFirmar']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -155,6 +161,18 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/', [PagoProveedorController::class, 'store']);
             Route::delete('/{id}', [PagoProveedorController::class, 'destroy']);
         });
+    });
+
+    Route::prefix('etiquetas')->group(function () {
+        Route::get('/configuracion', [EtiquetaController::class, 'configuracion']);
+        Route::get('/compras/{compraId}', [EtiquetaController::class, 'compra']);
+        Route::get('/catalogo', [EtiquetaController::class, 'buscarCatalogo']);
+        Route::post('/plantillas', [EtiquetaController::class, 'guardarPlantilla']);
+        Route::put('/plantillas/{id}', [EtiquetaController::class, 'guardarPlantilla']);
+        Route::delete('/plantillas/{id}', [EtiquetaController::class, 'eliminarPlantilla']);
+        Route::post('/perfiles', [EtiquetaController::class, 'guardarPerfil']);
+        Route::put('/perfiles/{id}', [EtiquetaController::class, 'guardarPerfil']);
+        Route::put('/precios', [EtiquetaController::class, 'actualizarPrecios']);
     });
 
     Route::prefix('devoluciones-proveedor')->group(function () {

@@ -377,7 +377,7 @@ export const useCompraStore = defineStore("compra", () => {
         guardando.value = true;
 
         try {
-            await http.post("/api/compras", {
+            const { data: compraGuardada } = await http.post("/api/compras", {
                 proveedor_id: form.proveedor_id || null,
                 folio: form.folio || null,
                 fecha: form.fecha,
@@ -396,16 +396,22 @@ export const useCompraStore = defineStore("compra", () => {
                 })),
             });
 
-            await Swal.fire({
+            const terminado = await Swal.fire({
                 icon: "success",
                 title: "¡Compra registrada!",
                 html: `<p class="text-sm text-slate-600">Stock actualizado correctamente.</p>`,
+                input: "checkbox",
+                inputValue: 1,
+                inputPlaceholder: "Mostrar etiquetas de esta compra",
                 confirmButtonColor: "#059669",
-                confirmButtonText: "Nueva compra",
+                confirmButtonText: "Continuar",
             });
 
             await cargarProveedores();
             resetear();
+            if (terminado.value) {
+                window.location.href = `/compras/${compraGuardada.id}/etiquetas`;
+            }
         } catch (e) {
             Swal.fire({
                 icon: "error",

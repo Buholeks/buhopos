@@ -232,6 +232,26 @@ class CompraController extends Controller
                 ->where('id', $compra->id)
                 ->update($updateFinal);
 
+            $compra->refresh()->load(['empresa', 'sucursal', 'proveedor']);
+            $snapshotBuilder = app(EtiquetaController::class);
+            $compra->detalles()
+                ->with([
+                    'producto.marca', 'producto.modelo', 'producto.categoria',
+                    'variante.atributos.tipoAtributo', 'variante.atributos.atributo',
+                ])
+                ->get()
+                ->each(function (CompraDetalle $detalle) use ($compra, $snapshotBuilder) {
+                    $detalle->update([
+                        'etiqueta_snapshot' => $snapshotBuilder->snapshot(
+                            $compra,
+                            $detalle->producto,
+                            $detalle->variante,
+                            (float) $detalle->precio_compra,
+                            (float) $detalle->precio_venta
+                        ),
+                    ]);
+                });
+
             if ($saldoFavorAplicado > 0) {
                 $folioCompra = $updateFinal['folio'] ?? $compra->folio ?? "#{$compra->id}";
                 ProveedorSaldoMovimiento::create([

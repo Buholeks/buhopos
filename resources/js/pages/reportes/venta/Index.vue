@@ -992,6 +992,7 @@ import {
 } from "lucide-vue-next";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import { imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
+import { obtenerImpresoraTicket } from "@/helpers/qzTray";
 import { toastError } from "@/lib/alert";
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -1102,7 +1103,7 @@ async function toggleDetalle(id) {
 async function reimprimirVenta(id) {
     try {
         const { data } = await axios.get(`${props.apiBase}/${id}`);
-        imprimirTicketVenta(crearTicketVenta({ ...data, reimpresion: true }));
+        await imprimirTicketVenta(crearTicketVenta({ ...data, reimpresion: true }), obtenerImpresoraTicket());
     } catch (e) {
         console.error("reimprimirVenta", e);
         toastError("No se pudo reimprimir el ticket.");

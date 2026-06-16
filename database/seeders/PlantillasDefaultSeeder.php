@@ -77,28 +77,36 @@ class PlantillasDefaultSeeder extends Seeder
 
     private function seedPlantillas(int $empresaId): void
     {
-        $plantillas = $this->plantillasDefault();
-
-        foreach ($plantillas as $plantilla) {
-            $yaExiste = DB::table('etiqueta_plantillas')
+        foreach ($this->plantillasDefault() as $plantilla) {
+            $existente = DB::table('etiqueta_plantillas')
                 ->where('empresa_id', $empresaId)
                 ->where('tipo', $plantilla['tipo'])
-                ->exists();
+                ->first();
 
-            if ($yaExiste) continue;
-
-            DB::table('etiqueta_plantillas')->insert([
-                'empresa_id'    => $empresaId,
-                'nombre'        => $plantilla['nombre'],
-                'tipo'          => $plantilla['tipo'],
-                'ancho_mm'      => $plantilla['ancho_mm'],
-                'alto_mm'       => $plantilla['alto_mm'],
-                'diseno'        => json_encode($plantilla['diseno']),
-                'predeterminada'=> $plantilla['predeterminada'],
-                'activa'        => true,
-                'created_at'    => now(),
-                'updated_at'    => now(),
-            ]);
+            if ($existente) {
+                // Actualiza diseño y medidas para que coincida con el diseño master
+                DB::table('etiqueta_plantillas')
+                    ->where('id', $existente->id)
+                    ->update([
+                        'ancho_mm'   => $plantilla['ancho_mm'],
+                        'alto_mm'    => $plantilla['alto_mm'],
+                        'diseno'     => json_encode($plantilla['diseno']),
+                        'updated_at' => now(),
+                    ]);
+            } else {
+                DB::table('etiqueta_plantillas')->insert([
+                    'empresa_id'    => $empresaId,
+                    'nombre'        => $plantilla['nombre'],
+                    'tipo'          => $plantilla['tipo'],
+                    'ancho_mm'      => $plantilla['ancho_mm'],
+                    'alto_mm'       => $plantilla['alto_mm'],
+                    'diseno'        => json_encode($plantilla['diseno']),
+                    'predeterminada'=> $plantilla['predeterminada'],
+                    'activa'        => true,
+                    'created_at'    => now(),
+                    'updated_at'    => now(),
+                ]);
+            }
         }
     }
 
@@ -141,33 +149,34 @@ class PlantillasDefaultSeeder extends Seeder
                 'predeterminada'=> true,
                 'diseno'        => [
                     'elementos' => [
-                        ['id' => 'empresa', 'tipo' => 'campo', 'campo' => 'empresa.nombre', 'x' => 3, 'y' => 3, 'ancho' => 58, 'alto' => 3, 'fuente' => 6, 'negrita' => false, 'alineacion' => 'izquierda', 'familia_fuente' => 'Helvetica, Arial, sans-serif'],
-                        ['id' => 'producto', 'tipo' => 'campo', 'campo' => 'calculados.producto_variante', 'x' => 3, 'y' => 5, 'ancho' => 58, 'alto' => 5, 'fuente' => 7, 'negrita' => false, 'alineacion' => 'izquierda', 'familia_fuente' => "'Trebuchet MS', sans-serif"],
-                        ['id' => 'barras', 'tipo' => 'codigo_barras', 'campo' => 'calculados.codigo_preferido', 'x' => 1, 'y' => 30, 'ancho' => 38, 'alto' => 12, 'fuente' => 7, 'negrita' => false, 'alineacion' => 'centro'],
-                        ['id' => 'precio', 'tipo' => 'precio', 'campo' => 'precios.venta', 'x' => 3, 'y' => 20, 'ancho' => 50, 'alto' => 6.5, 'fuente' => 19, 'negrita' => true, 'alineacion' => 'izquierda'],
-                        ['id' => 'compra', 'tipo' => 'campo', 'campo' => 'compra.folio_fecha', 'x' => 0, 'y' => 58, 'ancho' => 58, 'alto' => 3, 'fuente' => 6, 'negrita' => false, 'alineacion' => 'centro'],
-                        ['id' => 'folio', 'tipo' => 'campo', 'campo' => 'compra.folio', 'texto' => null, 'x' => 29, 'y' => 21, 'ancho' => 30, 'alto' => 5, 'fuente' => 8, 'negrita' => true, 'alineacion' => 'derecha', 'mostrar_texto' => true],
-                        ['id' => 'barras_variante', 'tipo' => 'codigo_barras', 'campo' => 'variante.codigo_barras', 'texto' => null, 'x' => 11.5, 'y' => 10, 'ancho' => 38.5, 'alto' => 9.5, 'fuente' => 8, 'negrita' => false, 'alineacion' => 'izquierda', 'mostrar_texto' => true, 'fuente_barcode' => 7],
-                        ['id' => 'linea1', 'tipo' => 'linea_h', 'campo' => null, 'texto' => null, 'x' => 0, 'y' => 18.5, 'ancho' => 63.5, 'alto' => 3, 'color' => '#000000', 'grosor' => 0.3],
-                        ['id' => 'linea2', 'tipo' => 'linea_h', 'campo' => null, 'texto' => null, 'x' => 0, 'y' => 8, 'ancho' => 64, 'alto' => 3, 'color' => '#000000', 'grosor' => 0.3],
+                        ['id' => 'empresa',                                'tipo' => 'campo',        'campo' => 'empresa.nombre',               'x' => 3,    'y' => 3,    'ancho' => 58,   'alto' => 3,   'fuente' => 6,  'negrita' => false, 'alineacion' => 'izquierda', 'familia_fuente' => 'Helvetica, Arial, sans-serif'],
+                        ['id' => 'producto',                               'tipo' => 'campo',        'campo' => 'calculados.producto_variante', 'x' => 3,    'y' => 5,    'ancho' => 58,   'alto' => 5,   'fuente' => 7,  'negrita' => false, 'alineacion' => 'izquierda', 'familia_fuente' => "'Trebuchet MS', sans-serif"],
+                        ['id' => 'barras',                                 'tipo' => 'codigo_barras','campo' => 'calculados.codigo_preferido',  'x' => 1,    'y' => 30,   'ancho' => 38,   'alto' => 12,  'fuente' => 7,  'negrita' => false, 'alineacion' => 'centro'],
+                        ['id' => 'precio',                                 'tipo' => 'precio',       'campo' => 'precios.venta',                'x' => 3,    'y' => 20,   'ancho' => 50,   'alto' => 6.5, 'fuente' => 19, 'negrita' => true,  'alineacion' => 'izquierda'],
+                        ['id' => 'compra',                                 'tipo' => 'campo',        'campo' => 'compra.folio_fecha',           'x' => 0,    'y' => 58,   'ancho' => 58,   'alto' => 3,   'fuente' => 6,  'negrita' => false, 'alineacion' => 'centro'],
+                        ['id' => 'cc7bf3f8-6665-44c5-b232-1a8b241829f4', 'tipo' => 'campo',        'campo' => 'compra.folio',                 'x' => 29,   'y' => 21,   'ancho' => 30,   'alto' => 5,   'fuente' => 8,  'negrita' => true,  'alineacion' => 'derecha',   'texto' => null, 'mostrar_texto' => true],
+                        ['id' => '7046144b-c29d-4cbe-9d4e-bb4b675afdde', 'tipo' => 'codigo_barras','campo' => 'variante.codigo_barras',        'x' => 70,   'y' => 31.5, 'ancho' => 30,   'alto' => 5,   'fuente' => 15, 'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'mostrar_texto' => true,  'fuente_barcode' => null],
+                        ['id' => 'a7390593-1762-4c19-a68f-6c539d3709e8', 'tipo' => 'codigo_barras','campo' => 'variante.codigo_barras',        'x' => 11.5, 'y' => 10,   'ancho' => 38.5, 'alto' => 9.5, 'fuente' => 8,  'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'mostrar_texto' => true,  'fuente_barcode' => 7],
+                        ['id' => '42b3f3f7-50be-4bb1-aaa0-7420225c2bc7', 'tipo' => 'linea_h',      'campo' => null,                           'x' => 0,    'y' => 18.5, 'ancho' => 63.5, 'alto' => 3,   'fuente' => 8,  'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'color' => '#000000', 'color_relleno' => '#000000', 'grosor' => 0.3],
+                        ['id' => 'd3fa2413-4e54-4ee6-8c56-354b5d013967', 'tipo' => 'linea_h',      'campo' => null,                           'x' => 0,    'y' => 8,    'ancho' => 64,   'alto' => 3,   'fuente' => 8,  'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'color' => '#000000', 'color_relleno' => '#000000', 'grosor' => 0.3],
                     ],
                 ],
             ],
             [
-                'nombre'        => 'Precios',
+                'nombre'        => 'precios',
                 'tipo'          => 'precio',
                 'ancho_mm'      => 62,
                 'alto_mm'       => 29,
                 'predeterminada'=> false,
                 'diseno'        => [
                     'elementos' => [
-                        ['id' => 'empresa', 'tipo' => 'campo', 'campo' => 'empresa.nombre', 'x' => 3, 'y' => 3, 'ancho' => 30, 'alto' => 3, 'fuente' => 6, 'negrita' => false, 'alineacion' => 'izquierda', 'mostrar_texto' => true],
-                        ['id' => 'producto', 'tipo' => 'campo', 'campo' => 'calculados.producto_variante', 'x' => 3, 'y' => 6.5, 'ancho' => 54, 'alto' => 3, 'fuente' => 6, 'negrita' => false, 'alineacion' => 'izquierda', 'mostrar_texto' => true],
-                        ['id' => 'barras', 'tipo' => 'codigo_barras', 'campo' => 'variante.codigo_barras', 'x' => 24.5, 'y' => 11, 'ancho' => 33.5, 'alto' => 10, 'fuente' => 8, 'negrita' => false, 'alineacion' => 'izquierda', 'mostrar_texto' => true, 'fuente_barcode' => 7],
-                        ['id' => 'precio', 'tipo' => 'precio', 'campo' => 'precios.venta', 'x' => 3, 'y' => 13, 'ancho' => 30, 'alto' => 5, 'fuente' => 15, 'negrita' => true, 'alineacion' => 'izquierda', 'mostrar_texto' => true, 'familia_fuente' => 'Helvetica, Arial, sans-serif'],
-                        ['id' => 'linea1', 'tipo' => 'linea_h', 'campo' => null, 'x' => 0, 'y' => 20.5, 'ancho' => 65, 'alto' => 3, 'color' => '#000000', 'grosor' => 0.3],
-                        ['id' => 'linea2', 'tipo' => 'linea_h', 'campo' => null, 'x' => 0, 'y' => 8.5, 'ancho' => 65, 'alto' => 3, 'color' => '#000000', 'grosor' => 0.3],
-                        ['id' => 'telefono', 'tipo' => 'texto', 'campo' => 'texto_libre', 'texto' => 'Contáctanos al 985 227 33 20', 'x' => 3, 'y' => 24, 'ancho' => 55, 'alto' => 3, 'fuente' => 6, 'negrita' => false, 'alineacion' => 'centro', 'mostrar_texto' => true],
+                        ['id' => 'f7ff480e-5d42-441f-b400-f320f202ed16', 'tipo' => 'campo',        'campo' => 'empresa.nombre',               'x' => 3,    'y' => 3,    'ancho' => 30,   'alto' => 3,  'fuente' => 6,  'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'mostrar_texto' => true],
+                        ['id' => 'ccf7afda-1d89-492e-8e4e-c524b18c6dab', 'tipo' => 'campo',        'campo' => 'calculados.producto_variante', 'x' => 3,    'y' => 6.5,  'ancho' => 54,   'alto' => 3,  'fuente' => 6,  'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'mostrar_texto' => true],
+                        ['id' => '9e26af74-5699-470c-a7ef-861262bed6c0', 'tipo' => 'codigo_barras','campo' => 'variante.codigo_barras',        'x' => 24.5, 'y' => 11,   'ancho' => 33.5, 'alto' => 10, 'fuente' => 8,  'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'mostrar_texto' => true, 'fuente_barcode' => 7],
+                        ['id' => 'a5b18ec6-318c-432f-aa06-1afa2d2968f4', 'tipo' => 'precio',       'campo' => 'precios.venta',                'x' => 3,    'y' => 13,   'ancho' => 30,   'alto' => 5,  'fuente' => 15, 'negrita' => true,  'alineacion' => 'izquierda', 'texto' => null, 'mostrar_texto' => true, 'familia_fuente' => 'Helvetica, Arial, sans-serif'],
+                        ['id' => '6e1a88ac-a94c-484a-ab93-6cd68f054242', 'tipo' => 'linea_h',      'campo' => null,                           'x' => 0,    'y' => 20.5, 'ancho' => 65,   'alto' => 3,  'fuente' => 8,  'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'color' => '#000000', 'color_relleno' => '#000000', 'grosor' => 0.3],
+                        ['id' => '31daefa7-d3da-48d3-aa4b-61697ec7c3ba', 'tipo' => 'linea_h',      'campo' => null,                           'x' => 0,    'y' => 8.5,  'ancho' => 65,   'alto' => 3,  'fuente' => 8,  'negrita' => false, 'alineacion' => 'izquierda', 'texto' => null, 'color' => '#000000', 'color_relleno' => '#000000', 'grosor' => 0.3],
+                        ['id' => '90434941-176a-4ab3-83d8-e3f995118a06', 'tipo' => 'texto',        'campo' => 'texto_libre',                  'x' => 3,    'y' => 24,   'ancho' => 55,   'alto' => 3,  'fuente' => 6,  'negrita' => false, 'alineacion' => 'centro',    'texto' => 'Contáctanos al 985 227 33 20', 'mostrar_texto' => true],
                     ],
                 ],
             ],

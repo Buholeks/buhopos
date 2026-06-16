@@ -64,10 +64,36 @@ class UnidadMedidaController extends Controller
         return response()->json($unidades);
     }
 
+    public function restore(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('catalogos.ver'), 403, 'Sin permiso: catalogos.ver');
+        $unidad = UnidadMedida::withTrashed()->where('empresa_id', $this->empresaId())->findOrFail($id);
+        $unidad->restore();
+        return response()->json($unidad);
+    }
+
     // POST /api/unidades-medida
     public function store(Request $request): JsonResponse
     {
         $empresaId = $this->empresaId();
+
+        $eliminada = UnidadMedida::withTrashed()
+            ->where('empresa_id', $empresaId)
+            ->where(fn($q) => $q
+                ->where('nombre', $request->input('nombre'))
+                ->orWhere('abreviatura', strtolower($request->input('abreviatura', '')))
+            )
+            ->whereNotNull('deleted_at')
+            ->first();
+
+        if ($eliminada) {
+            return response()->json([
+                'recoverable' => true,
+                'id'          => $eliminada->id,
+                'nombre'      => "{$eliminada->nombre} ({$eliminada->abreviatura})",
+                'message'     => "Ya existe una unidad de medida eliminada con ese nombre o abreviatura. ¿Deseas recuperarla?",
+            ], 409);
+        }
 
         $datos = $request->validate([
             'nombre' => [

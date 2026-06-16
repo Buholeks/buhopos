@@ -36,11 +36,35 @@ class AtributoController extends Controller
         return response()->json($query->get());
     }
 
+    public function restore(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('catalogos.ver'), 403, 'Sin permiso: catalogos.ver');
+        $atributo = Atributo::withTrashed()->where('empresa_id', $this->empresaId())->findOrFail($id);
+        $atributo->restore();
+        return response()->json($atributo->load('tipo'));
+    }
+
     // POST /api/atributos
     public function store(Request $request): JsonResponse
     {
         $empresaId = $this->empresaId();
         $tipoId    = $request->input('tipo_atributo_id');
+
+        $eliminado = Atributo::withTrashed()
+            ->where('empresa_id', $empresaId)
+            ->where('tipo_atributo_id', $tipoId)
+            ->where('valor', $request->input('valor'))
+            ->whereNotNull('deleted_at')
+            ->first();
+
+        if ($eliminado) {
+            return response()->json([
+                'recoverable' => true,
+                'id'          => $eliminado->id,
+                'nombre'      => $eliminado->valor,
+                'message'     => "Ya existe un valor eliminado con ese nombre. ¿Deseas recuperarlo?",
+            ], 409);
+        }
 
         $datos = $request->validate([
             'tipo_atributo_id' => ['required', 'integer', 'exists:tipo_atributos,id'],

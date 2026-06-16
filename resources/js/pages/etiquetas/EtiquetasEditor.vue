@@ -15,7 +15,10 @@
             <aside class="space-y-4">
                 <section class="rounded-2xl bg-white p-4 shadow-sm">
                     <label class="text-xs font-bold uppercase text-slate-500">Plantilla</label>
-                    <select v-model="plantillaId" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" @change="cargarSeleccionada"><option v-for="p in plantillas" :key="p.id" :value="p.id">{{ p.nombre }} · {{ p.tipo }}</option></select>
+                    <div class="mt-1 flex gap-2">
+                        <select v-model="plantillaId" class="w-full rounded-xl border border-slate-300 px-3 py-2" @change="cargarSeleccionada"><option v-for="p in plantillas" :key="p.id" :value="p.id">{{ p.nombre }} · {{ p.tipo }}</option></select>
+                        <button v-if="edicion.id" class="rounded-xl border border-red-200 bg-red-50 px-3 py-1 text-sm font-bold text-red-600 hover:bg-red-100" title="Eliminar plantilla" @click="eliminarPlantilla">✕</button>
+                    </div>
                     <input v-model="edicion.nombre" class="mt-3 w-full rounded-xl border border-slate-300 px-3 py-2 font-bold" placeholder="Nombre">
                     <div class="mt-2 grid grid-cols-3 gap-2">
                         <select v-model="edicion.tipo" class="rounded-lg border border-slate-300 px-2 py-1"><option value="compra">Compra</option><option value="precio">Precio</option></select>
@@ -228,6 +231,23 @@ function cambiarElemento({ id, cambio }) {
 function eliminarElemento() {
     if (edicion.diseno?.elementos) edicion.diseno.elementos = edicion.diseno.elementos.filter((e) => e.id !== seleccionado.value);
     seleccionado.value = null;
+}
+async function eliminarPlantilla() {
+    const r = await Swal.fire({
+        title: "¿Eliminar plantilla?",
+        text: `Se eliminará "${edicion.nombre}" permanentemente.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#ef4444",
+        confirmButtonText: "Sí, eliminar",
+        cancelButtonText: "Cancelar",
+    });
+    if (!r.isConfirmed) return;
+    await http.delete(`/api/etiquetas/plantillas/${edicion.id}`);
+    plantillas.value = plantillas.value.filter((p) => p.id !== edicion.id);
+    const siguiente = plantillas.value[0] ?? null;
+    if (siguiente) { plantillaId.value = siguiente.id; asignar(edicion, siguiente); }
+    else nueva();
 }
 async function guardar() {
     const url = edicion.id ? `/api/etiquetas/plantillas/${edicion.id}` : "/api/etiquetas/plantillas";

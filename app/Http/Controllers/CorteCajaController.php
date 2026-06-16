@@ -53,24 +53,27 @@ class CorteCajaController extends Controller
         abort_unless(Auth::user()->tienePermiso('caja.abrir'), 403, 'Sin permiso: caja.abrir');
         $user = Auth::user();
 
-        $abierto = CorteCaja::where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->where('user_id', $user->id)
-            ->where('estado', 'abierto')
-            ->exists();
+        $corte = DB::transaction(function () use ($user) {
+            $abierto = CorteCaja::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->where('user_id', $user->id)
+                ->where('estado', 'abierto')
+                ->lockForUpdate()
+                ->exists();
 
-        if ($abierto) {
-            return response()->json(['message' => 'Ya tienes una caja abierta en esta sucursal.'], 422);
-        }
+            if ($abierto) {
+                abort(422, 'Ya tienes una caja abierta en esta sucursal.');
+            }
 
-        $corte = CorteCaja::create([
-            'empresa_id'     => (int) $user->empresa_id,
-            'sucursal_id'    => (int) $user->sucursal_id,
-            'user_id'        => (int) $user->id,
-            'terminal'       => 'POS-' . $user->id, // ✅ terminal automática por usuario
-            'fecha_apertura' => now(),
-            'estado'         => 'abierto',
-        ]);
+            return CorteCaja::create([
+                'empresa_id'     => (int) $user->empresa_id,
+                'sucursal_id'    => (int) $user->sucursal_id,
+                'user_id'        => (int) $user->id,
+                'terminal'       => 'POS-' . $user->id,
+                'fecha_apertura' => now(),
+                'estado'         => 'abierto',
+            ]);
+        });
 
         return response()->json($corte, 201);
     }

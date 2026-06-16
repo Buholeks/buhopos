@@ -219,10 +219,12 @@ class CompraController extends Controller
 
             if (empty($datos['folio'])) {
                 $fechaHoy = now()->format('dmy');
+                // lockForUpdate para evitar folio duplicado en compras concurrentes sin folio
                 $countHoy = DB::table('compras')
                     ->where('empresa_id',  $empresaId)
                     ->where('sucursal_id', $sucursalId)
                     ->whereDate('fecha', now()->toDateString())
+                    ->lockForUpdate()
                     ->count();
 
                 $updateFinal['folio'] = $fechaHoy . str_pad($countHoy, 2, '0', STR_PAD_LEFT);

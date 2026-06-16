@@ -33,10 +33,33 @@ class TipoAtributoController extends Controller
         return response()->json($tipos);
     }
 
+    public function restore(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('catalogos.ver'), 403, 'Sin permiso: catalogos.ver');
+        $tipo = TipoAtributo::withTrashed()->where('empresa_id', $this->empresaId())->findOrFail($id);
+        $tipo->restore();
+        return response()->json($tipo->load('atributos'));
+    }
+
     // POST /api/tipo-atributos
     public function store(Request $request): JsonResponse
     {
         $empresaId = $this->empresaId();
+
+        $eliminado = TipoAtributo::withTrashed()
+            ->where('empresa_id', $empresaId)
+            ->where('nombre', $request->input('nombre'))
+            ->whereNotNull('deleted_at')
+            ->first();
+
+        if ($eliminado) {
+            return response()->json([
+                'recoverable' => true,
+                'id'          => $eliminado->id,
+                'nombre'      => $eliminado->nombre,
+                'message'     => "Ya existe un tipo de atributo eliminado con ese nombre. ¿Deseas recuperarlo?",
+            ], 409);
+        }
 
         $datos = $request->validate([
             'nombre' => [

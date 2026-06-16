@@ -95,6 +95,7 @@
 import { ref, reactive, computed } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
+import { ofrecerRecuperacion } from "@/helpers/recuperar";
 
 import MarcasHeader from "@/components/marcas/MarcasHeader.vue";
 import MarcasSearch from "@/components/marcas/MarcasSearch.vue";
@@ -250,10 +251,16 @@ async function enviarFormMarca() {
     cerrarModalMarca();
     await cargarMarcas();
   } catch (err) {
-    const msg = err.response?.data?.message ?? "Ocurrió un error";
-    Toast.fire({ icon: "error", title: msg });
-    const laravel = err.response?.data?.errors;
-    if (laravel?.nombre) erroresMarca.nombre = laravel.nombre[0];
+    const handled = await ofrecerRecuperacion(err, "/api/marcas", async () => {
+      cerrarModalMarca();
+      await cargarMarcas();
+    });
+    if (!handled) {
+      const msg = err.response?.data?.message ?? "Ocurrió un error";
+      Toast.fire({ icon: "error", title: msg });
+      const laravel = err.response?.data?.errors;
+      if (laravel?.nombre) erroresMarca.nombre = laravel.nombre[0];
+    }
   } finally {
     cargando.value = false;
   }
@@ -391,10 +398,16 @@ async function enviarFormModelo() {
     cerrarModalModelo();
     await cargarMarcas();
   } catch (err) {
-    const msg = err.response?.data?.message ?? "Ocurrió un error";
-    Toast.fire({ icon: "error", title: msg });
-    const laravel = err.response?.data?.errors;
-    if (laravel?.nombre) erroresModelo.nombre = laravel.nombre[0];
+    const handled = await ofrecerRecuperacion(err, "/api/modelos", async () => {
+      cerrarModalModelo();
+      await cargarMarcas();
+    });
+    if (!handled) {
+      const msg = err.response?.data?.message ?? "Ocurrió un error";
+      Toast.fire({ icon: "error", title: msg });
+      const laravel = err.response?.data?.errors;
+      if (laravel?.nombre) erroresModelo.nombre = laravel.nombre[0];
+    }
   } finally {
     cargando.value = false;
   }

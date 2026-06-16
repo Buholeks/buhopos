@@ -311,6 +311,7 @@
 import { ref, reactive, computed, watch, onMounted } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
+import { ofrecerRecuperacion } from "@/helpers/recuperar";
 
 import AtributosTable from "@/components/atributos/AtributosTable.vue";
 import TipoModal from "@/components/atributos/TipoModal.vue";
@@ -491,12 +492,15 @@ async function enviarFormTipo() {
         cerrarModalTipo();
         await cargarTipos();
     } catch (err) {
-        Toast.fire({
-            icon: "error",
-            title: err.response?.data?.message ?? "Error",
+        const handled = await ofrecerRecuperacion(err, "/api/tipo-atributos", async () => {
+            cerrarModalTipo();
+            await cargarTipos();
         });
-        const e = err.response?.data?.errors;
-        if (e?.nombre) erroresTipo.nombre = e.nombre[0];
+        if (!handled) {
+            Toast.fire({ icon: "error", title: err.response?.data?.message ?? "Error" });
+            const e = err.response?.data?.errors;
+            if (e?.nombre) erroresTipo.nombre = e.nombre[0];
+        }
     } finally {
         cargando.value = false;
     }
@@ -575,12 +579,15 @@ async function enviarFormValor() {
         cerrarModalValor();
         await cargarTipos();
     } catch (err) {
-        Toast.fire({
-            icon: "error",
-            title: err.response?.data?.message ?? "Error",
+        const handled = await ofrecerRecuperacion(err, "/api/atributos", async () => {
+            cerrarModalValor();
+            await cargarTipos();
         });
-        const e = err.response?.data?.errors;
-        if (e?.valor) erroresValor.valor = e.valor[0];
+        if (!handled) {
+            Toast.fire({ icon: "error", title: err.response?.data?.message ?? "Error" });
+            const e = err.response?.data?.errors;
+            if (e?.valor) erroresValor.valor = e.valor[0];
+        }
     } finally {
         cargando.value = false;
     }

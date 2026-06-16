@@ -403,6 +403,7 @@
 import { ref, reactive, computed, nextTick } from 'vue'
 import axios from 'axios'
 import Swal from 'sweetalert2'
+import { ofrecerRecuperacion } from '@/helpers/recuperar'
 
 const Toast = Swal.mixin({
   toast: true,
@@ -554,11 +555,17 @@ async function enviarForm() {
     cerrarModal()
     await cargarUnidades()
   } catch (err) {
-    Toast.fire({ icon: 'error', title: err.response?.data?.message ?? 'Error' })
-    const e = err.response?.data?.errors ?? {}
-    if (e.nombre) errores.nombre = e.nombre[0]
-    if (e.abreviatura) errores.abreviatura = e.abreviatura[0]
-    if (e.tipo) errores.tipo = e.tipo[0]
+    const handled = await ofrecerRecuperacion(err, '/api/unidades-medida', async () => {
+      cerrarModal()
+      await cargarUnidades()
+    })
+    if (!handled) {
+      Toast.fire({ icon: 'error', title: err.response?.data?.message ?? 'Error' })
+      const e = err.response?.data?.errors ?? {}
+      if (e.nombre) errores.nombre = e.nombre[0]
+      if (e.abreviatura) errores.abreviatura = e.abreviatura[0]
+      if (e.tipo) errores.tipo = e.tipo[0]
+    }
   } finally {
     cargando.value = false
   }

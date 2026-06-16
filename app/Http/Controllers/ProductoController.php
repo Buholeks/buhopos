@@ -89,11 +89,40 @@ class ProductoController extends Controller
         return response()->json($productos);
     }
 
+    public function restore(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+        $producto = Producto::withTrashed()->where('empresa_id', $this->empresaId())->findOrFail($id);
+        $producto->restore();
+        return response()->json([
+            'message' => 'Producto recuperado correctamente.',
+            'data'    => $producto->load(['categoria', 'marca', 'modelo', 'unidadMedida']),
+        ]);
+    }
+
     // ── POST /api/productos ───────────────────────────────────────────────────
     public function store(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
+
+        if ($request->filled('codigo')) {
+            $eliminado = Producto::withTrashed()
+                ->where('empresa_id', $empresaId)
+                ->where('codigo', $request->input('codigo'))
+                ->whereNotNull('deleted_at')
+                ->first();
+
+            if ($eliminado) {
+                return response()->json([
+                    'recoverable' => true,
+                    'id'          => $eliminado->id,
+                    'nombre'      => $eliminado->nombre,
+                    'message'     => "Ya existe un producto eliminado con ese código ({$eliminado->codigo}). ¿Deseas recuperarlo?",
+                ], 409);
+            }
+        }
+
         $datos = $request->validate(
             $this->reglas($empresaId),
             $this->mensajes()

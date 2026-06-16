@@ -15,6 +15,11 @@ class Empresa extends Model
         'rfc',
         'logo',
         'activo',
+        'ticket_config',
+    ];
+
+    protected $casts = [
+        'ticket_config' => 'array',
     ];
 
 

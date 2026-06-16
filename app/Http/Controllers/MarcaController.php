@@ -55,11 +55,34 @@ class MarcaController extends Controller
         return response()->json($marcas);
     }
 
+    public function restore(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+        $marca = Marca::withTrashed()->where('empresa_id', $this->empresaId())->findOrFail($id);
+        $marca->restore();
+        return response()->json($this->formatear($marca->load('modelos')));
+    }
+
     // POST /api/marcas
     public function store(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
         $empresaId = $this->empresaId();
+
+        $eliminada = Marca::withTrashed()
+            ->where('empresa_id', $empresaId)
+            ->where('nombre', $request->input('nombre'))
+            ->whereNotNull('deleted_at')
+            ->first();
+
+        if ($eliminada) {
+            return response()->json([
+                'recoverable' => true,
+                'id'          => $eliminada->id,
+                'nombre'      => $eliminada->nombre,
+                'message'     => "Ya existe una marca eliminada con ese nombre. ¿Deseas recuperarla?",
+            ], 409);
+        }
 
         $datos = $request->validate([
             'nombre' => [

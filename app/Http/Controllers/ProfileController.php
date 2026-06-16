@@ -156,4 +156,18 @@ class ProfileController extends Controller
             'mes'                 => Carbon::now()->locale('es')->isoFormat('MMMM YYYY'),
         ];
     }
+
+    public function getTicketConfig(Request $request): JsonResponse
+    {
+        $empresa = $request->user()->empresa;
+        return response()->json($empresa?->ticket_config);
+    }
+
+    public function saveTicketConfig(Request $request): JsonResponse
+    {
+        $request->validate(['config' => ['required', 'array']]);
+        $empresa = $request->user()->empresa;
+        $empresa->update(['ticket_config' => $request->input('config')]);
+        return response()->json(['ok' => true]);
+    }
 }

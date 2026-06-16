@@ -62,11 +62,34 @@ class ModeloController extends Controller
         return response()->json($modelos);
     }
 
+    public function restore(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+        $modelo = Modelo::withTrashed()->where('empresa_id', $this->empresaId())->findOrFail($id);
+        $modelo->restore();
+        return response()->json($this->formatear($modelo->load('marca')));
+    }
+
     // POST /api/modelos
     public function store(Request $request): JsonResponse
     {
         $empresaId = $this->empresaId();
         $marcaId   = $request->input('marca_id');
+
+        $eliminado = Modelo::withTrashed()
+            ->where('marca_id', $marcaId)
+            ->where('nombre', $request->input('nombre'))
+            ->whereNotNull('deleted_at')
+            ->first();
+
+        if ($eliminado) {
+            return response()->json([
+                'recoverable' => true,
+                'id'          => $eliminado->id,
+                'nombre'      => $eliminado->nombre,
+                'message'     => "Ya existe un modelo eliminado con ese nombre. ¿Deseas recuperarlo?",
+            ], 409);
+        }
 
         $datos = $request->validate([
             'marca_id' => ['required', 'integer', 'exists:marcas,id'],

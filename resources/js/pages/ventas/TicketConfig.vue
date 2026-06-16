@@ -331,7 +331,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import Swal from "sweetalert2";
 import { conectar, isConectado, listarImpresoras, obtenerImpresoraTicket, guardarImpresoraTicket } from "@/helpers/qzTray";
-import { obtenerConfigTicket, guardarConfigTicket, imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
+import { obtenerConfigTicket, guardarConfigTicket, cargarConfigTicketDesdeServidor, imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import TicketCanvasVista from "@/components/ventas/TicketCanvasVista.vue";
 
@@ -464,6 +464,7 @@ const filaStl = computed(() => ({ display: "flex", justifyContent: "space-betwee
 const fmt = (v) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(Number(v ?? 0));
 
 onMounted(async () => {
+    await cargarConfigTicketDesdeServidor();
     const guardado = obtenerConfigTicket();
     if (guardado?.encabezado?.elementos) {
         cfg.ancho_mm = guardado.ancho_mm ?? cfg.ancho_mm;

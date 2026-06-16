@@ -64,6 +64,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/perfil/usuario', [ProfileController::class, 'updateUser']);
     Route::put('/perfil/empresa', [ProfileController::class, 'updateEmpresa']);
     Route::put('/perfil/sucursal', [ProfileController::class, 'updateSucursal']);
+    Route::get('/ticket-config', [ProfileController::class, 'getTicketConfig']);
+    Route::put('/ticket-config', [ProfileController::class, 'saveTicketConfig']);
 
     /*
     |--------------------------------------------------------------------------
@@ -110,18 +112,24 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::get('/categorias/buscar', [CategoriaController::class, 'buscar']);
+    Route::post('/categorias/{id}/restore', [CategoriaController::class, 'restore']);
     Route::apiResource('categorias', CategoriaController::class);
 
     Route::get('/marcas/buscar', [MarcaController::class, 'buscar']);
+    Route::post('/marcas/{id}/restore', [MarcaController::class, 'restore']);
     Route::apiResource('marcas', MarcaController::class);
     Route::get('/modelos/buscar', [ModeloController::class, 'buscar']);
+    Route::post('/modelos/{id}/restore', [ModeloController::class, 'restore']);
     Route::apiResource('modelos', ModeloController::class);
 
+    Route::post('/tipo-atributos/{id}/restore', [TipoAtributoController::class, 'restore']);
     Route::apiResource('tipo-atributos', TipoAtributoController::class);
+    Route::post('/atributos/{id}/restore', [AtributoController::class, 'restore']);
     Route::apiResource('atributos', AtributoController::class);
 
     Route::get('/unidades-medida/tipos', [UnidadMedidaController::class, 'listarTipos']);
     Route::get('/unidades-medida/buscar', [UnidadMedidaController::class, 'buscar']);
+    Route::post('/unidades-medida/{id}/restore', [UnidadMedidaController::class, 'restore']);
     Route::apiResource('unidades-medida', UnidadMedidaController::class);
 
     /*
@@ -132,6 +140,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/productos/atributos-empresa', [ProductoController::class, 'atributosEmpresa']);
     Route::get('/productos/catalogo-precios', [CatalogoPreciosController::class, 'index']);
+    Route::post('/productos/{id}/restore', [ProductoController::class, 'restore']);
     Route::apiResource('productos', ProductoController::class);
 
     Route::prefix('productos/{id}/variantes')->group(function () {

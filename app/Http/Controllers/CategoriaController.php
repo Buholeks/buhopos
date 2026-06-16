@@ -49,12 +49,42 @@ class CategoriaController extends Controller
         return response()->json($categorias);
     }
 
-    // POST /api/categorias
+        public function restore(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+        $categoria = Categoria::withTrashed()
+            ->where('empresa_id', $this->empresaId())
+            ->findOrFail($id);
+        $categoria->restore();
+        return response()->json($categoria->load('hijosRecursivos', 'padre'));
+    }
+
+// POST /api/categorias
 public function store(Request $request): JsonResponse
 {
     abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
     $empresaId  = $this->empresaId();
     $padreId    = $request->input('categoria_padre_id');
+
+    // Verificar si existe eliminado con el mismo nombre en el mismo nivel
+    $eliminado = Categoria::withTrashed()
+        ->where('empresa_id', $empresaId)
+        ->where('nombre', $request->input('nombre'))
+        ->when($padreId,
+            fn($q) => $q->where('categoria_padre_id', $padreId),
+            fn($q) => $q->whereNull('categoria_padre_id')
+        )
+        ->whereNotNull('deleted_at')
+        ->first();
+
+    if ($eliminado) {
+        return response()->json([
+            'recoverable' => true,
+            'id'          => $eliminado->id,
+            'nombre'      => $eliminado->nombre,
+            'message'     => "Ya existe una categoría eliminada con ese nombre. ¿Deseas recuperarla?",
+        ], 409);
+    }
 
     $data = $request->validate([
         'nombre' => [

@@ -187,6 +187,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
 import http from "@/lib/http";
+import { ofrecerRecuperacion } from "@/helpers/recuperar";
 import { useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
@@ -684,27 +685,18 @@ async function enviarForm() {
         cerrarModal();
         await cargarProductos(paginacion.value.current_page);
     } catch (e) {
-        toastError(e.response?.data?.message ?? "Error");
-        const le = e.response?.data?.errors ?? {};
-        if (le.nombre) {
-            err.nombre = le.nombre[0];
-            tabActivo.value = "general";
-        }
-        if (le.codigo) {
-            err.codigo = le.codigo[0];
-            tabActivo.value = "general";
-        }
-        if (le.modelo_id) {
-            err.modelo_id = le.modelo_id[0];
-            tabActivo.value = "general";
-        }
-        if (le.precio_costo) {
-            err.precio_costo = le.precio_costo[0];
-            tabActivo.value = "precios";
-        }
-        if (le.precio_venta) {
-            err.precio_venta = le.precio_venta[0];
-            tabActivo.value = "precios";
+        const handled = await ofrecerRecuperacion(e, "/api/productos", async () => {
+            cerrarModal();
+            await cargarProductos(paginacion.value.current_page);
+        });
+        if (!handled) {
+            toastError(e.response?.data?.message ?? "Error");
+            const le = e.response?.data?.errors ?? {};
+            if (le.nombre) { err.nombre = le.nombre[0]; tabActivo.value = "general"; }
+            if (le.codigo) { err.codigo = le.codigo[0]; tabActivo.value = "general"; }
+            if (le.modelo_id) { err.modelo_id = le.modelo_id[0]; tabActivo.value = "general"; }
+            if (le.precio_costo) { err.precio_costo = le.precio_costo[0]; tabActivo.value = "precios"; }
+            if (le.precio_venta) { err.precio_venta = le.precio_venta[0]; tabActivo.value = "precios"; }
         }
     } finally {
         cargando.value = false;

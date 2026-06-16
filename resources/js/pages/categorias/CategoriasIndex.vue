@@ -194,6 +194,7 @@ import { ref, reactive, defineComponent, h } from "vue";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
 import Swal from "sweetalert2";
+import { ofrecerRecuperacion } from "@/helpers/recuperar";
 import BaseInput from "../../components/ui/BaseInput.vue";
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -305,11 +306,16 @@ async function enviarFormulario() {
     cerrarModal();
     await cargarCategorias();
   } catch (err) {
-    const msg = err.response?.data?.message ?? "Ocurrió un error";
-    Toast.fire({ icon: "error", title: msg });
-
-    const laravel = err.response?.data?.errors;
-    if (laravel?.nombre) errores.nombre = laravel.nombre[0];
+    const handled = await ofrecerRecuperacion(err, "/api/categorias", async () => {
+      cerrarModal();
+      await cargarCategorias();
+    });
+    if (!handled) {
+      const msg = err.response?.data?.message ?? "Ocurrió un error";
+      Toast.fire({ icon: "error", title: msg });
+      const laravel = err.response?.data?.errors;
+      if (laravel?.nombre) errores.nombre = laravel.nombre[0];
+    }
   } finally {
     cargando.value = false;
   }

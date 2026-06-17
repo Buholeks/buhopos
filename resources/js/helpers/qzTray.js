@@ -2,13 +2,16 @@ import qz from "qz-tray";
 import http from "@/lib/http";
 
 const STORAGE_KEY = (perfilId) => `buhopos_qz_impresora_${perfilId}`;
+let seguridadConfigurada = false;
 
 // ── Certificado y firma (sin popup de confianza) ───────────────────────────────
 
 function configurarSeguridad() {
+    if (seguridadConfigurada) return;
+
     qz.security.setCertificatePromise((resolve, reject) => {
-        http.get("/api/etiquetas/qztray/cert")
-            .then((r) => resolve(r.data))
+        http.get("/api/etiquetas/qztray/cert", { responseType: "text" })
+            .then((response) => resolve(response.data))
             .catch(reject);
     });
 
@@ -16,9 +19,11 @@ function configurarSeguridad() {
 
     qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
         http.post("/api/etiquetas/qztray/sign", { request: toSign })
-            .then((r) => resolve(r.data.signature))
+            .then((response) => resolve(response.data.signature))
             .catch(reject);
     });
+
+    seguridadConfigurada = true;
 }
 
 // ── Conexión ──────────────────────────────────────────────────────────────────

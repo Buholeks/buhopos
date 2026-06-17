@@ -25,22 +25,90 @@ class EtiquetaController extends Controller
     public function qzInstalador(Request $request): \Illuminate\Http\Response
     {
         $certUrl = url('/api/etiquetas/qztray/cert');
-        $script = <<<BAT
+        $certPath = storage_path('qztray/digital-certificate.txt');
+        abort_unless(file_exists($certPath), 404, 'Certificado QZ Tray no encontrado.');
+
+        $certData = openssl_x509_parse(file_get_contents($certPath));
+        abort_unless($certData, 500, 'No se pudo leer el certificado QZ Tray.');
+
+        $allowedThumbprint = strtolower(openssl_x509_fingerprint(file_get_contents($certPath), 'sha1'));
+        $allowedLine = implode("\t", [
+            $allowedThumbprint,
+            data_get($certData, 'subject.CN', 'BuhoPos QZ Tray'),
+            data_get($certData, 'subject.O', 'BuhoSoft'),
+            gmdate('Y-m-d H:i:s', (int) $certData['validFrom_time_t']),
+            gmdate('Y-m-d H:i:s', (int) $certData['validTo_time_t']),
+            'true',
+        ]);
+
+        $script = <<<'BAT'
         @echo off
+        setlocal
+
+        net session >nul 2>&1
+        if %errorlevel% neq 0 (
+            echo Solicitando permisos de administrador para instalar el certificado en QZ Tray...
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+            exit /b
+        )
+
         echo Instalando certificado BuhoPos en QZ Tray...
-        set CERTS_DIR=%USERPROFILE%\.qz\certs
+        set CERT_URL={{CERT_URL}}
+        set ALLOWED_THUMBPRINT={{ALLOWED_THUMBPRINT}}
+        set ALLOWED_LINE={{ALLOWED_LINE}}
+        set CERTS_DIR=%APPDATA%\qz\certs
         if not exist "%CERTS_DIR%" mkdir "%CERTS_DIR%"
-        powershell -Command "Invoke-WebRequest -Uri '{$certUrl}' -OutFile '%CERTS_DIR%\buhopos.txt'"
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '%CERT_URL%' -OutFile '%CERTS_DIR%\buhopos.crt'"
+
+        if not exist "%CERTS_DIR%\buhopos.crt" (
+            echo ERROR: No se pudo descargar el certificado desde %CERT_URL%
+            pause
+            exit /b 1
+        )
+
+        set "QZ_DIR=%ProgramFiles%\QZ Tray"
+        if not exist "%QZ_DIR%\qz-tray.exe" set "QZ_DIR=%ProgramFiles(x86)%\QZ Tray"
+        if not exist "%QZ_DIR%\qz-tray.exe" goto qz_no_encontrado
+
         echo Deteniendo QZ Tray...
         taskkill /F /IM "qz-tray.exe" 2>nul
+        taskkill /F /IM "javaw.exe" 2>nul
         timeout /t 2 /nobreak >nul
+
+        copy /Y "%CERTS_DIR%\buhopos.crt" "%QZ_DIR%\override.crt" >nul
+        if errorlevel 1 goto qz_sin_permiso
+
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "$allowed = Join-Path $env:APPDATA 'qz\allowed.dat'; $dir = Split-Path $allowed; if (!(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }; $lines = @(); if (Test-Path $allowed) { $lines = Get-Content $allowed | Where-Object { $_ -and -not $_.StartsWith($env:ALLOWED_THUMBPRINT) } }; @($lines + $env:ALLOWED_LINE) | Set-Content -Encoding ASCII $allowed"
+        if errorlevel 1 goto qz_allowed_error
+
         echo Iniciando QZ Tray...
-        start "" "%ProgramFiles%\QZ Tray\qz-tray.exe"
-        if errorlevel 1 start "" "%ProgramFiles(x86)%\QZ Tray\qz-tray.exe"
+        start "" "%QZ_DIR%\qz-tray.exe"
         echo.
         echo Listo. Certificado instalado correctamente.
-        timeout /t 3 /nobreak >nul
+        echo Si QZ Tray estaba abierto, espera unos segundos antes de volver a imprimir.
+        pause
+        exit /b 0
+
+        :qz_no_encontrado
+        echo ERROR: No se encontro la instalacion de QZ Tray.
+        pause
+        exit /b 1
+
+        :qz_sin_permiso
+        echo ERROR: No se pudo copiar el certificado a "%QZ_DIR%\override.crt".
+        echo Ejecuta este instalador como administrador.
+        pause
+        exit /b 1
+
+        :qz_allowed_error
+        echo ERROR: No se pudo registrar BuhoPos en allowed.dat.
+        pause
+        exit /b 1
         BAT;
+
+        $script = str_replace('{{CERT_URL}}', $certUrl, $script);
+        $script = str_replace('{{ALLOWED_THUMBPRINT}}', $allowedThumbprint, $script);
+        $script = str_replace('{{ALLOWED_LINE}}', $allowedLine, $script);
 
         // Eliminar la indentacion extra del heredoc
         $script = preg_replace('/^        /m', '', $script);

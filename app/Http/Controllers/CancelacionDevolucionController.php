@@ -10,6 +10,7 @@ use App\Models\Serie;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
 use App\Services\FolioService;
+use App\Support\TerminalResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -98,8 +99,9 @@ class CancelacionDevolucionController extends Controller
         ]);
 
         $user = $request->user();
+        $terminal = TerminalResolver::fromRequest($request);
 
-        return DB::transaction(function () use ($data, $user) {
+        return DB::transaction(function () use ($data, $user, $terminal) {
             $venta = $this->buscarVentaPorFolio($data['folio'], (int) $user->empresa_id, (int) $user->sucursal_id, true);
 
             if (! $venta) {
@@ -147,7 +149,7 @@ class CancelacionDevolucionController extends Controller
                 $total += round($linea['cantidad'] * (float) $detalle->precio_venta, 2);
             }
 
-            $corte = $this->corteAbiertoDelUsuario((int) $user->empresa_id, (int) $user->sucursal_id, (int) $user->id);
+            $corte = $this->corteAbiertoPorTerminal((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
 
             $devolucion = Devolucion::create([
                 'empresa_id' => $venta->empresa_id,
@@ -308,11 +310,11 @@ class CancelacionDevolucionController extends Controller
         }
     }
 
-    private function corteAbiertoDelUsuario(int $empresaId, int $sucursalId, int $userId): ?CorteCaja
+    private function corteAbiertoPorTerminal(int $empresaId, int $sucursalId, string $terminal): ?CorteCaja
     {
         return CorteCaja::where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
-            ->where('user_id', $userId)
+            ->where('terminal', $terminal)
             ->where('estado', 'abierto')
             ->latest('fecha_apertura')
             ->first();

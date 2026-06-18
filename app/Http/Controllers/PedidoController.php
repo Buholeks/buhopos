@@ -13,6 +13,7 @@ use App\Models\PedidoDetalle;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
 use App\Services\FolioService;
+use App\Support\TerminalResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -80,6 +81,7 @@ class PedidoController extends Controller
         $user = Auth::user();
         $empresaId = (int) $user->empresa_id;
         $sucursalId = (int) $user->sucursal_id;
+        $terminal = TerminalResolver::fromRequest($request);
 
         $data = $request->validate([
             'tipo' => ['required', Rule::in(['pedido', 'apartado'])],
@@ -135,7 +137,7 @@ class PedidoController extends Controller
 
         $corte = null;
         if ($anticipo > 0) {
-            $corte = $this->corteAbierto($empresaId, $sucursalId, (int) $user->id);
+            $corte = $this->corteAbierto($empresaId, $sucursalId, $terminal);
             if (! $corte) {
                 return response()->json(['message' => 'No hay caja abierta para registrar el anticipo.'], 422);
             }
@@ -327,6 +329,7 @@ class PedidoController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
         $user = Auth::user();
+        $terminal = TerminalResolver::fromRequest($request);
         $pedido = Pedido::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
             ->findOrFail($id);
@@ -345,7 +348,7 @@ class PedidoController extends Controller
             return response()->json(['message' => 'El abono supera el saldo pendiente del pedido.'], 422);
         }
 
-        $corte = $this->corteAbierto((int) $user->empresa_id, (int) $user->sucursal_id, (int) $user->id);
+        $corte = $this->corteAbierto((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
         if (! $corte) {
             return response()->json(['message' => 'No hay caja abierta para registrar el abono.'], 422);
         }
@@ -614,11 +617,11 @@ class PedidoController extends Controller
         }
     }
 
-    private function corteAbierto(int $empresaId, int $sucursalId, int $userId): ?CorteCaja
+    private function corteAbierto(int $empresaId, int $sucursalId, string $terminal): ?CorteCaja
     {
         return CorteCaja::where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
-            ->where('user_id', $userId)
+            ->where('terminal', $terminal)
             ->where('estado', 'abierto')
             ->latest('fecha_apertura')
             ->first();

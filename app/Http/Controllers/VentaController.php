@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use App\Models\CorteCaja;
 use App\Models\Serie;
+use App\Support\TerminalResolver;
 
 class VentaController extends Controller
 {
@@ -70,6 +71,7 @@ class VentaController extends Controller
         $user       = Auth::user();
         $empresaId  = (int) $user->empresa_id;
         $sucursalId = (int) $user->sucursal_id;
+        $terminal = TerminalResolver::fromRequest($request);
 
         $datos = $request->validate([
             'fecha'                    => ['required', 'date'],
@@ -97,7 +99,7 @@ class VentaController extends Controller
 
         $corte = CorteCaja::where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
-            ->where('user_id', $user->id)
+            ->where('terminal', $terminal)
             ->where('estado', 'abierto')
             ->latest('fecha_apertura')
             ->first();

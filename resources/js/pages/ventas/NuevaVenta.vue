@@ -489,6 +489,57 @@ async function abrirCaja() {
     abriendoCaja.value = true;
 
     try {
+        const { data } = await http.get("/api/cortes-caja/abiertas");
+        const cajas = Array.isArray(data?.data) ? data.data : [];
+
+        if (cajas.length > 0) {
+            const inputOptions = Object.fromEntries(
+                cajas.map((c) => [
+                    c.terminal,
+                    `${c.terminal} - ${c.user?.name || "Usuario"} - ${formatPrecio(c.esperado_efectivo)}`,
+                ]),
+            );
+
+            const seleccion = await Swal.fire({
+                title: "Seleccionar caja",
+                text: "Hay cajas abiertas en esta sucursal. Puedes usar una existente o abrir una nueva.",
+                input: "select",
+                inputOptions,
+                inputValue: localStorage.getItem("terminal") || cajas[0].terminal,
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: "Usar caja",
+                denyButtonText: "Abrir nueva",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: "#0891b2",
+                denyButtonColor: "#059669",
+                reverseButtons: true,
+            });
+
+            if (seleccion.isConfirmed && seleccion.value) {
+                seleccionarTerminalCaja(seleccion.value);
+                await cargarCorteActual();
+                toastSuccess(`Caja seleccionada: ${seleccion.value}`);
+                return;
+            }
+
+            if (!seleccion.isDenied) return;
+        }
+
+        const terminal = localStorage.getItem("terminal") || "POS-01";
+        const confirmar = await Swal.fire({
+            title: "Abrir nueva caja",
+            text: `Se abrira una nueva caja para ${terminal}.`,
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: "Abrir caja",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: "#059669",
+            reverseButtons: true,
+        });
+
+        if (!confirmar.isConfirmed) return;
+
         await http.post("/api/cortes-caja/abrir");
         toastSuccess("Caja abierta");
         await cargarCorteActual();
@@ -500,6 +551,15 @@ async function abrirCaja() {
         });
     } finally {
         abriendoCaja.value = false;
+    }
+}
+
+function seleccionarTerminalCaja(terminal) {
+    const normalizada = String(terminal || "POS-01").trim() || "POS-01";
+    localStorage.setItem("terminal", normalizada);
+
+    if (window.axios) {
+        window.axios.defaults.headers.common["X-Terminal"] = normalizada;
     }
 }
 
@@ -1116,6 +1176,53 @@ function quitarDetalle(idx) {
     }
 }
 
+async function abrirModalDescuento() {
+    if (detalles.value.length === 0) {
+        toastWarning("Agrega al menos un producto");
+        return;
+    }
+
+    detalles.value.forEach(store.normalizeLinea);
+
+    const ventaForm = form.value ?? form;
+    const maximo = Number(subtotal.value || 0);
+    const actual = Number(ventaForm.descuento || 0);
+
+    const { value, isConfirmed } = await Swal.fire({
+        title: "Descuento global",
+        input: "text",
+        inputLabel: `Subtotal: ${formatPrecio(maximo)}`,
+        inputValue: actual > 0 ? String(actual) : "",
+        inputPlaceholder: "0.00",
+        showCancelButton: true,
+        confirmButtonText: "Aplicar",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#059669",
+        reverseButtons: true,
+        preConfirm: (raw) => {
+            const monto = Number(String(raw || "0").replace(",", "."));
+
+            if (!Number.isFinite(monto) || monto < 0) {
+                Swal.showValidationMessage("Captura un monto valido");
+                return false;
+            }
+
+            if (monto > maximo) {
+                Swal.showValidationMessage("El descuento no puede superar el subtotal");
+                return false;
+            }
+
+            return monto;
+        },
+    });
+
+    if (!isConfirmed) return;
+
+    ventaForm.descuento = Number(value || 0);
+    actualizarSaldoAplicado(cobro.value.saldo_aplicado);
+    nextTick(() => searchRef.value?.focus?.());
+}
+
 function resetearTodo() {
     store.resetVenta();
 
@@ -1333,6 +1440,12 @@ function onKeydown(e) {
         if (cobro.value.visible) guardarVentaFinal();
         else if (modalDatosVenta.value) continuarAlCobro();
         else abrirModalCobro();
+        return;
+    }
+
+    if (e.altKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        abrirModalDescuento();
         return;
     }
 

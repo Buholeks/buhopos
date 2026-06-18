@@ -59,6 +59,7 @@ import ConfiguracionIndex from "@/pages/configuracion/ConfiguracionIndex.vue";
 import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
 import RolesIndex from "@/pages/roles/RolesIndex.vue";
 import SinPermiso from "@/pages/errores/SinPermiso.vue";
+import NotFound from "@/pages/errores/NotFound.vue";
 import PerfilIndex from "@/pages/perfil/PerfilIndex.vue";
 
 const routes = [
@@ -138,6 +139,7 @@ const routes = [
       { path: "register", name: "register", component: Register, meta: { title: "Registro" } },
     ],
   },
+  { path: "/:pathMatch(.*)*", name: "not-found", component: NotFound, meta: { title: "Página no encontrada" } },
 ];
 
 const router = createRouter({

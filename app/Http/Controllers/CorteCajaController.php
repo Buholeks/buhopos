@@ -6,6 +6,7 @@ use App\Models\CorteCaja;
 use App\Models\CorteDesgloseEfectivo;
 use App\Models\MovimientoCaja;
 use App\Models\Venta;
+use App\Support\TerminalResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,13 +30,47 @@ class CorteCajaController extends Controller
         return response()->json($cortes);
     }
 
-    public function actual(): JsonResponse
+    public function abiertas(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('caja.abrir'), 403, 'Sin permiso: caja.abrir');
+        $user = Auth::user();
+
+        $cortes = CorteCaja::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->where('estado', 'abierto')
+            ->with(['user:id,name'])
+            ->orderBy('terminal')
+            ->get([
+                'id',
+                'empresa_id',
+                'sucursal_id',
+                'user_id',
+                'terminal',
+                'fecha_apertura',
+                'fondo_inicial_efectivo',
+                'esperado_efectivo',
+                'ventas_efectivo',
+                'ventas_tarjeta',
+                'ventas_transferencia',
+                'ventas_saldo_favor',
+                'movs_efectivo',
+                'num_ventas',
+            ]);
+
+        return response()->json([
+            'terminal_actual' => TerminalResolver::fromRequest($request),
+            'data' => $cortes,
+        ]);
+    }
+
+    public function actual(Request $request): JsonResponse
     {
         $user = Auth::user();
+        $terminal = TerminalResolver::fromRequest($request);
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
-            ->where('user_id', $user->id)
+            ->where('terminal', $terminal)
             ->where('estado', 'abierto')
             ->with(['desglose', 'movimientos.user:id,name'])
             ->first();
@@ -52,26 +87,33 @@ class CorteCajaController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('caja.abrir'), 403, 'Sin permiso: caja.abrir');
         $user = Auth::user();
+        $terminal = TerminalResolver::fromRequest($request);
+        $datos = $request->validate([
+            'fondo_inicial_efectivo' => ['nullable', 'numeric', 'min:0'],
+            'notas_apertura' => ['nullable', 'string'],
+        ]);
 
-        $corte = DB::transaction(function () use ($user) {
+        $corte = DB::transaction(function () use ($user, $terminal, $datos) {
             $abierto = CorteCaja::where('empresa_id', $user->empresa_id)
                 ->where('sucursal_id', $user->sucursal_id)
-                ->where('user_id', $user->id)
+                ->where('terminal', $terminal)
                 ->where('estado', 'abierto')
                 ->lockForUpdate()
                 ->exists();
 
             if ($abierto) {
-                abort(422, 'Ya tienes una caja abierta en esta sucursal.');
+                abort(422, 'Ya hay una caja abierta en esta terminal.');
             }
 
             return CorteCaja::create([
                 'empresa_id'     => (int) $user->empresa_id,
                 'sucursal_id'    => (int) $user->sucursal_id,
                 'user_id'        => (int) $user->id,
-                'terminal'       => 'POS-' . $user->id,
+                'terminal'       => $terminal,
                 'fecha_apertura' => now(),
                 'estado'         => 'abierto',
+                'fondo_inicial_efectivo' => (float) ($datos['fondo_inicial_efectivo'] ?? 0),
+                'notas_apertura' => $datos['notas_apertura'] ?? null,
             ]);
         });
 
@@ -82,10 +124,11 @@ class CorteCajaController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('caja.abrir'), 403, 'Sin permiso: caja.abrir');
         $user = Auth::user();
+        $terminal = TerminalResolver::fromRequest($request);
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
-            ->where('user_id', $user->id)
+            ->where('terminal', $terminal)
             ->where('id', $id)
             ->where('estado', 'abierto')
             ->firstOrFail();
@@ -115,10 +158,11 @@ public function cerrar(Request $request, int $id): JsonResponse
 {
     abort_unless(Auth::user()->tienePermiso('caja.cerrar'), 403, 'Sin permiso: caja.cerrar');
     $user = Auth::user();
+    $terminal = TerminalResolver::fromRequest($request);
 
     $corte = CorteCaja::where('empresa_id', $user->empresa_id)
         ->where('sucursal_id', $user->sucursal_id)
-        ->where('user_id', $user->id)
+        ->where('terminal', $terminal)
         ->where('id', $id)
         ->where('estado', 'abierto')
         ->firstOrFail();
@@ -312,10 +356,11 @@ public function cerrar(Request $request, int $id): JsonResponse
    public function guardarDesgloseEnVivo(Request $request, int $id): JsonResponse
 {
     $user = Auth::user();
+    $terminal = TerminalResolver::fromRequest($request);
 
     $corte = CorteCaja::where('empresa_id', $user->empresa_id)
         ->where('sucursal_id', $user->sucursal_id)
-        ->where('user_id', $user->id)
+        ->where('terminal', $terminal)
         ->where('id', $id)
         ->where('estado', 'abierto')
         ->firstOrFail();

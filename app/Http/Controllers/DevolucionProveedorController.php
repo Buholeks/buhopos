@@ -10,6 +10,7 @@ use App\Models\InventarioReserva;
 use App\Models\MovimientoCaja;
 use App\Models\ProveedorSaldoMovimiento;
 use App\Models\Serie;
+use App\Support\TerminalResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,7 @@ class DevolucionProveedorController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
+        $terminal = TerminalResolver::fromRequest($request);
         $data = $request->validate([
             'compra_id' => ['required', 'integer'],
             'fecha' => ['required', 'date'],
@@ -86,7 +88,7 @@ class DevolucionProveedorController extends Controller
             'detalles.*.serie_ids.*' => ['integer'],
         ]);
 
-        $devolucion = DB::transaction(function () use ($user, $data) {
+        $devolucion = DB::transaction(function () use ($user, $data, $terminal) {
             $compra = Compra::where('empresa_id', $user->empresa_id)
                 ->where('sucursal_id', $user->sucursal_id)
                 ->whereIn('estado', ['confirmada', 'devuelta_parcial'])
@@ -215,6 +217,7 @@ class DevolucionProveedorController extends Controller
             if ($excedente > 0 && $data['destino_excedente'] === 'caja') {
                 $corte = CorteCaja::where('empresa_id', $user->empresa_id)
                     ->where('sucursal_id', $compra->sucursal_id)
+                    ->where('terminal', $terminal)
                     ->where('estado', 'abierto')
                     ->lockForUpdate()
                     ->first();

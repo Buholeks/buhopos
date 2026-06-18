@@ -2,53 +2,36 @@
     <Transition name="nav-fade">
         <div
             v-if="open"
-            class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+            class="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm md:hidden"
             @click="closeNav"
         />
     </Transition>
 
     <aside
         :class="[
-            'flex w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-slate-200',
-            'fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-in-out',
-            'md:relative md:translate-x-0',
+            'fixed inset-y-0 left-0 z-50 flex w-72 shrink-0 flex-col bg-slate-950 text-slate-200',
+            'border-r border-slate-800 transition-transform duration-300 ease-in-out',
+            'md:relative md:w-64 md:translate-x-0',
             open ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         ]"
     >
-        <!-- Logo -->
-        <div class="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-4">
-            <div class="flex min-w-0 items-center gap-3">
-                <div class="relative shrink-0">
-                    <div class="absolute inset-0 rounded-2xl bg-emerald-600/20 blur-xl" />
-                    <div
-                        class="brand-mark relative grid h-10 w-10 place-items-center rounded-2xl bg-emerald-600/10 ring-1 ring-emerald-500/30"
-                        title="BuhoSoft"
+        <!-- Header -->
+        <div class="shrink-0 border-b border-slate-800 px-4 py-4">
+            <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <h1
+                        class="truncate text-lg font-bold tracking-tight text-white"
                     >
-                        <svg viewBox="0 0 64 64" class="h-6 w-6 text-emerald-400" fill="none" stroke="currentColor">
-                            <path d="M16 28c0-9 7-16 16-16s16 7 16 16v16c0 6-5 10-16 10S16 50 16 44V28z" stroke-width="2.6" />
-                            <path d="M20 20l-6-8M44 20l6-8" stroke-width="2.6" stroke-linecap="round" />
-                            <circle cx="24" cy="34" r="6.5" stroke-width="2.6" />
-                            <circle cx="40" cy="34" r="6.5" stroke-width="2.6" />
-                            <path d="M32 36l-3 4h6l-3-4z" stroke-width="2.6" stroke-linejoin="round" />
-                            <path class="brand-lid" d="M18 34c2-2 5-3 6-3s4 1 6 3" stroke-width="3" stroke-linecap="round" />
-                            <path class="brand-lid" d="M34 34c2-2 5-3 6-3s4 1 6 3" stroke-width="3" stroke-linecap="round" />
-                        </svg>
-                    </div>
+                        BuhoPOS
+                    </h1>
+                    <p class="mt-0.5 truncate text-xs text-slate-500">
+                        Punto de venta
+                    </p>
                 </div>
-                <div class="min-w-0 leading-tight">
-                    <div class="truncate text-sm font-semibold text-white">BuhoPOS</div>
-                    <div class="truncate text-xs text-slate-400">
-                        {{ auth.rolActual ?? (auth.esSuperAdmin ? 'Super Admin' : 'Sin rol') }}
-                    </div>
-                </div>
-            </div>
 
-            <div class="flex shrink-0 items-center gap-2">
-                <span class="rounded-full bg-emerald-600/10 px-2 py-1 text-[11px] text-emerald-300 ring-1 ring-emerald-500/30">
-                    v1
-                </span>
                 <button
-                    class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white md:hidden"
+                    type="button"
+                    class="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white md:hidden"
                     @click="closeNav"
                 >
                     <X class="h-4 w-4" />
@@ -57,50 +40,62 @@
         </div>
 
         <!-- Nav -->
-        <nav class="flex-1 space-y-5 overflow-y-auto px-3 py-4">
-            <section v-for="section in navSections" :key="section.title">
-                <p class="px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+        <nav class="sidebar-scroll flex-1 overflow-y-auto px-3 py-4">
+            <section
+                v-for="section in navSections"
+                :key="section.title"
+                class="mb-5 last:mb-0"
+            >
+                <p
+                    class="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                >
                     {{ section.title }}
                 </p>
+
                 <div class="mt-2 space-y-1">
                     <RouterLink
                         v-for="item in section.items"
                         :key="item.to"
                         :to="item.to"
-                        :class="['nav-item', item.emphasis ? 'nav-item--quick' : '']"
-                        :active-class="item.exact ? '' : 'nav-item--active'"
+                        :class="[
+                            'nav-item',
+                            item.emphasis ? 'nav-item--primary' : '',
+                        ]"
+                        active-class="nav-item--active"
                         exact-active-class="nav-item--active"
                         @click="closeNav"
                     >
                         <component :is="item.icon" class="nav-ic" />
-                        <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
-                        <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+
+                        <span class="min-w-0 flex-1 truncate">
+                            {{ item.label }}
+                        </span>
+
+                        <span v-if="item.badge" class="nav-badge">
+                            {{ item.badge }}
+                        </span>
                     </RouterLink>
                 </div>
             </section>
         </nav>
 
-        <div class="shrink-0 border-t border-slate-800 px-4 py-3">
-            <p class="text-[11px] text-slate-500">© {{ new Date().getFullYear() }} BuhoSoft</p>
-        </div>
+        <!-- Footer -->
+<p class="text-center text-xs text-slate-500">
+    © {{ currentYear }} BuhoSoft
+</p>
     </aside>
 </template>
 
 <script setup>
 import { computed } from "vue";
 import {
-    BadgeDollarSign,
-    Boxes,
     ChartColumn,
-    ClipboardCheck,
     Landmark,
     LayoutDashboard,
     LibraryBig,
-    ClipboardList,
     PackageCheck,
-    Repeat2,
-    ScanSearch,
     ReceiptText,
+    ScanSearch,
     Settings2,
     ShoppingCart,
     Tags,
@@ -110,65 +105,118 @@ import {
 } from "lucide-vue-next";
 import { useAuthStore } from "@/stores/auth";
 
-defineProps({ open: { type: Boolean, default: false } });
+defineProps({
+    open: {
+        type: Boolean,
+        default: false,
+    },
+});
+
 const emit = defineEmits(["update:open"]);
 
 const auth = useAuthStore();
-
-// Cada item puede tener permiso: null (siempre visible) o 'clave.permiso'
+const currentYear = new Date().getFullYear();
 const allSections = [
     {
-        title: "Principal",
         items: [
-            { label: "Inicio",   to: "/",       icon: LayoutDashboard, exact: true, permiso: null },
-            { label: "Mi perfil", to: "/perfil", icon: UserRoundCog, permiso: null },
+            {
+                label: "Inicio",
+                to: "/",
+                icon: LayoutDashboard,
+                permiso: null,
+            },
         ],
     },
     {
-        title: "Trabajo diario",
+        title: "Operación",
         items: [
-            { label: "Ventas",        to: "/ventas",   icon: ShoppingCart, emphasis: true, permiso: "ventas.crear"  },
-            { label: "Compras",       to: "/compras",  icon: ReceiptText,  emphasis: true, permiso: "compras.crear" },
-            { label: "Corte de caja", to: "/caja",     icon: Landmark,     emphasis: true, permiso: "caja.abrir"    },
-        ],
-    },
-    {
-        title: "Inventario",
-        items: [
-            { label: "Productos",       to: "/productos",        icon: Boxes,        permiso: "productos.ver"     },
-            { label: "Lista de precios",to: "/catalogo-precios", icon: ScanSearch,   permiso: "productos.precios" },
-            { label: "Etiquetas de precio",to: "/etiquetas-precio", icon: Tags, permiso: "etiquetas.imprimir" },
-            { label: "Exhibición",      to: "/exhibicion",       icon: PackageCheck, permiso: "inventario.ver"    },
-            { label: "Conteo fisico",   to: "/conteo-inventario", icon: ClipboardCheck, permiso: "inventario.conteos.ver" },
-            { label: "Traspasos",       to: "/traspasos/nuevo",  icon: Repeat2,      permiso: "inventario.traspasos" },
+            {
+                label: "Ventas",
+                to: "/ventas",
+                icon: ShoppingCart,
+                emphasis: true,
+                permiso: "ventas.crear",
+            },
+            {
+                label: "Compras",
+                to: "/compras",
+                icon: ReceiptText,
+                emphasis: true,
+                permiso: "compras.crear",
+            },
+            {
+                label: "Corte de caja",
+                to: "/caja",
+                icon: Landmark,
+                emphasis: true,
+                permiso: "caja.abrir",
+            },
+
+             {
+                label: "Lista de precios",
+                to: "/catalogo-precios",
+                icon: ScanSearch,
+                permiso: "productos.precios",
+            },
+            {
+                label: "Etiquetas de precio",
+                to: "/etiquetas-precio",
+                icon: Tags,
+                permiso: "etiquetas.imprimir",
+            },
+            {
+                label: "Exhibición",
+                to: "/exhibicion",
+                icon: PackageCheck,
+                permiso: "inventario.ver",
+            },
         ],
     },
     {
         title: "Gestión",
         items: [
-            { label: "Procesos",              to: "/procesos",          icon: Workflow,      permiso: null            },
-            { label: "Catálogos",             to: "/catalogos",         icon: LibraryBig,    permiso: null            },
-            { label: "Consultas y reportes",  to: "/consultasreportes", icon: ChartColumn,   permiso: "reportes.ver"  },
+            {
+                label: "Procesos",
+                to: "/procesos",
+                icon: Workflow,
+                permiso: null,
+            },
+            {
+                label: "Catálogos",
+                to: "/catalogos",
+                icon: LibraryBig,
+                permiso: null,
+            },
+            {
+                label: "Consultas y reportes",
+                to: "/consultasreportes",
+                icon: ChartColumn,
+                permiso: "reportes.ver",
+            },
         ],
     },
     {
-        title: "Administración",
+        title: "Sistema",
         items: [
-            { label: "Configuración", to: "/configuracion", icon: Settings2, permiso: null },
+            {
+                label: "Configuración",
+                to: "/configuracion",
+                icon: Settings2,
+                permiso: null,
+            },
         ],
     },
 ];
 
-// Filtra secciones e items según permisos del usuario actual
 const navSections = computed(() =>
     allSections
         .map((section) => ({
             ...section,
             items: section.items.filter(
-                (item) => item.permiso === null || auth.can(item.permiso)
+                (item) => item.permiso === null || auth.can(item.permiso),
             ),
         }))
-        .filter((section) => section.items.length > 0)
+        .filter((section) => section.items.length > 0),
 );
 
 function closeNav() {
@@ -177,103 +225,106 @@ function closeNav() {
 </script>
 
 <style scoped>
+.sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(51, 65, 85, 0.9) transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(51, 65, 85, 0.8);
+}
+
 .nav-item {
     position: relative;
     display: flex;
-    min-height: 2.5rem;
+    min-height: 2.55rem;
     align-items: center;
     gap: 0.75rem;
-    border-radius: 0.8rem;
-    padding: 0.625rem 0.75rem 0.625rem 0.95rem;
-    color: rgba(148, 163, 184, 0.95);
-    transition: background-color 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    border-radius: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    color: rgb(148 163 184);
+    transition:
+        background-color 150ms ease,
+        color 150ms ease,
+        box-shadow 150ms ease;
 }
 
 .nav-item::before {
     content: "";
     position: absolute;
-    bottom: 0.55rem;
-    left: 0.35rem;
-    top: 0.55rem;
+    bottom: 0.65rem;
+    left: 0;
+    top: 0.65rem;
     width: 3px;
     border-radius: 999px;
-    background: rgba(16, 185, 129, 0);
-    transform: scaleY(0.6);
-    transition: background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+    background: transparent;
 }
 
 .nav-ic {
     height: 1.05rem;
     width: 1.05rem;
     flex-shrink: 0;
-    color: rgba(148, 163, 184, 0.95);
-    transition: color 160ms ease;
+    color: rgb(148 163 184);
+    transition: color 150ms ease;
 }
 
 .nav-badge {
     flex-shrink: 0;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.7);
-    padding: 0.125rem 0.4rem;
+    background: rgb(30 41 59);
+    padding: 0.125rem 0.45rem;
     font-size: 0.62rem;
     font-weight: 700;
-    letter-spacing: 0.02em;
-    color: rgba(110, 231, 183, 0.95);
-    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.2);
+    color: rgb(203 213 225);
 }
 
 .nav-item:hover {
-    background: rgba(16, 185, 129, 0.1);
-    color: rgba(226, 232, 240, 0.98);
-    transform: translateX(1px);
+    background: rgb(30 41 59 / 0.75);
+    color: white;
 }
 
-.nav-item:hover .nav-ic { color: rgba(52, 211, 153, 0.98); }
-
-.nav-item:hover::before {
-    background: rgba(16, 185, 129, 0.35);
-    transform: scaleY(0.9);
+.nav-item:hover .nav-ic {
+    color: rgb(226 232 240);
 }
 
 .nav-item--active {
-    background: rgba(16, 185, 129, 0.18);
-    color: rgba(255, 255, 255, 0.98);
-    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.35);
+    background: rgb(30 41 59);
+    color: white;
+    box-shadow: inset 0 0 0 1px rgb(51 65 85);
 }
-
-.nav-item--active .nav-ic { color: rgba(52, 211, 153, 0.98); }
 
 .nav-item--active::before {
-    background: rgba(16, 185, 129, 1);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
-    transform: scaleY(1);
+    background: rgb(148 163 184);
 }
 
-.nav-item--quick {
-    background: rgba(16, 185, 129, 0.07);
-    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.16);
+.nav-item--active .nav-ic {
+    color: white;
 }
 
-.brand-mark { animation: brandFloat 4.2s ease-in-out infinite; }
-
-@keyframes brandFloat {
-    0%, 100% { transform: translateY(0); }
-    50%       { transform: translateY(-5px); }
+.nav-item--primary {
+    color: rgb(203 213 225);
 }
 
-.brand-lid {
+.nav-item--primary.nav-item--active::before {
+    background: rgb(16 185 129);
+}
+
+.nav-fade-enter-active,
+.nav-fade-leave-active {
+    transition: opacity 220ms ease;
+}
+
+.nav-fade-enter-from,
+.nav-fade-leave-to {
     opacity: 0;
-    animation: brandBlink 6.2s infinite;
 }
-.brand-lid:nth-of-type(1) { animation-delay: 0s; }
-.brand-lid:nth-of-type(2) { animation-delay: 0.08s; }
-
-@keyframes brandBlink {
-    0%, 93%, 100% { opacity: 0; }
-    95%           { opacity: 1; }
-    96.5%         { opacity: 0; }
-}
-
-.nav-fade-enter-active, .nav-fade-leave-active { transition: opacity 250ms ease; }
-.nav-fade-enter-from, .nav-fade-leave-to       { opacity: 0; }
 </style>

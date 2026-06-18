@@ -248,6 +248,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('cortes-caja')->group(function () {
         Route::get('/', [CorteCajaController::class, 'index']);
+        Route::get('/abiertas', [CorteCajaController::class, 'abiertas']);
         Route::get('/actual', [CorteCajaController::class, 'actual']);
         Route::post('/abrir', [CorteCajaController::class, 'abrir']);
 

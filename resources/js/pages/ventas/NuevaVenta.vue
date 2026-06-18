@@ -115,6 +115,7 @@
                 @clear="limpiarBusqueda"
                 @selectItem="seleccionarItem"
                 @hoverItem="(i) => (cursor = i)"
+                @checkStock="abrirExistenciasSucursal"
             />
 
             <PosTable
@@ -195,6 +196,93 @@
             @cancel="cancelarPrecioManual(modalPrecioManual.idx)"
             @confirm="confirmarPrecioManual"
         />
+
+        <div
+            v-if="modalExistencias.visible"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
+            @click.self="cerrarExistenciasSucursal"
+        >
+            <div class="w-full max-w-xl rounded-xl bg-white shadow-2xl">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+                    <div class="min-w-0">
+                        <h2 class="truncate text-base font-bold text-slate-900">
+                            Existencias por sucursal
+                        </h2>
+                        <p class="mt-1 truncate text-sm text-slate-500">
+                            {{ modalExistencias.producto?.nombre }}
+                            <span v-if="modalExistencias.producto?.variante">
+                                - {{ modalExistencias.producto.variante }}
+                            </span>
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                        @click="cerrarExistenciasSucursal"
+                    >
+                        <span class="sr-only">Cerrar</span>
+                        <X class="h-4 w-4" />
+                    </button>
+                </div>
+
+                <div class="max-h-[60vh] overflow-y-auto px-5 py-4">
+                    <div
+                        v-if="modalExistencias.cargando"
+                        class="py-8 text-center text-sm text-slate-500"
+                    >
+                        Consultando existencias...
+                    </div>
+
+                    <div
+                        v-else-if="modalExistencias.error"
+                        class="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700"
+                    >
+                        {{ modalExistencias.error }}
+                    </div>
+
+                    <div v-else class="divide-y divide-slate-100">
+                        <div
+                            v-for="item in modalExistencias.sucursales"
+                            :key="item.sucursal_id"
+                            class="flex items-center justify-between gap-4 py-3"
+                        >
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <p class="truncate text-sm font-semibold text-slate-900">
+                                        {{ item.sucursal }}
+                                    </p>
+                                    <span
+                                        v-if="item.exhibido"
+                                        class="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-700"
+                                    >
+                                        Exhibido
+                                    </span>
+                                </div>
+                                <p class="mt-1 text-xs text-slate-400">
+                                    Stock {{ formatoCantidad(item.stock) }}
+                                    <span v-if="Number(item.reservado) > 0">
+                                        · Reservado {{ formatoCantidad(item.reservado) }}
+                                    </span>
+                                </p>
+                            </div>
+
+                            <span
+                                class="shrink-0 rounded-full px-3 py-1 text-sm font-bold"
+                                :class="
+                                    Number(item.disponible) <= 0
+                                        ? 'bg-red-100 text-red-600'
+                                        : Number(item.disponible) <= 5
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-emerald-100 text-emerald-700'
+                                "
+                            >
+                                {{ formatoCantidad(item.disponible) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -235,6 +323,7 @@ import {
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import { imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
 import { obtenerImpresoraTicket } from "@/helpers/qzTray";
+import { X } from "lucide-vue-next";
 
 const authStore = useAuthStore();
 
@@ -314,6 +403,13 @@ const resultados = ref([]);
 const buscando = ref(false);
 const dropdown = ref(false);
 const cursor = ref(0);
+const modalExistencias = reactive({
+    visible: false,
+    cargando: false,
+    error: "",
+    producto: null,
+    sucursales: [],
+});
 
 watch(
     () => cliente.value?.id,
@@ -575,6 +671,51 @@ function formatPrecio(v) {
         style: "currency",
         currency: "MXN",
     }).format(Number(v ?? 0));
+}
+
+function formatoCantidad(v) {
+    const n = Number(v ?? 0);
+    return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
+async function abrirExistenciasSucursal(item) {
+    if (!item?.producto_id) return;
+
+    modalExistencias.visible = true;
+    modalExistencias.cargando = true;
+    modalExistencias.error = "";
+    modalExistencias.producto = {
+        nombre: item.nombre,
+        variante: item.nombre_variante,
+    };
+    modalExistencias.sucursales = [];
+
+    try {
+        const { data } = await http.get("/api/ventas/existencias", {
+            params: {
+                producto_id: item.producto_id,
+                variante_id: item.id ?? null,
+            },
+        });
+
+        modalExistencias.producto = data?.producto ?? modalExistencias.producto;
+        modalExistencias.sucursales = Array.isArray(data?.sucursales)
+            ? data.sucursales
+            : [];
+    } catch (e) {
+        modalExistencias.error =
+            e.response?.data?.message ?? "No se pudieron consultar las existencias.";
+    } finally {
+        modalExistencias.cargando = false;
+    }
+}
+
+function cerrarExistenciasSucursal() {
+    modalExistencias.visible = false;
+    modalExistencias.cargando = false;
+    modalExistencias.error = "";
+    modalExistencias.producto = null;
+    modalExistencias.sucursales = [];
 }
 
 // ── Precio manual ─────────────────────────────────────────────────────────────
@@ -1196,6 +1337,12 @@ function onKeydown(e) {
     }
 
     if (e.key === "Escape") {
+        if (modalExistencias.visible) {
+            e.preventDefault();
+            cerrarExistenciasSucursal();
+            return;
+        }
+
         if (modalSerie.visible) {
             e.preventDefault();
             modalSerie.visible = false;

@@ -16,6 +16,7 @@ import {
     Wallet,
     RotateCcw,
     ArrowDownUp,
+    ClipboardCheck,
     Wrench,
     Landmark,
     PackageCheck,
@@ -65,6 +66,13 @@ const procesos = [
         to: { name: "exhibicion" },
         badge: "Disponible",
         permiso: "inventario.ver",
+    },
+    {
+        label: "Conteo fisico",
+        icon: ClipboardCheck,
+        to: { name: "conteo-inventario" },
+        badge: "Disponible",
+        permiso: "inventario.conteos.ver",
     },
     {
         label: "Nuevo traspaso",

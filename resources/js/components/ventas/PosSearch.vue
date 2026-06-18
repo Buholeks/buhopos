@@ -107,6 +107,16 @@
                                 </div>
                             </div>
 
+                            <button
+                                type="button"
+                                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-100 bg-sky-50 text-sky-600 transition hover:border-sky-200 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                :disabled="disabled"
+                                title="Ver existencias por sucursal"
+                                @click.stop="$emit('checkStock', r)"
+                            >
+                                <Cloud class="h-4 w-4" />
+                            </button>
+
                             <div class="text-right">
                                 <span
                                     class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
@@ -194,7 +204,7 @@
 <script setup>
 import { computed, ref } from "vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
-import { Search, X, Loader2, ImageOff } from "lucide-vue-next";
+import { Search, X, Loader2, ImageOff, Cloud } from "lucide-vue-next";
 
 const props = defineProps({
     modelValue: { type: String, default: "" },
@@ -216,6 +226,7 @@ const emit = defineEmits([
     "clear",
     "selectItem",
     "hoverItem",
+    "checkStock",
 ]);
 
 const baseRef = ref(null);

@@ -14,6 +14,7 @@ import {
     CreditCard,
     Repeat2,
     TrendingUp,
+    FileSearch,
     ClipboardList,
 } from "lucide-vue-next";
 
@@ -66,6 +67,13 @@ const consultas = [
         to: { name: "traspasos-salida" },
         badge: "Disponible",
         permiso: "inventario.traspasos",
+    },
+    {
+        label: "Conteos de inventario",
+        icon: FileSearch,
+        to: { name: "conteos-inventario-consulta" },
+        badge: "Disponible",
+        permiso: "inventario.conteos.ver",
     },
     {
         label: "Consulta pedidos",

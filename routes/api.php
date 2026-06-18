@@ -26,6 +26,7 @@ use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\CancelacionDevolucionController;
 use App\Http\Controllers\CorteCajaController;
 use App\Http\Controllers\ExhibicionController;
+use App\Http\Controllers\InventarioConteoController;
 use App\Http\Controllers\SerieController;
 use App\Http\Controllers\TraspasoController;
 
@@ -211,6 +212,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('ventas')->group(function () {
         Route::get('/', [VentaController::class, 'index']);
         Route::get('/buscar-variantes', [VentaController::class, 'buscarVariantes']);
+        Route::get('/existencias', [VentaController::class, 'existenciasPorSucursal']);
         Route::post('/', [VentaController::class, 'store']);
         Route::get('/{id}', [VentaController::class, 'show']);
         Route::delete('/{id}', [VentaController::class, 'destroy']);
@@ -270,6 +272,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{inventario}/variantes', [ExhibicionController::class, 'variantes']);
         Route::patch('/{inventario}/exhibir', [ExhibicionController::class, 'exhibir']);
         Route::patch('/{inventario}/quitar', [ExhibicionController::class, 'quitar']);
+    });
+
+    Route::prefix('inventario-conteos')->group(function () {
+        Route::get('/', [InventarioConteoController::class, 'index']);
+        Route::post('/', [InventarioConteoController::class, 'store']);
+        Route::get('/alcances', [InventarioConteoController::class, 'alcances']);
+        Route::get('/{id}', [InventarioConteoController::class, 'show']);
+        Route::get('/{id}/escanear', [InventarioConteoController::class, 'escanear']);
+        Route::get('/{id}/buscar', [InventarioConteoController::class, 'buscar']);
+        Route::post('/{id}/capturar', [InventarioConteoController::class, 'capturar']);
+        Route::delete('/{id}/linea', [InventarioConteoController::class, 'eliminarLinea']);
+        Route::delete('/{id}/serie', [InventarioConteoController::class, 'quitarSerie']);
+        Route::post('/{id}/cerrar', [InventarioConteoController::class, 'cerrar']);
+        Route::post('/{id}/reabrir', [InventarioConteoController::class, 'reabrir']);
+        Route::post('/{id}/ajustar', [InventarioConteoController::class, 'ajustar']);
+        Route::post('/{id}/cancelar', [InventarioConteoController::class, 'cancelar']);
     });
 
     /*

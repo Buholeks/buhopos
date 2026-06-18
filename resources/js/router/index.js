@@ -22,6 +22,8 @@ import GestorUnidadesMedida from "../pages/atributos/GestorUnidadesMedida.vue";
 
 import GestorProductos from "../pages/productos/GestorProductos.vue";
 import CatalogoPrecios from "../pages/productos/CatalogoPrecios.vue";
+import ConteoInventario from "../pages/productos/ConteoInventario.vue";
+import ConsultaConteosInventario from "../pages/productos/ConsultaConteosInventario.vue";
 import Traspasos from "../pages/productos/Traspasos.vue";
 import Exhibicion from "../pages/productos/Exhibicion.vue";
 
@@ -79,6 +81,8 @@ const routes = [
 
       { path: "productos",       name: "productos",       component: GestorProductos, meta: { title: "Productos",         permiso: "productos.ver" } },
       { path: "catalogo-precios",name: "catalogo-precios",component: CatalogoPrecios, meta: { title: "Catalogo de precios",permiso: "productos.precios" } },
+      { path: "conteo-inventario",name: "conteo-inventario",component: ConteoInventario, meta: { title: "Conteo de inventario", permiso: "inventario.conteos.ver" } },
+      { path: "conteos-inventario",name: "conteos-inventario-consulta",component: ConsultaConteosInventario, meta: { title: "Consulta de conteos", permiso: "inventario.conteos.ver" } },
       { path: "exhibicion",      name: "exhibicion",      component: Exhibicion,      meta: { title: "Exhibicion",        permiso: "inventario.ver" } },
 
       { path: "traspasos",         redirect: { name: "traspasos-nuevo" } },

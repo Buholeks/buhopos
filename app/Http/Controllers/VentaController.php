@@ -13,6 +13,7 @@ use App\Models\Pedido;
 use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
 use App\Models\Producto;
+use App\Models\Sucursal;
 use App\Services\FolioService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -957,5 +958,98 @@ class VentaController extends Controller
         $resultados = $resultados->merge($variantes)->values();
 
         return response()->json($resultados);
+    }
+
+    public function existenciasPorSucursal(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('ventas.crear'), 403, 'Sin permiso: ventas.crear');
+
+        $user = Auth::user();
+        $empresaId = (int) $user->empresa_id;
+        $sucursalActualId = (int) $user->sucursal_id;
+
+        $data = $request->validate([
+            'producto_id' => ['required', 'integer'],
+            'variante_id' => ['nullable', 'integer'],
+        ]);
+
+        $productoId = (int) $data['producto_id'];
+        $varianteId = array_key_exists('variante_id', $data) && $data['variante_id'] !== null
+            ? (int) $data['variante_id']
+            : null;
+
+        $producto = Producto::where('empresa_id', $empresaId)
+            ->where('id', $productoId)
+            ->select('id', 'nombre', 'codigo', 'tiene_variantes')
+            ->firstOrFail();
+
+        $variante = $varianteId
+            ? ProductoVariante::where('producto_id', $productoId)->where('id', $varianteId)->firstOrFail()
+            : null;
+
+        $sucursales = Sucursal::where('empresa_id', $empresaId)
+            ->where('activo', true)
+            ->where('id', '!=', $sucursalActualId)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre']);
+
+        $sucursalIds = $sucursales->pluck('id')->all();
+
+        $inventario = Inventario::where('empresa_id', $empresaId)
+            ->where('producto_id', $productoId)
+            ->whereIn('sucursal_id', $sucursalIds)
+            ->when($varianteId, fn($q) => $q->where('variante_id', $varianteId), fn($q) => $q->whereNull('variante_id'))
+            ->get()
+            ->keyBy('sucursal_id');
+
+        $reservas = InventarioReserva::where('empresa_id', $empresaId)
+            ->where('producto_id', $productoId)
+            ->whereIn('sucursal_id', $sucursalIds)
+            ->where('estado', 'activa')
+            ->when($varianteId, fn($q) => $q->where('variante_id', $varianteId), fn($q) => $q->whereNull('variante_id'))
+            ->selectRaw('sucursal_id, SUM(cantidad) as total')
+            ->groupBy('sucursal_id')
+            ->pluck('total', 'sucursal_id');
+
+        $pedidosDisponibles = PedidoDetalle::where('pedido_detalles.producto_id', $productoId)
+            ->when($varianteId, fn($q) => $q->where('pedido_detalles.variante_id', $varianteId), fn($q) => $q->whereNull('pedido_detalles.variante_id'))
+            ->where('pedido_detalles.estado', 'disponible')
+            ->whereDoesntHave('reservas', fn($q) => $q->where('estado', 'activa'))
+            ->whereHas('pedido', fn($q) => $q
+                ->where('empresa_id', $empresaId)
+                ->whereIn('sucursal_id', $sucursalIds)
+                ->whereNotIn('estado', ['entregado', 'cancelado']))
+            ->join('pedidos', 'pedidos.id', '=', 'pedido_detalles.pedido_id')
+            ->selectRaw('pedidos.sucursal_id, SUM(pedido_detalles.cantidad) as total')
+            ->groupBy('pedidos.sucursal_id')
+            ->pluck('total', 'pedidos.sucursal_id');
+
+        $items = $sucursales->map(function ($sucursal) use ($inventario, $reservas, $pedidosDisponibles, $sucursalActualId) {
+            $inv = $inventario->get($sucursal->id);
+            $stock = (float) ($inv?->stock ?? 0);
+            $reservado = (float) ($reservas[$sucursal->id] ?? 0) + (float) ($pedidosDisponibles[$sucursal->id] ?? 0);
+            $disponible = max(0, $stock - $reservado);
+
+            return [
+                'sucursal_id' => $sucursal->id,
+                'sucursal' => $sucursal->nombre,
+                'actual' => (int) $sucursal->id === (int) $sucursalActualId,
+                'stock' => $stock,
+                'reservado' => $reservado,
+                'disponible' => $disponible,
+                'exhibido' => (bool) ($inv?->exhibido ?? false),
+            ];
+        })->values();
+
+        return response()->json([
+            'producto' => [
+                'id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'codigo' => $producto->codigo,
+                'variante_id' => $variante?->id,
+                'variante' => $variante?->nombreVariante(),
+            ],
+            'sucursales' => $items,
+        ]);
     }
 }

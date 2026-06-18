@@ -55,6 +55,12 @@ class PermisosSeeder extends Seeder
             // ── Inventario ────────────────────────────────────────────────────
             ['modulo' => 'inventario', 'clave' => 'inventario.ver',           'descripcion' => 'Ver exhibición de productos'],
             ['modulo' => 'inventario', 'clave' => 'inventario.traspasos',     'descripcion' => 'Realizar traspasos entre sucursales'],
+            ['modulo' => 'inventario', 'clave' => 'inventario.conteos.ver',    'descripcion' => 'Ver conteos fisicos de inventario'],
+            ['modulo' => 'inventario', 'clave' => 'inventario.conteos.crear',  'descripcion' => 'Crear conteos fisicos de inventario'],
+            ['modulo' => 'inventario', 'clave' => 'inventario.conteos.capturar','descripcion' => 'Capturar conteos fisicos de inventario'],
+            ['modulo' => 'inventario', 'clave' => 'inventario.conteos.revisar','descripcion' => 'Revisar conteos fisicos de inventario'],
+            ['modulo' => 'inventario', 'clave' => 'inventario.conteos.ajustar','descripcion' => 'Aplicar ajustes por conteo fisico'],
+            ['modulo' => 'inventario', 'clave' => 'inventario.conteos.cancelar','descripcion' => 'Cancelar conteos fisicos de inventario'],
 
             // ── Catálogos ─────────────────────────────────────────────────────
             ['modulo' => 'catalogos',  'clave' => 'catalogos.ver',            'descripcion' => 'Ver catálogos: proveedores, categorías, marcas, atributos'],

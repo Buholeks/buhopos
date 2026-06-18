@@ -6,16 +6,7 @@
 
 <script setup>
 import HubSection from "@/components/hub/HubSection.vue";
-import {
-    Users,
-    Truck,
-    Tags,
-    BadgeCheck,
-    SlidersHorizontal,
-    Ruler,
-    Package,
-    UserCog,
-} from "lucide-vue-next";
+import { Users, Truck, Tags, BadgeCheck, Package } from "lucide-vue-next";
 
 const Catalogos = [
     {
@@ -43,28 +34,10 @@ const Catalogos = [
         permiso: "catalogos.ver",
     },
     {
-        label: "Atributos",
-        icon: SlidersHorizontal,
-        to: { name: "atributos" },
-        permiso: "catalogos.ver",
-    },
-    {
-        label: "Unidades de Medida",
-        icon: Ruler,
-        to: { name: "unidades-medida" },
-        permiso: "catalogos.ver",
-    },
-    {
         label: "Productos",
         icon: Package,
         to: { name: "productos" },
         permiso: "productos.ver",
-    },
-    {
-        label: "Usuarios",
-        icon: UserCog,
-        to: { name: "usuarios" },
-        permiso: "usuarios.gestionar",
     },
 ];
 </script>

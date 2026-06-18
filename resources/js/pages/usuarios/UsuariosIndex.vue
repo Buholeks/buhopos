@@ -16,6 +16,7 @@
             </span>
         </section>
 
+        <!-- Aviso primer super admin -->
         <section
             v-if="meta.puede_promover_primer_super_admin"
             class="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between"
@@ -24,21 +25,34 @@
                 <Crown class="mt-0.5 h-5 w-5 shrink-0" />
                 <div>
                     <p class="text-sm font-semibold">Esta empresa todavía no tiene superadministrador.</p>
-                    <p class="text-xs text-amber-700">Promueve a un usuario activo desde la columna de acciones. Después, solo un superadministrador podrá otorgar o retirar ese nivel.</p>
+                    <p class="text-xs text-amber-700">Promueve a un usuario activo desde la columna de acciones.</p>
                 </div>
             </div>
         </section>
 
-        <div class="grid gap-4 xl:grid-cols-[420px_1fr]">
-            <!-- ── Formulario de creación ──────────────────────────────────── -->
+        <div class="grid gap-4 xl:grid-cols-[400px_1fr]">
+            <!-- ── Panel izquierdo: formulario crear / editar ──────────────── -->
             <section class="self-start rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="border-b border-slate-200 px-4 py-3">
-                    <h2 class="text-sm font-semibold">Crear usuario</h2>
-                    <p class="mt-0.5 text-xs text-slate-500">La empresa se asigna desde tu sesión activa.</p>
+                <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                    <div>
+                        <h2 class="text-sm font-semibold">{{ modoEdicion ? 'Editar usuario' : 'Crear usuario' }}</h2>
+                        <p class="mt-0.5 text-xs text-slate-500">{{ modoEdicion ? usuarioEditandoDatos?.name : 'La empresa se asigna desde tu sesión activa.' }}</p>
+                    </div>
+                    <button
+                        v-if="modoEdicion"
+                        type="button"
+                        class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        title="Cancelar edición"
+                        @click="cancelarEdicion"
+                    >
+                        <X class="h-4 w-4" />
+                    </button>
                 </div>
 
-                <form class="space-y-4 p-4" @submit.prevent="crearUsuario">
+                <form class="space-y-4 p-4" @submit.prevent="modoEdicion ? guardarEdicion() : crearUsuario()">
+                    <!-- Empresa (solo creación) -->
                     <BaseInput
+                        v-if="!modoEdicion"
                         :model-value="auth.empresaNombre"
                         label="Empresa"
                         disabled
@@ -47,7 +61,9 @@
                         <template #icon><Building2 class="h-4 w-4" /></template>
                     </BaseInput>
 
+                    <!-- Sucursal inicial (solo creación) -->
                     <BaseSearchSelect
+                        v-if="!modoEdicion"
                         v-model="form.sucursal_id"
                         label="Sucursal inicial"
                         placeholder="Selecciona una sucursal"
@@ -59,8 +75,8 @@
                         required
                     />
 
-                    <!-- Rol para la sucursal inicial -->
-                    <div>
+                    <!-- Rol sucursal inicial (solo creación) -->
+                    <div v-if="!modoEdicion">
                         <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                             Rol en la sucursal inicial
                         </label>
@@ -71,9 +87,10 @@
                             <option :value="null">Sin rol (acceso total legacy)</option>
                             <option v-for="rol in roles" :key="rol.id" :value="rol.id">{{ rol.nombre }}</option>
                         </select>
-                        <p class="mt-1 text-[11px] text-slate-400">Puedes cambiar las sucursales y roles después.</p>
+                        <p class="mt-1 text-[11px] text-slate-400">Puedes cambiar sucursales y roles después.</p>
                     </div>
 
+                    <!-- Nombre -->
                     <BaseInput
                         v-model="form.name"
                         label="Nombre"
@@ -84,6 +101,7 @@
                         <template #icon><UserRound class="h-4 w-4" /></template>
                     </BaseInput>
 
+                    <!-- Email -->
                     <BaseInput
                         v-model="form.email"
                         label="Correo de acceso"
@@ -96,7 +114,36 @@
                         <template #icon><Mail class="h-4 w-4" /></template>
                     </BaseInput>
 
-                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <!-- Contraseña -->
+                    <div v-if="modoEdicion" class="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            Cambiar contraseña <span class="font-normal normal-case text-slate-400">(opcional)</span>
+                        </p>
+                        <div class="space-y-3">
+                            <BaseInput
+                                v-model="form.password"
+                                label="Nueva contraseña"
+                                type="password"
+                                autocomplete="new-password"
+                                placeholder="Dejar vacío para no cambiar"
+                                :error="fieldError('password')"
+                            >
+                                <template #icon><LockKeyhole class="h-4 w-4" /></template>
+                            </BaseInput>
+                            <BaseInput
+                                v-if="form.password"
+                                v-model="form.password_confirmation"
+                                label="Confirmar contraseña"
+                                type="password"
+                                autocomplete="new-password"
+                                required
+                            >
+                                <template #icon><LockKeyhole class="h-4 w-4" /></template>
+                            </BaseInput>
+                        </div>
+                    </div>
+
+                    <div v-if="!modoEdicion" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                         <BaseInput
                             v-model="form.password"
                             label="Contraseña"
@@ -122,15 +169,26 @@
                         {{ mensajeError }}
                     </div>
 
-                    <button
-                        type="submit"
-                        class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="guardando || !puedeGuardar"
-                    >
-                        <Loader2 v-if="guardando" class="h-4 w-4 animate-spin" />
-                        <UserPlus v-else class="h-4 w-4" />
-                        {{ guardando ? "Creando..." : "Crear usuario" }}
-                    </button>
+                    <div class="flex gap-2">
+                        <button
+                            v-if="modoEdicion"
+                            type="button"
+                            class="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            @click="cancelarEdicion"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            :disabled="guardando || !puedeGuardar"
+                        >
+                            <Loader2 v-if="guardando" class="h-4 w-4 animate-spin" />
+                            <UserPlus v-else-if="!modoEdicion" class="h-4 w-4" />
+                            <Save v-else class="h-4 w-4" />
+                            {{ guardando ? (modoEdicion ? 'Guardando…' : 'Creando...') : (modoEdicion ? 'Guardar cambios' : 'Crear usuario') }}
+                        </button>
+                    </div>
                 </form>
             </section>
 
@@ -152,27 +210,35 @@
                             <tr>
                                 <th class="px-4 py-3 text-left">Usuario</th>
                                 <th class="px-4 py-3 text-left">Sucursal activa</th>
+                                <th class="px-4 py-3 text-left">Rol</th>
                                 <th class="px-4 py-3 text-left">Estado</th>
-                                <th class="px-4 py-3 text-left">Creado</th>
                                 <th class="px-4 py-3 text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <tr v-for="usuario in usuarios" :key="usuario.id" class="hover:bg-slate-50">
+                            <tr
+                                v-for="usuario in usuarios"
+                                :key="usuario.id"
+                                class="hover:bg-slate-50"
+                                :class="usuarioEditandoDatos?.id === usuario.id ? 'bg-emerald-50/50' : ''"
+                            >
                                 <td class="px-4 py-3">
-                                    <div class="flex items-center gap-2">
-                                        <div>
-                                            <p class="font-medium text-slate-900">
-                                                {{ usuario.name }}
-                                                <span v-if="usuario.es_super_admin" class="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                                                    Super Admin
-                                                </span>
-                                            </p>
-                                            <p class="text-xs text-slate-500">{{ usuario.email }}</p>
-                                        </div>
-                                    </div>
+                                    <p class="font-medium text-slate-900">
+                                        {{ usuario.name }}
+                                        <span v-if="usuario.es_super_admin" class="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                            Super Admin
+                                        </span>
+                                    </p>
+                                    <p class="text-xs text-slate-500">{{ usuario.email }}</p>
                                 </td>
                                 <td class="px-4 py-3 text-slate-600">{{ usuario.sucursal?.nombre ?? "Sin sucursal" }}</td>
+                                <td class="px-4 py-3">
+                                    <span v-if="usuario.rol_activo" class="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-violet-200">
+                                        {{ usuario.rol_activo }}
+                                    </span>
+                                    <span v-else-if="!usuario.es_super_admin" class="text-xs text-slate-400">Sin rol</span>
+                                    <span v-else class="text-xs text-slate-400">—</span>
+                                </td>
                                 <td class="px-4 py-3">
                                     <button
                                         type="button"
@@ -186,9 +252,19 @@
                                         {{ usuario.activo ? "Activo" : "Inactivo" }}
                                     </button>
                                 </td>
-                                <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{{ fmtFecha(usuario.created_at) }}</td>
                                 <td class="px-4 py-3">
                                     <div class="flex justify-end gap-2">
+                                        <!-- Editar datos -->
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                            :class="usuarioEditandoDatos?.id === usuario.id ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : ''"
+                                            @click="abrirEdicion(usuario)"
+                                        >
+                                            <Pencil class="h-3.5 w-3.5" />
+                                            Editar
+                                        </button>
+                                        <!-- Sucursales y roles -->
                                         <button
                                             v-if="!usuario.es_super_admin"
                                             type="button"
@@ -196,8 +272,9 @@
                                             @click="abrirModalSucursales(usuario)"
                                         >
                                             <Building2 class="h-3.5 w-3.5" />
-                                            Sucursales
+                                            Sucursales / Roles
                                         </button>
+                                        <!-- Super admin -->
                                         <button
                                             v-if="puedeCambiarSuperAdmin(usuario)"
                                             type="button"
@@ -208,7 +285,7 @@
                                             @click="toggleSuperAdmin(usuario)"
                                         >
                                             <Crown class="h-3.5 w-3.5" />
-                                            {{ usuario.es_super_admin ? "Retirar nivel" : "Hacer super admin" }}
+                                            {{ usuario.es_super_admin ? "Retirar nivel" : "Super admin" }}
                                         </button>
                                     </div>
                                 </td>
@@ -227,15 +304,14 @@
             </section>
         </div>
 
-        <!-- ── Modal: Gestionar sucursales del usuario ──────────────────────── -->
+        <!-- ── Modal: Gestionar sucursales y roles ──────────────────────────── -->
         <Teleport to="body">
             <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100" leave-active-class="transition duration-100 ease-in" leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
                 <div v-if="modalSucursales" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" @mousedown.self="cerrarModalSucursales">
                     <div class="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                        <!-- Header -->
                         <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                             <div>
-                                <p class="font-semibold text-slate-900">Sucursales de {{ usuarioEditando?.name }}</p>
+                                <p class="font-semibold text-slate-900">Sucursales y roles de {{ usuarioModalSucursales?.name }}</p>
                                 <p class="text-xs text-slate-400">Asigna sucursales y el rol en cada una.</p>
                             </div>
                             <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" @click="cerrarModalSucursales">
@@ -243,7 +319,6 @@
                             </button>
                         </div>
 
-                        <!-- Body -->
                         <div class="max-h-[60vh] overflow-y-auto p-5">
                             <div v-if="cargandoSucursalesModal" class="py-8 text-center text-sm text-slate-400">
                                 Cargando sucursales…
@@ -255,20 +330,11 @@
                                     class="flex items-center gap-4 rounded-xl border p-3"
                                     :class="suc.asignada ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100'"
                                 >
-                                    <!-- Toggle asignada -->
-                                    <input
-                                        type="checkbox"
-                                        v-model="suc.asignada"
-                                        class="h-4 w-4 accent-emerald-600"
-                                    />
-
-                                    <!-- Info sucursal -->
+                                    <input type="checkbox" v-model="suc.asignada" class="h-4 w-4 accent-emerald-600" />
                                     <div class="min-w-0 flex-1">
                                         <p class="text-sm font-semibold text-slate-800">{{ suc.nombre }}</p>
                                         <p v-if="suc.direccion" class="truncate text-xs text-slate-400">{{ suc.direccion }}</p>
                                     </div>
-
-                                    <!-- Selector de rol -->
                                     <select
                                         v-if="suc.asignada"
                                         v-model="suc.role_id"
@@ -282,7 +348,6 @@
                             </div>
                         </div>
 
-                        <!-- Footer -->
                         <div class="flex justify-end gap-3 border-t border-slate-100 px-5 py-4">
                             <button type="button" class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="cerrarModalSucursales">
                                 Cancelar
@@ -312,22 +377,22 @@ import http from "@/lib/http";
 import { confirm, toastSuccess, toastError } from "@/lib/alert";
 import { useAuthStore } from "@/stores/auth";
 import {
-    Building2, Crown, Loader2, LockKeyhole, Mail, Search,
-    UserPlus, UserRound, UsersRound, X,
+    Building2, Crown, Loader2, LockKeyhole, Mail, Pencil,
+    Save, Search, UserPlus, UserRound, UsersRound, X,
 } from "lucide-vue-next";
 
 const auth = useAuthStore();
 
 // ── Estado general ────────────────────────────────────────────────────────────
-const sucursales        = ref([]);
-const roles             = ref([]);
-const usuarios          = ref([]);
-const cargando          = ref(false);
-const guardando         = ref(false);
-const busqueda          = ref("");
-const errors            = ref({});
-const mensajeError      = ref("");
-const meta              = ref({
+const sucursales   = ref([]);
+const roles        = ref([]);
+const usuarios     = ref([]);
+const cargando     = ref(false);
+const guardando    = ref(false);
+const busqueda     = ref("");
+const errors       = ref({});
+const mensajeError = ref("");
+const meta         = ref({
     total: 0,
     super_admins_activos: 0,
     puede_gestionar_super_admins: false,
@@ -335,14 +400,18 @@ const meta              = ref({
 });
 let timer;
 
-// ── Estado modal sucursales ───────────────────────────────────────────────────
-const modalSucursales          = ref(false);
-const usuarioEditando          = ref(null);
-const sucursalesModal          = ref([]);
-const cargandoSucursalesModal  = ref(false);
-const guardandoSucursales      = ref(false);
+// ── Modo edición ──────────────────────────────────────────────────────────────
+const modoEdicion          = ref(false);
+const usuarioEditandoDatos = ref(null);
 
-// ── Formulario de creación ────────────────────────────────────────────────────
+// ── Estado modal sucursales ───────────────────────────────────────────────────
+const modalSucursales         = ref(false);
+const usuarioModalSucursales  = ref(null);
+const sucursalesModal         = ref([]);
+const cargandoSucursalesModal = ref(false);
+const guardandoSucursales     = ref(false);
+
+// ── Formulario ────────────────────────────────────────────────────────────────
 const form = reactive({
     sucursal_id:           null,
     role_id:               null,
@@ -352,13 +421,16 @@ const form = reactive({
     password_confirmation: "",
 });
 
-const puedeGuardar = computed(() =>
-    !!form.sucursal_id &&
-    form.name.trim().length >= 2 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) &&
-    form.password.length >= 8 &&
-    form.password === form.password_confirmation
-);
+const puedeGuardar = computed(() => {
+    if (!form.name.trim() || form.name.trim().length < 2) return false;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return false;
+    if (modoEdicion.value) {
+        if (form.password && form.password.length < 8) return false;
+        if (form.password && form.password !== form.password_confirmation) return false;
+        return true;
+    }
+    return !!form.sucursal_id && form.password.length >= 8 && form.password === form.password_confirmation;
+});
 
 // ── Carga inicial ─────────────────────────────────────────────────────────────
 onMounted(async () => {
@@ -383,7 +455,7 @@ async function cargarUsuarios() {
     cargando.value = true;
     try {
         const { data } = await http.get("/api/users", { params: { q: busqueda.value || undefined } });
-        usuarios.value  = data.data ?? [];
+        usuarios.value = data.data ?? [];
         meta.value = {
             total: data.total ?? 0,
             super_admins_activos: data.super_admins_activos ?? 0,
@@ -420,6 +492,55 @@ async function crearUsuario() {
     }
 }
 
+// ── Editar usuario ────────────────────────────────────────────────────────────
+function abrirEdicion(usuario) {
+    if (usuarioEditandoDatos.value?.id === usuario.id) {
+        cancelarEdicion();
+        return;
+    }
+    modoEdicion.value          = true;
+    usuarioEditandoDatos.value = usuario;
+    errors.value               = {};
+    mensajeError.value         = "";
+    form.sucursal_id           = null;
+    form.role_id               = null;
+    form.name                  = usuario.name;
+    form.email                 = usuario.email;
+    form.password              = "";
+    form.password_confirmation = "";
+}
+
+function cancelarEdicion() {
+    modoEdicion.value          = false;
+    usuarioEditandoDatos.value = null;
+    limpiarFormulario();
+}
+
+async function guardarEdicion() {
+    guardando.value    = true;
+    errors.value       = {};
+    mensajeError.value = "";
+    try {
+        const payload = { name: form.name, email: form.email };
+        if (form.password) {
+            payload.password              = form.password;
+            payload.password_confirmation = form.password_confirmation;
+        }
+        const { data } = await http.put(`/api/users/${usuarioEditandoDatos.value.id}`, payload);
+        toastSuccess("Usuario actualizado.");
+        const idx = usuarios.value.findIndex((u) => u.id === data.id);
+        if (idx !== -1) {
+            usuarios.value[idx] = { ...usuarios.value[idx], name: data.name, email: data.email };
+        }
+        cancelarEdicion();
+    } catch (error) {
+        errors.value       = error?.response?.data?.errors ?? {};
+        mensajeError.value = error?.response?.data?.message || "No se pudo actualizar el usuario.";
+    } finally {
+        guardando.value = false;
+    }
+}
+
 function limpiarFormulario() {
     form.sucursal_id           = null;
     form.role_id               = null;
@@ -427,6 +548,8 @@ function limpiarFormulario() {
     form.email                 = "";
     form.password              = "";
     form.password_confirmation = "";
+    errors.value               = {};
+    mensajeError.value         = "";
 }
 
 function fieldError(campo) {
@@ -444,21 +567,15 @@ async function toggleActivo(usuario) {
     }
 }
 
+// ── Super admin ───────────────────────────────────────────────────────────────
 function puedeCambiarSuperAdmin(usuario) {
-    // No mostrar el botón para retirarse el nivel a uno mismo
     if (usuario.es_super_admin && usuario.id === auth.user?.id) return false;
-
     if (meta.value.puede_gestionar_super_admins) return true;
-
-    return meta.value.puede_promover_primer_super_admin
-        && !usuario.es_super_admin
-        && usuario.activo;
+    return meta.value.puede_promover_primer_super_admin && !usuario.es_super_admin && usuario.activo;
 }
 
 async function toggleSuperAdmin(usuario) {
     const promover = !usuario.es_super_admin;
-    const accion = promover ? "promover como superadministrador" : "retirar el nivel de superadministrador";
-
     const ok = await confirm({
         title: promover ? "¿Promover a super administrador?" : "¿Retirar nivel de super administrador?",
         text: `${usuario.name} ${promover ? "tendrá acceso total a la empresa." : "perderá el acceso total."}`,
@@ -468,14 +585,8 @@ async function toggleSuperAdmin(usuario) {
     if (!ok) return;
 
     try {
-        await http.put(`/api/users/${usuario.id}/super-admin`, {
-            es_super_admin: promover,
-        });
-
-        if (usuario.id === auth.user?.id) {
-            await auth.fetchUser();
-        }
-
+        await http.put(`/api/users/${usuario.id}/super-admin`, { es_super_admin: promover });
+        if (usuario.id === auth.user?.id) await auth.fetchUser();
         toastSuccess(promover ? "Superadministrador asignado." : "Nivel de superadministrador retirado.");
         await cargarUsuarios();
     } catch (e) {
@@ -483,9 +594,9 @@ async function toggleSuperAdmin(usuario) {
     }
 }
 
-// ── Modal sucursales ──────────────────────────────────────────────────────────
+// ── Modal sucursales / roles ──────────────────────────────────────────────────
 async function abrirModalSucursales(usuario) {
-    usuarioEditando.value         = usuario;
+    usuarioModalSucursales.value  = usuario;
     modalSucursales.value         = true;
     cargandoSucursalesModal.value = true;
     sucursalesModal.value         = [];
@@ -502,9 +613,9 @@ async function abrirModalSucursales(usuario) {
 }
 
 function cerrarModalSucursales() {
-    modalSucursales.value  = false;
-    usuarioEditando.value  = null;
-    sucursalesModal.value  = [];
+    modalSucursales.value        = false;
+    usuarioModalSucursales.value = null;
+    sucursalesModal.value        = [];
 }
 
 async function guardarSucursales() {
@@ -514,11 +625,8 @@ async function guardarSucursales() {
             .filter((s) => s.asignada)
             .map((s) => ({ id: s.id, role_id: s.role_id ?? null }));
 
-        await http.put(`/api/users/${usuarioEditando.value.id}/sucursales`, {
-            sucursales: payload,
-        });
-
-        toastSuccess("Sucursales actualizadas.");
+        await http.put(`/api/users/${usuarioModalSucursales.value.id}/sucursales`, { sucursales: payload });
+        toastSuccess("Sucursales y roles actualizados.");
         cerrarModalSucursales();
         await cargarUsuarios();
     } catch (e) {

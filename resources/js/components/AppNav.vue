@@ -101,11 +101,9 @@ import {
     Repeat2,
     ScanSearch,
     ReceiptText,
-    ShieldCheck,
+    Settings2,
     ShoppingCart,
     Tags,
-    Ticket,
-    UsersRound,
     UserRoundCog,
     Workflow,
     X,
@@ -156,10 +154,7 @@ const allSections = [
     {
         title: "Administración",
         items: [
-            { label: "Usuarios",       to: "/usuarios", icon: UsersRound,  permiso: "usuarios.gestionar" },
-            { label: "Roles y permisos", to: "/roles",  icon: ShieldCheck, permiso: "usuarios.gestionar" },
-            { label: "Diseñador de etiquetas", to: "/etiquetas/plantillas", icon: Tags, permiso: "etiquetas.disenar" },
-            { label: "Configurar ticket",      to: "/ticket/configurar",    icon: Ticket, permiso: "ventas.crear" },
+            { label: "Configuración", to: "/configuracion", icon: Settings2, permiso: null },
         ],
     },
 ];

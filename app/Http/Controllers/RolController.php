@@ -29,14 +29,12 @@ class RolController extends Controller
 
     // ── GET /api/roles/{rol} ──────────────────────────────────────────────────
 
-    public function show(Rol $rol): JsonResponse
+    public function show(int $rol): JsonResponse
     {
         $user = Auth::user();
-
         abort_unless($user->tienePermiso('usuarios.gestionar'), 403);
-        abort_unless($rol->empresa_id === $user->empresa_id, 403);
 
-        $rol->load('permisos:id,clave,modulo,descripcion');
+        $rol = Rol::where('empresa_id', $user->empresa_id)->with('permisos')->findOrFail($rol);
 
         return response()->json($rol);
     }
@@ -71,19 +69,19 @@ class RolController extends Controller
             $rol->sincronizarPermisos($data['permisos']);
         }
 
-        $rol->load('permisos:id,clave,modulo,descripcion');
+        $rol->load('permisos');
 
         return response()->json($rol, 201);
     }
 
     // ── PUT /api/roles/{rol} ──────────────────────────────────────────────────
 
-    public function update(Request $request, Rol $rol): JsonResponse
+    public function update(Request $request, int $rol): JsonResponse
     {
         $user = Auth::user();
-
         abort_unless($user->tienePermiso('usuarios.gestionar'), 403);
-        abort_unless($rol->empresa_id === $user->empresa_id, 403);
+
+        $rol = Rol::where('empresa_id', $user->empresa_id)->findOrFail($rol);
 
         $data = $request->validate([
             'nombre'      => [
@@ -105,19 +103,19 @@ class RolController extends Controller
         ]);
 
         $rol->sincronizarPermisos($data['permisos'] ?? []);
-        $rol->load('permisos:id,clave,modulo,descripcion');
+        $rol->load('permisos');
 
         return response()->json($rol);
     }
 
     // ── DELETE /api/roles/{rol} ───────────────────────────────────────────────
 
-    public function destroy(Rol $rol): JsonResponse
+    public function destroy(int $rol): JsonResponse
     {
         $user = Auth::user();
-
         abort_unless($user->tienePermiso('usuarios.gestionar'), 403);
-        abort_unless($rol->empresa_id === $user->empresa_id, 403);
+
+        $rol = Rol::where('empresa_id', $user->empresa_id)->findOrFail($rol);
 
         // No se puede eliminar un rol que tenga usuarios asignados
         $enUso = \App\Models\SucursalUser::where('role_id', $rol->id)->exists();

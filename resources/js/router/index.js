@@ -55,6 +55,7 @@ import ReporteVentas from "@/pages/reportes/venta/Index.vue";
 import VentasAgrupado from "@/pages/reportes/venta/VentasAgrupado.vue";
 import ReporteUtilidades from "@/pages/reportes/utilidades/Index.vue";
 
+import ConfiguracionIndex from "@/pages/configuracion/ConfiguracionIndex.vue";
 import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
 import RolesIndex from "@/pages/roles/RolesIndex.vue";
 import SinPermiso from "@/pages/errores/SinPermiso.vue";
@@ -120,6 +121,7 @@ const routes = [
       { path: "reportes-ventas-agrupado",name: "reportes-ventas-agrupado",component: VentasAgrupado,    meta: { title: "Ventas agrupadas",    permiso: "ventas.ver" } },
       { path: "reportes-utilidades",     name: "reportes-utilidades",     component: ReporteUtilidades, meta: { title: "Reporte de utilidades",permiso: "reportes.utilidades" } },
 
+      { path: "configuracion", name: "configuracion", component: ConfiguracionIndex, meta: { title: "Configuración" } },
       { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios",permiso: "usuarios.gestionar" } },
       { path: "roles",    name: "roles",    component: RolesIndex,    meta: { title: "Roles y permisos", permiso: "usuarios.gestionar" } },
       { path: "perfil",   name: "perfil",   component: PerfilIndex,   meta: { title: "Mi perfil" } },

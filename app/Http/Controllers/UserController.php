@@ -25,12 +25,27 @@ class UserController extends Controller
 
         $usuarios = User::query()
             ->where('empresa_id', $actor->empresa_id)
-            ->with('sucursal:id,nombre')
+            ->with([
+                'sucursal:id,nombre',
+                'sucursales' => fn($q) => $q->select('sucursales.id')->withPivot('role_id'),
+            ])
             ->when($texto !== '', fn($q) => $q->where(fn($sub) => $sub
                 ->where('name', 'like', "%{$texto}%")
                 ->orWhere('email', 'like', "%{$texto}%")))
             ->orderBy('name')
             ->paginate(20);
+
+        // Cargar nombres de roles para la sucursal activa de cada usuario
+        $roleIds = $usuarios->pluck('sucursales')->flatten()
+            ->pluck('pivot.role_id')->filter()->unique()->values();
+        $rolesMap = \App\Models\Rol::whereIn('id', $roleIds)->pluck('nombre', 'id');
+
+        $usuarios->getCollection()->transform(function ($u) use ($rolesMap) {
+            $pivot = $u->sucursales->firstWhere('id', $u->sucursal_id)?->pivot;
+            $u->rol_activo = $pivot?->role_id ? $rolesMap->get($pivot->role_id) : null;
+            unset($u->sucursales);
+            return $u;
+        });
 
         $superAdminsActivos = User::where('empresa_id', $actor->empresa_id)
             ->where('es_super_admin', true)
@@ -129,8 +144,14 @@ class UserController extends Controller
         }
 
         $data = $request->validate([
-            'name'   => ['sometimes', 'string', 'min:2', 'max:255'],
-            'activo' => ['sometimes', 'boolean'],
+            'name'     => ['sometimes', 'string', 'min:2', 'max:255'],
+            'email'    => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'password' => ['sometimes', 'string', 'min:8', 'confirmed'],
+            'activo'   => ['sometimes', 'boolean'],
+        ], [
+            'email.unique'       => 'Ya existe un usuario con ese correo.',
+            'password.min'       => 'La contraseña debe tener al menos 8 caracteres.',
+            'password.confirmed' => 'La confirmación de contraseña no coincide.',
         ]);
 
         $user->update($data);

@@ -5,24 +5,24 @@
         <button
             v-if="!asignado"
             type="button"
-            class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-500 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-700"
+            class="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-700"
             title="Seleccionar cliente (opcional)"
             @click="toggleDropdown"
         >
-            <UserRound class="h-4 w-4 shrink-0" />
+            <UserRound class="h-3.5 w-3.5 shrink-0" />
         </button>
 
         <!-- Con cliente: chip compacto -->
         <div
             v-else
-            class="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm"
+            class="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs"
         >
-            <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">
+            <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[9px] font-bold text-white">
                 {{ iniciales }}
             </div>
             <button
                 type="button"
-                class="max-w-[140px] truncate font-medium text-emerald-800 hover:text-emerald-900"
+                class="max-w-[120px] truncate font-medium text-emerald-800 hover:text-emerald-900"
                 @click="toggleDropdown"
             >
                 {{ nombreCliente }}

@@ -17,8 +17,9 @@ import ProveedoresIndex from "../pages/proveedores/ProveedoresIndex.vue";
 import CategoriasIndex from "../pages/categorias/CategoriasIndex.vue";
 import MarcasIndex from "../pages/marcas/MarcasIndex.vue";
 
-import GestorAtributos from "../pages/atributos/GestorAtributos.vue";
+import AtributosConfig from "../pages/atributos/AtributosConfig.vue";
 import GestorUnidadesMedida from "../pages/atributos/GestorUnidadesMedida.vue";
+import AtributoValores from "@/pages/catalogos/AtributoValores.vue";
 
 import GestorProductos from "../pages/productos/GestorProductos.vue";
 import CatalogoPrecios from "../pages/productos/CatalogoPrecios.vue";
@@ -78,7 +79,8 @@ const routes = [
       { path: "proveedores",name: "proveedores",component: ProveedoresIndex,meta: { title: "Proveedores",      permiso: "catalogos.ver" } },
       { path: "categorias", name: "categorias", component: CategoriasIndex, meta: { title: "Categorias",       permiso: "catalogos.ver" } },
       { path: "marcas",     name: "marcas",     component: MarcasIndex,     meta: { title: "Marcas",           permiso: "catalogos.ver" } },
-      { path: "atributos",  name: "atributos",  component: GestorAtributos, meta: { title: "Atributos",        permiso: "catalogos.ver" } },
+      { path: "atributos",  name: "atributos",  component: AtributosConfig, meta: { title: "Atributos",        permiso: "catalogos.ver" } },
+      { path: "catalogos/atributos/:id", name: "catalogo-atributo-valores", component: AtributoValores, meta: { title: "Catalogo de atributo", permiso: "catalogos.ver" } },
       { path: "unidades-medida", name: "unidades-medida", component: GestorUnidadesMedida, meta: { title: "Unidades de medida", permiso: "catalogos.ver" } },
 
       { path: "productos",       name: "productos",       component: GestorProductos, meta: { title: "Productos",         permiso: "productos.ver" } },

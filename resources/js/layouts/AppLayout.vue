@@ -134,7 +134,7 @@
 
             <!-- MAIN -->
             <main class="flex-1 overflow-y-auto">
-                <div class="px-3 sm:px-4 lg:px-6 py-4 sm:py-6">
+                <div class="px-1 sm:px-2 lg:px-3 py-2 sm:py-3">
                     <router-view />
                 </div>
             </main>

@@ -90,7 +90,6 @@ export async function imprimirTicketHtml(nombreImpresora, html, anchomm = 80) {
 
 export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {
     if (!qz.websocket.isActive()) throw new Error("QZ Tray no está conectado.");
-    alert(`DEBUG imprimirHtml → impresora: "${nombreImpresora}" | ancho: ${anchomm}mm | alto: ${altomm}mm`);
 
     const config = qz.configs.create(nombreImpresora, {
         size: { width: anchomm, height: altomm },

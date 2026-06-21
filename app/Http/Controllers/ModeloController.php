@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Marca;
 use App\Models\Modelo;
 use App\Support\PublicImageStorage;
+use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +15,8 @@ use Illuminate\Validation\Rule;
 
 class ModeloController extends Controller
 {
+    use HandlesMediaImages;
+
     private function empresaId(): int
     {
         return (int) Auth::user()->empresa_id;
@@ -101,8 +104,9 @@ class ModeloController extends Controller
                     ->whereNull('deleted_at')
                 ),
             ],
-            'imagen' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'activo' => ['nullable', 'boolean'],
+            'imagen'          => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'imagen_media_id' => ['nullable', 'integer'],
+            'activo'          => ['nullable', 'boolean'],
         ], [
             'marca_id.required' => 'Debes seleccionar una marca.',
             'marca_id.exists'   => 'La marca seleccionada no existe.',
@@ -124,8 +128,12 @@ class ModeloController extends Controller
         $modelo->nombre      = $datos['nombre'];
         $modelo->activo      = $datos['activo'] ?? true;
 
-        if ($request->hasFile('imagen')) {
-            $modelo->imagen = PublicImageStorage::store($request->file('imagen'), 'modelos/imagenes');
+        if ($request->filled('imagen_media_id')) {
+            $modelo->save();
+            $modelo->imagen = $this->asignarImagenDesdeMedia($modelo, (int) $request->imagen_media_id);
+        } elseif ($request->hasFile('imagen')) {
+            $modelo->save();
+            $modelo->imagen = $this->subirYRegistrarImagen($modelo, $request->file('imagen'), 'modelos/imagenes');
         }
 
         $modelo->save();
@@ -158,6 +166,7 @@ class ModeloController extends Controller
                 )->ignore($id),
             ],
             'imagen'          => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'imagen_media_id' => ['nullable', 'integer'],
             'eliminar_imagen' => ['nullable', 'boolean'],
             'activo'          => ['nullable', 'boolean'],
         ], [
@@ -168,18 +177,17 @@ class ModeloController extends Controller
         $modelo->nombre = $datos['nombre'];
         $modelo->activo = $datos['activo'] ?? $modelo->activo;
 
-        // Eliminar imagen si se pidió
-        if (! empty($datos['eliminar_imagen']) && $modelo->imagen) {
-            Storage::disk('public')->delete($modelo->imagen);
+        if (! empty($datos['eliminar_imagen'])) {
+            $this->quitarReferenciaMedia($modelo);
+            $this->borrarArchivoLegacy($modelo->imagen);
             $modelo->imagen = null;
         }
 
-        // Subir nueva imagen
-        if ($request->hasFile('imagen')) {
-            if ($modelo->imagen) {
-                Storage::disk('public')->delete($modelo->imagen);
-            }
-            $modelo->imagen = PublicImageStorage::store($request->file('imagen'), 'modelos/imagenes');
+        if ($request->filled('imagen_media_id')) {
+            $modelo->imagen = $this->asignarImagenDesdeMedia($modelo, (int) $request->imagen_media_id);
+        } elseif ($request->hasFile('imagen')) {
+            $this->borrarArchivoLegacy($modelo->imagen);
+            $modelo->imagen = $this->subirYRegistrarImagen($modelo, $request->file('imagen'), 'modelos/imagenes');
         }
 
         $modelo->save();

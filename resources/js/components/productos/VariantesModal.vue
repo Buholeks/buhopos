@@ -357,82 +357,13 @@
                                                         >Imagen de la
                                                         variante</label
                                                     >
-                                                    <div
-                                                        class="mt-2 flex items-center gap-3"
-                                                    >
-                                                        <div
-                                                            class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white"
-                                                        >
-                                                            <img
-                                                                v-if="
-                                                                    formEditProxy.imagenPreview ||
-                                                                    formEditProxy.imagenActualUrl
-                                                                "
-                                                                :src="
-                                                                    formEditProxy.imagenPreview ||
-                                                                    formEditProxy.imagenActualUrl
-                                                                "
-                                                                class="h-full w-full object-contain"
-                                                                alt="preview"
-                                                            />
-                                                            <Image
-                                                                v-else
-                                                                class="h-6 w-6 text-slate-300"
-                                                            />
-                                                        </div>
-
-                                                        <div
-                                                            class="flex flex-col gap-2"
-                                                        >
-                                                            <input
-                                                                type="file"
-                                                                accept="image/*"
-                                                                class="hidden"
-                                                                @change="
-                                                                    onEditImgChange
-                                                                "
-                                                            />
-
-                                                            <button
-                                                                type="button"
-                                                                @click="
-                                                                    abrirInputImgEdit(
-                                                                        $event,
-                                                                    )
-                                                                "
-                                                                class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                                                            >
-                                                                {{
-                                                                    formEditProxy.imagenActualUrl ||
-                                                                    formEditProxy.imagenPreview
-                                                                        ? "Cambiar"
-                                                                        : "Subir imagen"
-                                                                }}
-                                                            </button>
-
-                                                            <button
-                                                                v-if="
-                                                                    formEditProxy.imagenActualUrl ||
-                                                                    formEditProxy.imagenPreview
-                                                                "
-                                                                type="button"
-                                                                @click="
-                                                                    emit(
-                                                                        'quitar-imagen-edit',
-                                                                    )
-                                                                "
-                                                                class="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
-                                                            >
-                                                                Quitar
-                                                            </button>
-
-                                                            <p
-                                                                class="text-xs text-slate-400"
-                                                            >
-                                                                JPG, PNG, WebP ·
-                                                                2MB
-                                                            </p>
-                                                        </div>
+                                                    <div class="mt-2">
+                                                        <MediaPicker
+                                                            :model-value="formEditProxy.imagenMedia"
+                                                            carpeta-tipo="variante"
+                                                            @update:model-value="emit('imagen-media-edit-change', $event)"
+                                                            @clear="emit('quitar-imagen-edit')"
+                                                        />
                                                     </div>
                                                 </div>
 
@@ -1010,6 +941,7 @@
 import { computed, ref, watch } from "vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
+import MediaPicker from "@/components/media/MediaPicker.vue";
 import {
     LayoutGrid,
     X,
@@ -1046,7 +978,7 @@ const emit = defineEmits([
     "toggle-editar",
     "cerrar-edicion",
     "guardar-edicion",
-    "imagen-edit-change",
+    "imagen-media-edit-change",
     "quitar-imagen-edit",
     "eliminar",
     "update:formEditVar",
@@ -1259,17 +1191,4 @@ function existeCombinacion(ids) {
     });
 }
 
-function abrirInputImgEdit(event) {
-    const contenedor = event.currentTarget.parentElement;
-    const input = contenedor?.querySelector('input[type="file"]');
-    input?.click();
-}
-
-function onEditImgChange(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-
-    emit("imagen-edit-change", f);
-    e.target.value = "";
-}
 </script>

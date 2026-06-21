@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Marca;
 use App\Support\PublicImageStorage;
+use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,6 +14,8 @@ use Illuminate\Validation\Rule;
 
 class MarcaController extends Controller
 {
+    use HandlesMediaImages;
+
     private function empresaId(): int
     {
         return (int) Auth::user()->empresa_id;
@@ -92,8 +95,9 @@ class MarcaController extends Controller
                     ->whereNull('deleted_at')
                 ),
             ],
-            'logo'   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
-            'activo' => ['nullable', 'boolean'],
+            'logo'          => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
+            'logo_media_id' => ['nullable', 'integer'],
+            'activo'        => ['nullable', 'boolean'],
         ], [
             'nombre.required' => 'El nombre de la marca es obligatorio.',
             'nombre.unique'   => 'Ya existe una marca con ese nombre en esta empresa.',
@@ -108,8 +112,12 @@ class MarcaController extends Controller
         $marca->nombre      = $datos['nombre'];
         $marca->activo      = $datos['activo'] ?? true;
 
-        if ($request->hasFile('logo')) {
-            $marca->logo = PublicImageStorage::store($request->file('logo'), 'marcas/logos');
+        if ($request->filled('logo_media_id')) {
+            $marca->save(); // necesitamos id antes de crear mediable
+            $marca->logo = $this->asignarImagenDesdeMedia($marca, (int) $request->logo_media_id, 'logo');
+        } elseif ($request->hasFile('logo')) {
+            $marca->save();
+            $marca->logo = $this->subirYRegistrarImagen($marca, $request->file('logo'), 'marcas/logos', 'logo');
         }
 
         $marca->save();
@@ -143,6 +151,7 @@ class MarcaController extends Controller
                 )->ignore($id),
             ],
             'logo'          => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
+            'logo_media_id' => ['nullable', 'integer'],
             'eliminar_logo' => ['nullable', 'boolean'],
             'activo'        => ['nullable', 'boolean'],
         ], [
@@ -153,18 +162,19 @@ class MarcaController extends Controller
         $marca->nombre = $datos['nombre'];
         $marca->activo = $datos['activo'] ?? $marca->activo;
 
-        // Eliminar logo si se pidió
-        if (! empty($datos['eliminar_logo']) && $marca->logo) {
-            Storage::disk('public')->delete($marca->logo);
+        // Quitar logo
+        if (! empty($datos['eliminar_logo'])) {
+            $this->quitarReferenciaMedia($marca, 'logo');
+            $this->borrarArchivoLegacy($marca->logo);
             $marca->logo = null;
         }
 
-        // Subir nuevo logo
-        if ($request->hasFile('logo')) {
-            if ($marca->logo) {
-                Storage::disk('public')->delete($marca->logo);
-            }
-            $marca->logo = PublicImageStorage::store($request->file('logo'), 'marcas/logos');
+        // Logo desde biblioteca
+        if ($request->filled('logo_media_id')) {
+            $marca->logo = $this->asignarImagenDesdeMedia($marca, (int) $request->logo_media_id, 'logo');
+        } elseif ($request->hasFile('logo')) {
+            $this->borrarArchivoLegacy($marca->logo);
+            $marca->logo = $this->subirYRegistrarImagen($marca, $request->file('logo'), 'marcas/logos', 'logo');
         }
 
         $marca->save();

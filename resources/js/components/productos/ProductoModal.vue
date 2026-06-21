@@ -142,7 +142,7 @@
 
                             <div>
                                 <BaseSearchSelect
-                                    v-model.number="formProxy.marca_id"
+                                    :modelValue="formProxy.marca_id"
                                     :fetcher="buscarMarcas"
                                     :selected-item="marcaSeleccionada"
                                     label="Marca"
@@ -150,7 +150,7 @@
                                     :label-key="(m) => m.nombre"
                                     value-key="id"
                                     :disabled="cargando"
-                                    @change="formProxy.modelo_id = ''"
+                                    @update:modelValue="(v) => { emit('update:form', { ...props.form, marca_id: v ?? '', modelo_id: '' }) }"
                                 />
                             </div>
 
@@ -183,68 +183,14 @@
                             </div>
 
                             <div class="md:col-span-2">
-                                <label
-                                    class="text-sm font-medium text-slate-700"
-                                    >Imagen de referencia</label
-                                >
-                                <div class="mt-2 flex items-center gap-3">
-                                    <div
-                                        class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
-                                    >
-                                        <img
-                                            v-if="
-                                                formProxy.imagenPreview ||
-                                                formProxy.imagenActualUrl
-                                            "
-                                            :src="
-                                                formProxy.imagenPreview ||
-                                                formProxy.imagenActualUrl
-                                            "
-                                            alt="preview"
-                                            class="h-full w-full object-contain"
-                                        />
-                                        <span
-                                            v-else
-                                            class="text-xs text-slate-400"
-                                            >Sin imagen</span
-                                        >
-                                    </div>
-
-                                    <div class="flex flex-col gap-2">
-                                        <input
-                                            ref="inputImagen"
-                                            type="file"
-                                            accept="image/*"
-                                            class="hidden"
-                                            @change="onFileChange"
-                                        />
-                                        <button
-                                            type="button"
-                                            @click="inputImagen?.click()"
-                                            class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                                        >
-                                            {{
-                                                formProxy.imagenActualUrl ||
-                                                formProxy.imagenPreview
-                                                    ? "Cambiar"
-                                                    : "Subir imagen"
-                                            }}
-                                        </button>
-                                        <button
-                                            v-if="
-                                                formProxy.imagenActualUrl ||
-                                                formProxy.imagenPreview
-                                            "
-                                            type="button"
-                                            @click="emit('quitar-imagen')"
-                                            class="inline-flex items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
-                                        >
-                                            Quitar
-                                        </button>
-                                        <p class="text-xs text-slate-500">
-                                            JPG, PNG o WebP · Máx. 2MB
-                                        </p>
-                                    </div>
+                                <label class="text-sm font-medium text-slate-700">Imagen de referencia</label>
+                                <div class="mt-2">
+                                    <MediaPicker
+                                        :model-value="formProxy.imagenMedia"
+                                        carpeta-tipo="producto"
+                                        @update:model-value="emit('imagen-media-change', $event)"
+                                        @clear="emit('quitar-imagen')"
+                                    />
                                 </div>
                             </div>
 
@@ -588,10 +534,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import http from "@/lib/http";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
+import MediaPicker from "@/components/media/MediaPicker.vue";
 import {
     Package,
     X,
@@ -626,13 +573,11 @@ const emit = defineEmits([
     "cerrar",
     "enviar",
     "generar-codigo",
-    "imagen-change",
+    "imagen-media-change",
     "quitar-imagen",
     "update:tabActivo",
     "update:form",
 ]);
-
-const inputImagen = ref(null);
 
 const TABS = computed(() => {
     const fallback = { general: Info, precios: DollarSign };
@@ -696,10 +641,5 @@ function setTab(id) {
     emit("update:tabActivo", id);
 }
 
-function onFileChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    emit("imagen-change", file);
-    if (inputImagen.value) inputImagen.value.value = "";
-}
+
 </script>

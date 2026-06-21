@@ -48,28 +48,14 @@
             <!-- Imagen -->
             <div>
               <label class="text-sm font-semibold text-slate-700">Imagen</label>
-
-              <div v-if="form.imagenActualUrl && !form.imagenPreview" class="mt-2 flex items-center gap-3">
-                <img :src="form.imagenActualUrl" class="h-16 w-16 rounded-xl bg-white object-contain p-2 ring-1 ring-slate-200" />
-                <button type="button" @click="$emit('remove-imagen-existing')" class="text-sm font-semibold text-rose-600 hover:underline">
-                  Eliminar
-                </button>
+              <div class="mt-2">
+                <MediaPicker
+                  :model-value="form.imagenMedia"
+                  carpeta-tipo="modelo"
+                  @update:model-value="$emit('pick-imagen', $event)"
+                  @clear="$emit('clear-imagen')"
+                />
               </div>
-
-              <div v-if="form.imagenPreview" class="mt-2 flex items-center gap-3">
-                <img :src="form.imagenPreview" class="h-16 w-16 rounded-xl bg-white object-contain p-2 ring-1 ring-slate-200" />
-                <button type="button" @click="$emit('clear-imagen')" class="text-sm font-semibold text-rose-600 hover:underline">
-                  Quitar
-                </button>
-              </div>
-
-              <input
-                type="file"
-                accept="image/*"
-                class="mt-3 w-full text-sm text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-                @change="onPick"
-              />
-              <p class="mt-1 text-xs text-slate-500">JPG, PNG o WebP. Máx. 2MB.</p>
             </div>
 
             <!-- Activo -->
@@ -120,6 +106,7 @@
 
 <script setup>
 import BaseInput from "@/components/ui/BaseInput.vue";
+import MediaPicker from "@/components/media/MediaPicker.vue";
 import { X, Loader2 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -131,17 +118,10 @@ const props = defineProps({
   errores: { type: Object, required: true },
 });
 
-const emit = defineEmits([
+defineEmits([
   "close",
   "submit",
   "pick-imagen",
   "clear-imagen",
-  "remove-imagen-existing",
 ]);
-
-function onPick(e) {
-  const file = e.target.files?.[0] ?? null;
-  if (file) e.target.value = "";
-  emit("pick-imagen", file);
-}
 </script>

@@ -46,28 +46,14 @@
             <!-- Logo -->
             <div>
               <label class="text-sm font-semibold text-slate-700">Logo</label>
-
-              <div v-if="form.logoActualUrl && !form.logoPreview" class="mt-2 flex items-center gap-3">
-                <img :src="form.logoActualUrl" class="h-16 w-16 rounded-xl bg-white object-contain p-2 ring-1 ring-slate-200" />
-                <button type="button" @click="$emit('remove-logo-existing')" class="text-sm font-semibold text-rose-600 hover:underline">
-                  Eliminar
-                </button>
+              <div class="mt-2">
+                <MediaPicker
+                  :model-value="form.logoMedia"
+                  carpeta-tipo="marca"
+                  @update:model-value="$emit('pick-logo', $event)"
+                  @clear="$emit('clear-logo')"
+                />
               </div>
-
-              <div v-if="form.logoPreview" class="mt-2 flex items-center gap-3">
-                <img :src="form.logoPreview" class="h-16 w-16 rounded-xl bg-white object-contain p-2 ring-1 ring-slate-200" />
-                <button type="button" @click="$emit('clear-logo')" class="text-sm font-semibold text-rose-600 hover:underline">
-                  Quitar
-                </button>
-              </div>
-
-              <input
-                type="file"
-                accept="image/*"
-                class="mt-3 w-full text-sm text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-                @change="onPick"
-              />
-              <p class="mt-1 text-xs text-slate-500">JPG, PNG, WebP o SVG. Máx. 2MB.</p>
             </div>
 
             <!-- Activo -->
@@ -118,6 +104,7 @@
 
 <script setup>
 import BaseInput from "@/components/ui/BaseInput.vue";
+import MediaPicker from "@/components/media/MediaPicker.vue";
 import { X, Loader2 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -129,27 +116,10 @@ const props = defineProps({
 });
 
 
-function onPick(e) {
-  const file = e.target.files?.[0] ?? null;
-  if (file) {
-    // reset para permitir seleccionar el mismo archivo de nuevo
-    e.target.value = "";
-  }
-  // emitimos el File al padre
-  // eslint-disable-next-line vue/require-explicit-emits
-  // (ya declarado arriba)
-  props.open && null;
-  // emit real:
-  // (script setup)
-  // @ts-ignore
-  emit("pick-logo", file);
-}
-
 const emit = defineEmits([
   "close",
   "submit",
   "pick-logo",
   "clear-logo",
-  "remove-logo-existing",
 ]);
 </script>

@@ -146,7 +146,7 @@
             :formatPrecio="formatPrecio"
             @cerrar="cerrarModal"
             @enviar="enviarForm"
-            @imagen-change="onImagenChange"
+            @imagen-media-change="onImagenMediaChange"
             @quitar-imagen="quitarImagen"
             @update:tabActivo="tabActivo = $event"
             @update:form="Object.assign(form, $event)"
@@ -170,7 +170,7 @@
             @toggle-editar="abrirEditarVariante"
             @cerrar-edicion="varEditandoId = null"
             @guardar-edicion="(v) => guardarEditarVariante(v.id)"
-            @imagen-edit-change="onImagenEditVarChange"
+            @imagen-media-edit-change="onImagenEditVarChange"
             @quitar-imagen-edit="quitarImagenEditVar"
             @eliminar="confirmarEliminarVariante"
             @update:formEditVar="Object.assign(formEditVar, $event)"
@@ -227,8 +227,7 @@ const form = reactive({
     marca_id: "",
     modelo_id: "",
     unidad_medida_id: "",
-    imagen: null,
-    imagenPreview: null,
+    imagenMedia: null,
     imagenActualUrl: null,
     eliminarImagen: false,
     precio_costo: 0,
@@ -268,8 +267,7 @@ const formEditVar = reactive({
     atributos: {},
     sku: "",
     codigo_barras: "",
-    imagen: null,
-    imagenPreview: null,
+    imagenMedia: null,
     imagenActualUrl: null,
     eliminarImagen: false,
     precio_costo: null,
@@ -490,6 +488,7 @@ function abrirModal(p = null) {
             tiene_series: p.tiene_series ?? false, // ← nuevo
             pedido_generico: p.pedido_generico ?? false,
             imagenActualUrl: p.imagen_url,
+            imagenMedia: p.imagen_url ? { url: p.imagen_url } : null,
         });
     }
     tabActivo.value = "general";
@@ -534,8 +533,7 @@ function resetForm() {
         marca_id: "",
         modelo_id: "",
         unidad_medida_id: "",
-        imagen: null,
-        imagenPreview: null,
+        imagenMedia: null,
         imagenActualUrl: null,
         eliminarImagen: false,
         precio_costo: 0,
@@ -562,14 +560,14 @@ function resetForm() {
     modal.idEditando = null;
 }
 
-function onImagenChange(file) {
-    form.imagen = file;
-    form.imagenPreview = URL.createObjectURL(file);
+function onImagenMediaChange(media) {
+    form.imagenMedia = media;
+    form.imagenActualUrl = media?.url ?? null;
+    form.eliminarImagen = false;
 }
 
 function quitarImagen() {
-    form.imagen = null;
-    form.imagenPreview = null;
+    form.imagenMedia = null;
     form.imagenActualUrl = null;
     form.eliminarImagen = true;
 }
@@ -630,7 +628,7 @@ async function enviarForm() {
     fd.append("tiene_series", form.tiene_series ? "1" : "0"); // ← nuevo
     fd.append("pedido_generico", form.pedido_generico ? "1" : "0");
     if (form.eliminarImagen) fd.append("eliminar_imagen", "1");
-    if (form.imagen) fd.append("imagen", form.imagen);
+    if (form.imagenMedia?.id) fd.append("imagen_media_id", form.imagenMedia.id);
     try {
         if (modal.editando) {
             fd.append("_method", "PUT");
@@ -731,8 +729,7 @@ function abrirEditarVariante(v) {
         atributos: atributosEdit,
         sku: v.sku ?? "",
         codigo_barras: v.codigo_barras ?? "",
-        imagen: null,
-        imagenPreview: null,
+        imagenMedia: v.imagen_url ? { url: v.imagen_url } : null,
         imagenActualUrl: v.imagen_url ?? null,
         eliminarImagen: false,
         precio_costo: v.precio_costo ?? null,
@@ -750,16 +747,14 @@ function abrirEditarVariante(v) {
     });
 }
 
-function onImagenEditVarChange(file) {
-    formEditVar.imagen = file;
-    formEditVar.imagenPreview = URL.createObjectURL(file);
-    formEditVar.imagenActualUrl = null;
+function onImagenEditVarChange(media) {
+    formEditVar.imagenMedia = media;
+    formEditVar.imagenActualUrl = media?.url ?? null;
     formEditVar.eliminarImagen = false;
 }
 
 function quitarImagenEditVar() {
-    formEditVar.imagen = null;
-    formEditVar.imagenPreview = null;
+    formEditVar.imagenMedia = null;
     formEditVar.imagenActualUrl = null;
     formEditVar.eliminarImagen = true;
 }
@@ -854,7 +849,7 @@ async function guardarEditarVariante(varianteId) {
         fd.append("oferta_activa", formEditVar.oferta_activa ? "1" : "0");
         fd.append("oferta_hasta", formEditVar.oferta_hasta || "");
         fd.append("activo", formEditVar.activo ? "1" : "0");
-        if (formEditVar.imagen) fd.append("imagen", formEditVar.imagen);
+        if (formEditVar.imagenMedia?.id) fd.append("imagen_media_id", formEditVar.imagenMedia.id);
         if (formEditVar.eliminarImagen) fd.append("eliminar_imagen", "1");
         const { data } = await http.post(
             `/api/productos/${modalVar.productoId}/variantes/${varianteId}`,

@@ -43,6 +43,7 @@ use App\Http\Controllers\DevolucionProveedorController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EtiquetaController;
+use App\Http\Controllers\MediaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -139,6 +140,22 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Media (biblioteca de imágenes)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/media/resumen', [MediaController::class, 'resumen']);
+    Route::delete('/media/limpiar-huerfanas', [MediaController::class, 'limpiarHuerfanas']);
+    Route::get('/media', [MediaController::class, 'index']);
+    Route::post('/media', [MediaController::class, 'store']);
+    Route::delete('/media/{id}', [MediaController::class, 'destroy']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Productos
+    |--------------------------------------------------------------------------
+    */
     Route::get('/productos/atributos-empresa', [ProductoController::class, 'atributosEmpresa']);
     Route::get('/productos/catalogo-precios', [CatalogoPreciosController::class, 'index']);
     Route::post('/productos/{id}/restore', [ProductoController::class, 'restore']);

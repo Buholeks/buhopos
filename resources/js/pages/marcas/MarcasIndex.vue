@@ -70,7 +70,6 @@
         @submit="enviarFormMarca"
         @pick-logo="onLogoMarcaChange"
         @clear-logo="limpiarLogoMarca"
-        @remove-logo-existing="removeLogoExistingMarca"
       />
 
       <!-- MODAL MODELO -->
@@ -85,7 +84,6 @@
         @submit="enviarFormModelo"
         @pick-imagen="onImagenModeloChange"
         @clear-imagen="limpiarImagenModelo"
-        @remove-imagen-existing="removeImagenExistingModelo"
       />
     </div>
   </div>
@@ -163,9 +161,7 @@ const modalMarca = reactive({ mostrar: false, editando: false, idEditando: null 
 const formMarca = reactive({
   nombre: "",
   activo: true,
-  logo: null,
-  logoPreview: null,
-  logoActualUrl: null,
+  logoMedia: null,
   eliminarLogo: false,
 });
 
@@ -179,7 +175,7 @@ function abrirModalMarca(marca = null) {
     modalMarca.idEditando = marca.id;
     formMarca.nombre = marca.nombre ?? "";
     formMarca.activo = !!marca.activo;
-    formMarca.logoActualUrl = marca.logo_url ?? null;
+    formMarca.logoMedia = marca.logo_url ? { url: marca.logo_url } : null;
   } else {
     modalMarca.editando = false;
     modalMarca.idEditando = null;
@@ -196,27 +192,19 @@ function cerrarModalMarca() {
 function resetFormMarca() {
   formMarca.nombre = "";
   formMarca.activo = true;
-  formMarca.logo = null;
-  formMarca.logoPreview = null;
-  formMarca.logoActualUrl = null;
+  formMarca.logoMedia = null;
   formMarca.eliminarLogo = false;
   erroresMarca.nombre = "";
 }
 
-function onLogoMarcaChange(file) {
-  if (!file) return;
-  formMarca.logo = file;
-  formMarca.logoPreview = URL.createObjectURL(file);
+function onLogoMarcaChange(media) {
+  formMarca.logoMedia = media;
+  formMarca.eliminarLogo = false;
 }
 
 function limpiarLogoMarca() {
-  formMarca.logo = null;
-  formMarca.logoPreview = null;
-}
-
-function removeLogoExistingMarca() {
+  formMarca.logoMedia = null;
   formMarca.eliminarLogo = true;
-  formMarca.logoActualUrl = null;
 }
 
 async function enviarFormMarca() {
@@ -236,7 +224,7 @@ async function enviarFormMarca() {
     const fd = new FormData();
     fd.append("nombre", formMarca.nombre);
     fd.append("activo", formMarca.activo ? "1" : "0");
-    if (formMarca.logo) fd.append("logo", formMarca.logo);
+    if (formMarca.logoMedia?.id) fd.append("logo_media_id", formMarca.logoMedia.id);
     if (formMarca.eliminarLogo) fd.append("eliminar_logo", "1");
 
     if (modalMarca.editando) {
@@ -307,9 +295,7 @@ const modalModelo = reactive({
 const formModelo = reactive({
   nombre: "",
   activo: true,
-  imagen: null,
-  imagenPreview: null,
-  imagenActualUrl: null,
+  imagenMedia: null,
   eliminarImagen: false,
 });
 
@@ -325,7 +311,7 @@ function abrirModalModelo(marca, modelo = null) {
     modalModelo.idEditando = modelo.id;
     formModelo.nombre = modelo.nombre ?? "";
     formModelo.activo = !!modelo.activo;
-    formModelo.imagenActualUrl = modelo.imagen_url ?? null;
+    formModelo.imagenMedia = modelo.imagen_url ? { url: modelo.imagen_url } : null;
   } else {
     modalModelo.editando = false;
     modalModelo.idEditando = null;
@@ -342,27 +328,19 @@ function cerrarModalModelo() {
 function resetFormModelo() {
   formModelo.nombre = "";
   formModelo.activo = true;
-  formModelo.imagen = null;
-  formModelo.imagenPreview = null;
-  formModelo.imagenActualUrl = null;
+  formModelo.imagenMedia = null;
   formModelo.eliminarImagen = false;
   erroresModelo.nombre = "";
 }
 
-function onImagenModeloChange(file) {
-  if (!file) return;
-  formModelo.imagen = file;
-  formModelo.imagenPreview = URL.createObjectURL(file);
+function onImagenModeloChange(media) {
+  formModelo.imagenMedia = media;
+  formModelo.eliminarImagen = false;
 }
 
 function limpiarImagenModelo() {
-  formModelo.imagen = null;
-  formModelo.imagenPreview = null;
-}
-
-function removeImagenExistingModelo() {
+  formModelo.imagenMedia = null;
   formModelo.eliminarImagen = true;
-  formModelo.imagenActualUrl = null;
 }
 
 async function enviarFormModelo() {
@@ -383,7 +361,7 @@ async function enviarFormModelo() {
     fd.append("nombre", formModelo.nombre);
     fd.append("marca_id", String(modalModelo.marcaId));
     fd.append("activo", formModelo.activo ? "1" : "0");
-    if (formModelo.imagen) fd.append("imagen", formModelo.imagen);
+    if (formModelo.imagenMedia?.id) fd.append("imagen_media_id", formModelo.imagenMedia.id);
     if (formModelo.eliminarImagen) fd.append("eliminar_imagen", "1");
 
     if (modalModelo.editando) {

@@ -9,6 +9,7 @@ use App\Models\ProductoVariante;
 use App\Models\TipoAtributo;
 use App\Models\VarianteAtributo;
 use App\Support\PublicImageStorage;
+use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +19,8 @@ use Illuminate\Validation\Rule;
 
 class ProductoController extends Controller
 {
+    use HandlesMediaImages;
+
     private function empresaId(): int
     {
         return (int) Auth::user()->empresa_id;
@@ -151,11 +154,12 @@ class ProductoController extends Controller
                 'tiene_variantes' => false,
             ]));
 
-            if ($request->hasFile('imagen')) {
-                $producto->imagen = PublicImageStorage::store(
-                    $request->file('imagen'),
-                    "productos/{$empresaId}"
-                );
+            if ($request->filled('imagen_media_id')) {
+                $producto->save();
+                $producto->imagen = $this->asignarImagenDesdeMedia($producto, (int) $request->imagen_media_id);
+            } elseif ($request->hasFile('imagen')) {
+                $producto->save();
+                $producto->imagen = $this->subirYRegistrarImagen($producto, $request->file('imagen'), "productos/{$empresaId}");
             }
 
             $producto->save();
@@ -200,20 +204,17 @@ class ProductoController extends Controller
         );
         $this->validarModeloMarca($datos);
 
-        if ($request->hasFile('imagen')) {
-            if ($producto->imagen) {
-                Storage::disk('public')->delete($producto->imagen);
-            }
-
-            $producto->imagen = PublicImageStorage::store(
-                $request->file('imagen'),
-                "productos/{$empresaId}"
-            );
+        if (!empty($datos['eliminar_imagen'])) {
+            $this->quitarReferenciaMedia($producto);
+            $this->borrarArchivoLegacy($producto->imagen);
+            $producto->imagen = null;
         }
 
-        if (!empty($datos['eliminar_imagen']) && $producto->imagen) {
-            Storage::disk('public')->delete($producto->imagen);
-            $producto->imagen = null;
+        if ($request->filled('imagen_media_id')) {
+            $producto->imagen = $this->asignarImagenDesdeMedia($producto, (int) $request->imagen_media_id);
+        } elseif ($request->hasFile('imagen')) {
+            $this->borrarArchivoLegacy($producto->imagen);
+            $producto->imagen = $this->subirYRegistrarImagen($producto, $request->file('imagen'), "productos/{$empresaId}");
         }
 
         unset($datos['imagen'], $datos['eliminar_imagen']);
@@ -317,9 +318,10 @@ class ProductoController extends Controller
             'oferta_activa' => ['nullable', 'boolean'],
             'oferta_hasta'  => ['nullable', 'date'],
             'stock_minimo'  => ['nullable', 'numeric', 'min:0'],
-            'activo'        => ['nullable', 'boolean'],
-            'imagen'        => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'atributos'     => ['required', 'array', 'min:1'],
+            'activo'          => ['nullable', 'boolean'],
+            'imagen'          => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'imagen_media_id' => ['nullable', 'integer'],
+            'atributos'       => ['required', 'array', 'min:1'],
             'atributos.*'   => ['required', 'integer', 'exists:atributos,id'],
         ]);
 
@@ -378,9 +380,7 @@ class ProductoController extends Controller
                 'empresa_id'    => $empresaId,
                 'sku'           => $toNullIfEmpty($datos['sku'] ?? null) ?: ProductoVariante::generarSku($id, $empresaId),
                 'codigo_barras' => $toNullIfEmpty($datos['codigo_barras'] ?? null),
-                'imagen'        => $request->hasFile('imagen')
-                    ? PublicImageStorage::store($request->file('imagen'), "variantes/{$empresaId}")
-                    : null,
+                'imagen'        => null,
                 'precio_costo'  => $toNullIfEmpty($datos['precio_costo'] ?? null),
                 'precio_venta'  => $toNullIfEmpty($datos['precio_venta'] ?? null),
                 'precio1'       => $toNullIfEmpty($datos['precio1'] ?? null),
@@ -412,6 +412,14 @@ class ProductoController extends Controller
                     'tipo_atributo_id' => $tipoId,
                     'atributo_id'      => $atributoId,
                 ]);
+            }
+
+            if ($request->filled('imagen_media_id')) {
+                $variante->imagen = $this->asignarImagenDesdeMedia($variante, (int) $request->imagen_media_id);
+                $variante->save();
+            } elseif ($request->hasFile('imagen')) {
+                $variante->imagen = $this->subirYRegistrarImagen($variante, $request->file('imagen'), "variantes/{$empresaId}");
+                $variante->save();
             }
 
             if (! $producto->tiene_variantes) {
@@ -462,6 +470,7 @@ class ProductoController extends Controller
             'stock_minimo'    => ['nullable', 'numeric', 'min:0'],
             'activo'          => ['nullable', 'boolean'],
             'imagen'          => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'imagen_media_id' => ['nullable', 'integer'],
             'eliminar_imagen' => ['nullable', 'boolean'],
             'atributos'       => ['nullable', 'array', 'min:1'],
             'atributos.*'     => ['required', 'integer', 'exists:atributos,id'],
@@ -535,21 +544,15 @@ class ProductoController extends Controller
             $variante->activo = $datos['activo'];
         }
 
-        if ($request->hasFile('imagen')) {
-            if ($variante->imagen) {
-                Storage::disk('public')->delete($variante->imagen);
-            }
-
-            $variante->imagen = PublicImageStorage::store(
-                $request->file('imagen'),
-                "variantes/{$variante->empresa_id}"
-            );
-        } elseif (!empty($datos['eliminar_imagen'])) {
-            if ($variante->imagen) {
-                Storage::disk('public')->delete($variante->imagen);
-            }
-
+        if (!empty($datos['eliminar_imagen'])) {
+            $this->quitarReferenciaMedia($variante);
+            $this->borrarArchivoLegacy($variante->imagen);
             $variante->imagen = null;
+        } elseif ($request->filled('imagen_media_id')) {
+            $variante->imagen = $this->asignarImagenDesdeMedia($variante, (int) $request->imagen_media_id);
+        } elseif ($request->hasFile('imagen')) {
+            $this->borrarArchivoLegacy($variante->imagen);
+            $variante->imagen = $this->subirYRegistrarImagen($variante, $request->file('imagen'), "variantes/{$variante->empresa_id}");
         }
 
         $variante->save();
@@ -663,6 +666,7 @@ class ProductoController extends Controller
                     ->whereNull('deleted_at')),
             ],
             'imagen'           => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'imagen_media_id'  => ['nullable', 'integer'],
             'eliminar_imagen'  => ['nullable', 'boolean'],
             'precio_costo'     => ['required', 'numeric', 'min:0'],
             'precio_venta'     => ['required', 'numeric', 'min:0'],

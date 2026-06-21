@@ -27,6 +27,7 @@ import ConteoInventario from "../pages/productos/ConteoInventario.vue";
 import ConsultaConteosInventario from "../pages/productos/ConsultaConteosInventario.vue";
 import Traspasos from "../pages/productos/Traspasos.vue";
 import Exhibicion from "../pages/productos/Exhibicion.vue";
+import MediaLibrary from "../pages/media/MediaLibrary.vue";
 
 import PedidosIndex from "@/pages/pedidos/PedidosIndex.vue";
 import NuevoPedido from "@/pages/pedidos/NuevoPedido.vue";
@@ -84,6 +85,7 @@ const routes = [
       { path: "unidades-medida", name: "unidades-medida", component: GestorUnidadesMedida, meta: { title: "Unidades de medida", permiso: "catalogos.ver" } },
 
       { path: "productos",       name: "productos",       component: GestorProductos, meta: { title: "Productos",         permiso: "productos.ver" } },
+      { path: "imagenes",        name: "imagenes",        component: MediaLibrary,    meta: { title: "Biblioteca de imágenes", permiso: "productos.ver" } },
       { path: "catalogo-precios",name: "catalogo-precios",component: CatalogoPrecios, meta: { title: "Catalogo de precios",permiso: "productos.precios" } },
       { path: "conteo-inventario",name: "conteo-inventario",component: ConteoInventario, meta: { title: "Conteo de inventario", permiso: "inventario.conteos.ver" } },
       { path: "conteos-inventario",name: "conteos-inventario-consulta",component: ConsultaConteosInventario, meta: { title: "Consulta de conteos", permiso: "inventario.conteos.ver" } },

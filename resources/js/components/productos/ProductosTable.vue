@@ -53,6 +53,13 @@
                     </p>
                     <div class="mt-1 flex flex-wrap gap-1">
                         <span
+                            v-if="p.tiene_variantes"
+                            class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700"
+                        >
+                            <LayoutGrid class="h-2.5 w-2.5" />
+                            {{ p.variantes_count > 0 ? p.variantes_count : '' }} variantes
+                        </span>
+                        <span
                             v-for="badge in pendientes(p)"
                             :key="badge"
                             class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"
@@ -132,15 +139,6 @@
                         </button>
 
                         <button
-                            v-if="auth.can('productos.editar')"
-                            @click.stop="$emit('editar', p)"
-                            title="Editar"
-                            class="rounded-md p-2 text-amber-600 hover:bg-amber-50"
-                        >
-                            <Pencil class="h-4 w-4" />
-                        </button>
-
-                        <button
                             @click.stop="$emit('duplicar', p)"
                             title="Duplicar producto"
                             class="rounded-md p-2 text-slate-600 hover:bg-slate-100"
@@ -167,7 +165,6 @@
 import {
     Image,
     LayoutGrid,
-    Pencil,
     Copy,
     Trash2,
 } from "lucide-vue-next";

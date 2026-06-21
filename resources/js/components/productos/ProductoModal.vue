@@ -134,7 +134,7 @@
                                     :selected-item="categoriaSeleccionada"
                                     label="Categoría"
                                     placeholder="Buscar categoría…"
-                                    :label-key="(c) => c.nombre"
+                                    :label-key="(c) => [c.padre?.padre?.nombre, c.padre?.nombre, c.nombre].filter(Boolean).join(' › ')"
                                     value-key="id"
                                     :disabled="cargando"
                                 />

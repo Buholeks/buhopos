@@ -39,6 +39,7 @@ class ProductoController extends Controller
                 'modelo:id,nombre,marca_id',
                 'unidadMedida:id,nombre,abreviatura',
             ])
+            ->withCount('variantes')
             ->orderBy('id', 'desc');
 
         if ($request->filled('categoria_id')) {
@@ -80,7 +81,10 @@ class ProductoController extends Controller
                     ->orWhereHas('modelo', fn($sq) => $sq->where('nombre', 'like', "%{$b}%"))
                     ->orWhereHas('unidadMedida', fn($sq) => $sq
                         ->where('nombre', 'like', "%{$b}%")
-                        ->orWhere('abreviatura', 'like', "%{$b}%"));
+                        ->orWhere('abreviatura', 'like', "%{$b}%"))
+                    ->orWhereHas('variantes', fn($sq) => $sq
+                        ->where('sku', 'like', "%{$b}%")
+                        ->orWhere('codigo_barras', 'like', "%{$b}%"));
             });
         }
 
@@ -635,7 +639,6 @@ class ProductoController extends Controller
                 'integer',
                 Rule::exists('categorias', 'id')->where(fn($q) => $q
                     ->where('empresa_id', $empresaId)
-                    ->where('sucursal_id', $this->sucursalId())
                     ->whereNull('deleted_at')),
             ],
             'marca_id'         => [

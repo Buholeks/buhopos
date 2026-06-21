@@ -41,9 +41,10 @@ class CategoriaController extends Controller
 
         $categorias = Categoria::deEmpresa($this->empresaId())
             ->activas()
-            ->when($q !== '', fn($query) => $query->where('nombre', 'like', "{$q}%"))
+            ->with(['padre:id,nombre,categoria_padre_id', 'padre.padre:id,nombre'])
+            ->when($q !== '', fn($query) => $query->where('nombre', 'like', "%{$q}%"))
             ->orderBy('nombre')
-            ->limit(20)
+            ->limit(30)
             ->get(['id', 'nombre', 'categoria_padre_id']);
 
         return response()->json($categorias);

@@ -64,15 +64,15 @@
                             </button>
 
                             <button
-                                @click="emit('ir-nueva')"
+                                @click="setVarTab('generar')"
                                 class="border-b-2 px-3 py-2 text-sm font-medium"
                                 :class="
-                                    varTab === 'nueva'
+                                    varTab === 'generar'
                                         ? 'border-emerald-600 text-emerald-700'
                                         : 'border-transparent text-slate-500 hover:text-slate-700'
                                 "
                             >
-                                Nueva
+                                Generar
                             </button>
 
                         </div>
@@ -249,16 +249,6 @@
                                         >
                                             <button
                                                 @click.stop="
-                                                    emit('toggle-editar', v)
-                                                "
-                                                title="Editar variante (también doble click)"
-                                                class="rounded-md p-2 text-amber-600 hover:bg-amber-50"
-                                            >
-                                                <Pencil class="h-4 w-4" />
-                                            </button>
-
-                                            <button
-                                                @click.stop="
                                                     emit('eliminar', v)
                                                 "
                                                 title="Eliminar variante"
@@ -313,16 +303,11 @@
                                                 class="grid grid-cols-1 gap-4 md:grid-cols-2"
                                             >
                                                 <div>
-                                                    <label
-                                                        class="text-sm font-medium text-slate-700"
-                                                        >SKU</label
-                                                    >
-                                                    <input
-                                                        v-model.trim="
-                                                            formEditProxy.sku
-                                                        "
+                                                    <BaseInput
+                                                        v-model.trim="formEditProxy.sku"
+                                                        label="SKU"
                                                         placeholder="Auto-generado"
-                                                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                                        input-class="font-mono"
                                                     />
                                                 </div>
 
@@ -711,7 +696,7 @@
                                 Sin variantes todavía.
                                 <button
                                     class="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-                                    @click="emit('ir-nueva')"
+                                    @click="setVarTab('generar')"
                                 >
                                     <Plus class="h-4 w-4" />
                                     Crear primera variante
@@ -719,8 +704,8 @@
                             </div>
                         </div>
 
-                        <!-- TAB: NUEVA -->
-                        <div v-show="varTab === 'nueva'">
+                        <!-- TAB: GENERAR -->
+                        <div v-show="varTab === 'generar'">
                             <div
                                 v-if="
                                     (catalogos?.tiposAtributo?.length ?? 0) ===
@@ -728,297 +713,210 @@
                                 "
                                 class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
                             >
-                                La empresa no tiene tipos de atributo
-                                configurados. Ve a <strong>Atributos</strong> y
-                                crea tipos como Color, Talla, Material.
+                                La empresa no tiene atributos configurados.
                             </div>
 
-                            <div
-                                v-else
-                                class="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2"
-                            >
+                            <div v-else class="space-y-4">
                                 <div
-                                    v-for="tipo in catalogos?.tiposAtributo ??
-                                    []"
-                                    :key="`nv-${tipo.id}`"
+                                    class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
                                 >
-                                    <BaseSearchSelect
-                                        v-model.number="
-                                            formVarProxy.atributos[tipo.id]
-                                        "
-                                        :items="tipo.atributos ?? []"
-                                        :label="tipo.nombre"
-                                        :placeholder="`Buscar ${tipo.nombre}…`"
-                                        :label-key="(a) => a.valor"
-                                        value-key="id"
-                                        :disabled="!tipo.atributos?.length"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-slate-700"
-                                    >
-                                        SKU
-                                        <span
-                                            class="text-xs font-normal text-slate-500"
-                                            >(opcional)</span
-                                        >
-                                    </label>
-                                    <input
-                                        v-model.trim="formVarProxy.sku"
-                                        placeholder="Auto-generado"
-                                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-slate-700"
-                                    >
-                                        Código de barras
-                                        <span
-                                            class="text-xs font-normal text-slate-500"
-                                            >(opcional)</span
-                                        >
-                                    </label>
-                                    <input
-                                        v-model.trim="
-                                            formVarProxy.codigo_barras
-                                        "
-                                        placeholder="EAN/UPC"
-                                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                                    />
-                                </div>
-
-                                <div class="md:col-span-2">
-                                    <label
-                                        class="text-sm font-medium text-slate-700"
-                                    >
-                                        Imagen de la variante
-                                        <span
-                                            class="text-xs font-normal text-slate-500"
-                                            >(opcional)</span
-                                        >
-                                    </label>
-
-                                    <div class="mt-2 flex items-center gap-3">
-                                        <div
-                                            class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
-                                        >
-                                            <img
-                                                v-if="
-                                                    formVarProxy.imagenPreview
-                                                "
-                                                :src="
-                                                    formVarProxy.imagenPreview
-                                                "
-                                                class="h-full w-full object-contain"
-                                                alt="preview"
-                                            />
-                                            <Image
-                                                v-else
-                                                class="h-6 w-6 text-slate-300"
-                                            />
-                                        </div>
-
-                                        <div class="flex flex-col gap-2">
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                class="hidden"
-                                                @change="onNewImgChange"
-                                            />
-
-                                            <button
-                                                type="button"
-                                                @click="
-                                                    abrirInputImgNew($event)
-                                                "
-                                                class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                                            >
-                                                {{
-                                                    formVarProxy.imagenPreview
-                                                        ? "Cambiar"
-                                                        : "Subir imagen"
-                                                }}
-                                            </button>
-
-                                            <button
-                                                v-if="
-                                                    formVarProxy.imagenPreview
-                                                "
-                                                type="button"
-                                                @click="
-                                                    emit('quitar-imagen-nueva')
-                                                "
-                                                class="inline-flex items-center justify-center rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
-                                            >
-                                                Quitar
-                                            </button>
-
-                                            <p class="text-xs text-slate-400">
-                                                JPG, PNG, WebP · 2MB
+                                    <div class="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <h3 class="text-sm font-semibold text-emerald-950">
+                                                Generador de combinaciones
+                                            </h3>
+                                            <p class="mt-1 text-xs text-emerald-700">
+                                                Selecciona varios valores por atributo y se crearan las variantes faltantes.
                                             </p>
+                                        </div>
+                                        <div class="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                                            {{ variantesGenerables.length }} nuevas
                                         </div>
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-slate-700"
+                                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                    <div
+                                        v-for="tipo in catalogos?.tiposAtributo ?? []"
+                                        :key="`gen-${tipo.id}`"
+                                        class="rounded-xl border border-slate-200 bg-white p-4"
                                     >
-                                        Precio venta
-                                        <span
-                                            class="text-xs font-normal text-slate-500"
-                                            >(vacío = hereda)</span
+                                        <div class="mb-3 flex items-center justify-between gap-3">
+                                            <div>
+                                                <h4 class="text-sm font-semibold text-slate-900">
+                                                    {{ tipo.nombre }}
+                                                </h4>
+                                                <p class="text-xs text-slate-500">
+                                                    {{ seleccionMasiva[tipo.id]?.length ?? 0 }} seleccionados
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                                @click="limpiarTipoMasivo(tipo.id)"
+                                            >
+                                                Limpiar
+                                            </button>
+                                        </div>
+
+                                        <BaseSearchSelect
+                                            v-if="(tipo.atributos ?? []).length"
+                                            :model-value="seleccionTemporal[tipo.id] ?? null"
+                                            @update:model-value="(val) => agregarValorMasivoDirecto(tipo.id, val)"
+                                            :items="valoresDisponibles(tipo)"
+                                            :placeholder="`Seleccionar ${tipo.nombre}…`"
+                                            :label-key="(a) => a.valor"
+                                            value-key="id"
+                                            :disabled="!valoresDisponibles(tipo).length"
+                                        />
+
+                                        <div v-if="(seleccionMasiva[tipo.id]?.length ?? 0) > 0" class="mt-3 flex flex-wrap gap-2">
+                                            <span
+                                                v-for="atributo in valoresSeleccionados(tipo)"
+                                                :key="atributo.id"
+                                                class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                                            >
+                                                {{ atributo.valor }}
+                                                <button
+                                                    type="button"
+                                                    class="rounded-full p-0.5 text-emerald-500 hover:bg-emerald-100 hover:text-emerald-800"
+                                                    title="Quitar"
+                                                    @click="quitarValorMasivo(tipo.id, atributo.id)"
+                                                >
+                                                    <X class="h-3 w-3" />
+                                                </button>
+                                            </span>
+                                        </div>
+
+                                        <div
+                                            v-if="!(tipo.atributos ?? []).length"
+                                            class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-500"
                                         >
-                                    </label>
-                                    <input
-                                        v-model.number="
-                                            formVarProxy.precio_venta
-                                        "
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        placeholder="—"
-                                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                                    />
+                                            Este atributo no tiene valores.
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-slate-700"
+                                <div class="rounded-xl border border-slate-200 bg-white">
+                                    <div class="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                                        <div>
+                                            <h4 class="text-sm font-semibold text-slate-900">
+                                                Vista previa
+                                            </h4>
+                                            <p class="text-xs text-slate-500">
+                                                Las combinaciones existentes se omiten automaticamente.
+                                            </p>
+                                        </div>
+                                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                                            {{ combinacionesMasivas.length }} combinaciones
+                                        </span>
+                                    </div>
+
+                                    <div class="max-h-64 overflow-y-auto p-3">
+                                        <div
+                                            v-if="combinacionesMasivas.length === 0"
+                                            class="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500"
+                                        >
+                                            Selecciona valores en al menos un atributo.
+                                        </div>
+
+                                        <div v-else class="overflow-x-auto">
+                                            <table class="min-w-full border-separate border-spacing-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="border-b border-slate-200 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                                            Variante
+                                                        </th>
+                                                        <th class="w-56 border-b border-slate-200 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                                            SKU
+                                                        </th>
+                                                        <th class="w-28 border-b border-slate-200 px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                                            Estado
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr
+                                                v-for="combo in combinacionesMasivas.slice(0, 80)"
+                                                :key="combo.key"
+                                                        class="bg-white"
+                                            >
+                                                        <td class="border-b border-slate-100 px-3 py-2">
+                                                            <div class="flex flex-wrap gap-1.5">
+                                                    <span
+                                                        v-for="parte in combo.labels"
+                                                        :key="parte"
+                                                        class="rounded-md bg-white px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
+                                                    >
+                                                        {{ parte }}
+                                                    </span>
+                                                            </div>
+                                                        </td>
+                                                        <td class="border-b border-slate-100 px-3 py-2">
+                                                            <BaseInput
+                                                                v-model.trim="skuPorCombo[combo.key]"
+                                                                :disabled="combo.existe"
+                                                                placeholder="Opcional"
+                                                                :error="skusConflicto[combo.key] ? 'Este SKU ya existe' : ''"
+                                                                input-class="font-mono text-xs py-1.5"
+                                                            />
+                                                        </td>
+                                                        <td class="border-b border-slate-100 px-3 py-2 text-center">
+                                                <span
+                                                    class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                                                    :class="
+                                                        combo.existe
+                                                            ? 'bg-amber-100 text-amber-700'
+                                                            : 'bg-emerald-100 text-emerald-700'
+                                                    "
+                                                >
+                                                    {{ combo.existe ? "Existe" : "Nueva" }}
+                                                </span>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+
+                                            <div
+                                                v-if="combinacionesMasivas.length > 80"
+                                                class="py-2 text-center text-xs text-slate-500"
+                                            >
+                                                Mostrando 80 de {{ combinacionesMasivas.length }} combinaciones.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-end gap-3">
+                                    <div
+                                        v-if="haySkusDuplicados"
+                                        class="mr-auto inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
                                     >
-                                        Stock mínimo
-                                        <span
-                                            class="text-xs font-normal text-slate-500"
-                                            >(vacío = hereda)</span
-                                        >
-                                    </label>
-                                    <input
-                                        v-model.number="
-                                            formVarProxy.stock_minimo
-                                        "
-                                        type="number"
-                                        min="0"
-                                        placeholder="—"
-                                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                                    />
-                                </div>
-
-                                <div
-                                    class="md:col-span-2 mt-2 border-t border-slate-200 pt-3 text-xs font-semibold uppercase tracking-wider text-slate-600"
-                                >
-                                    Oferta de esta variante
-                                </div>
-
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-slate-700"
-                                    >
-                                        Precio oferta
-                                        <span
-                                            class="text-xs font-normal text-slate-500"
-                                            >(opcional)</span
-                                        >
-                                    </label>
-                                    <input
-                                        v-model.number="
-                                            formVarProxy.precio_oferta
-                                        "
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        placeholder="—"
-                                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label
-                                        class="text-sm font-medium text-slate-700"
-                                    >
-                                        Válida hasta
-                                        <span
-                                            class="text-xs font-normal text-slate-500"
-                                            >(opcional)</span
-                                        >
-                                    </label>
-                                    <input
-                                        v-model="formVarProxy.oferta_hasta"
-                                        type="date"
-                                        :disabled="!formVarProxy.precio_oferta"
-                                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-100"
-                                    />
-                                </div>
-
-                                <div
-                                    class="md:col-span-2 flex items-center gap-3"
-                                >
+                                        <AlertTriangle class="h-4 w-4" />
+                                        Hay SKUs que ya existen — corrígelos antes de continuar
+                                    </div>
                                     <button
                                         type="button"
-                                        :disabled="!formVarProxy.precio_oferta"
-                                        @click="
-                                            formVarProxy.oferta_activa =
-                                                !formVarProxy.oferta_activa
-                                        "
-                                        class="relative h-6 w-11 rounded-full transition disabled:opacity-50"
-                                        :class="
-                                            formVarProxy.oferta_activa
-                                                ? 'bg-emerald-600'
-                                                : 'bg-slate-300'
-                                        "
+                                        class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                                        @click="limpiarGenerador"
                                     >
-                                        <span
-                                            class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition"
-                                            :class="
-                                                formVarProxy.oferta_activa
-                                                    ? 'left-5'
-                                                    : 'left-0.5'
-                                            "
-                                        />
+                                        Limpiar
                                     </button>
-
-                                    <span class="text-sm text-slate-700">
-                                        {{
-                                            formVarProxy.oferta_activa
-                                                ? "Oferta activa para esta variante"
-                                                : "Sin oferta activa"
-                                        }}
-                                    </span>
+                                    <button
+                                        type="button"
+                                        :disabled="cargandoVar || variantesGenerables.length === 0 || haySkusDuplicados"
+                                        class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                                        @click="emit('crear-masivo', variantesGenerables)"
+                                    >
+                                        <Loader2
+                                            v-if="cargandoVar"
+                                            class="h-4 w-4 animate-spin"
+                                        />
+                                        <Plus v-else class="h-4 w-4" />
+                                        Crear {{ variantesGenerables.length }} variantes
+                                    </button>
                                 </div>
-                            </div>
-
-                            <div
-                                class="mt-4 flex items-center justify-end gap-3"
-                            >
-                                <div
-                                    v-if="combinacionDuplicada"
-                                    class="mr-auto inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
-                                >
-                                    <AlertTriangle class="h-4 w-4" />
-                                    Esta combinación ya existe
-                                </div>
-
-                                <button
-                                    @click="emit('crear')"
-                                    :disabled="
-                                        cargandoVar ||
-                                        (catalogos?.tiposAtributo?.length ??
-                                            0) === 0 ||
-                                        combinacionDuplicada ||
-                                        !algunAtributoSeleccionado
-                                    "
-                                    class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                                >
-                                    <Loader2
-                                        v-if="cargandoVar"
-                                        class="h-4 w-4 animate-spin"
-                                    />
-                                    <Plus v-else class="h-4 w-4" />
-                                    Agregar variante
-                                </button>
                             </div>
                         </div>
 
@@ -1048,7 +946,7 @@
 
                                     <button
                                         class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700"
-                                        @click="emit('ir-nueva')"
+                                        @click="setVarTab('generar')"
                                     >
                                         <Plus class="h-4 w-4" />
                                         Nueva variante
@@ -1109,13 +1007,13 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
+import BaseInput from "@/components/ui/BaseInput.vue";
 import {
     LayoutGrid,
     X,
     Image,
-    Pencil,
     Trash2,
     Plus,
     Loader2,
@@ -1126,6 +1024,7 @@ import {
 const props = defineProps({
     mostrar: { type: Boolean, default: false },
     productoNombre: { type: String, default: "" },
+    resetGeneradorKey: { type: Number, default: 0 },
 
     catalogos: { type: Object, default: () => ({ tiposAtributo: [] }) },
     variantes: { type: Array, default: () => [] },
@@ -1134,11 +1033,7 @@ const props = defineProps({
     varEditandoId: { type: [Number, String, null], default: null },
     cargandoVar: { type: Boolean, default: false },
 
-    formVar: { type: Object, required: true },
     formEditVar: { type: Object, required: true },
-
-    combinacionDuplicada: { type: Boolean, default: false },
-    algunAtributoSeleccionado: { type: Boolean, default: false },
 
     formatPrecio: { type: Function, required: true },
     resumenPorTipo: { type: Function, default: null },
@@ -1147,24 +1042,15 @@ const props = defineProps({
 const emit = defineEmits([
     "cerrar",
     "update:varTab",
-    "ir-nueva",
-    "crear",
-    "imagen-nueva-change",
-    "quitar-imagen-nueva",
+    "crear-masivo",
     "toggle-editar",
     "cerrar-edicion",
     "guardar-edicion",
     "imagen-edit-change",
     "quitar-imagen-edit",
     "eliminar",
-    "update:formVar",
     "update:formEditVar",
 ]);
-
-const formVarProxy = computed({
-    get: () => props.formVar,
-    set: (v) => emit("update:formVar", v),
-});
 
 const formEditProxy = computed({
     get: () => props.formEditVar,
@@ -1172,6 +1058,27 @@ const formEditProxy = computed({
 });
 
 const busquedaVariante = ref("");
+const seleccionMasiva = ref({});
+const seleccionTemporal = ref({});
+const skuPorCombo = ref({});
+
+const existingSkus = computed(() =>
+    new Set((props.variantes ?? []).map((v) => v.sku).filter(Boolean)),
+);
+
+const skusConflicto = computed(() => {
+    const result = {};
+    for (const [key, sku] of Object.entries(skuPorCombo.value)) {
+        if (sku && existingSkus.value.has(sku)) {
+            result[key] = true;
+        }
+    }
+    return result;
+});
+
+const haySkusDuplicados = computed(() =>
+    Object.keys(skusConflicto.value).length > 0,
+);
 
 const variantesFiltradas = computed(() => {
     const q = busquedaVariante.value.trim().toLowerCase();
@@ -1203,28 +1110,159 @@ const variantesInactivas = computed(
     () => (props.variantes ?? []).filter((v) => !v.activo).length,
 );
 
+const combinacionesMasivas = computed(() => {
+    const grupos = (props.catalogos?.tiposAtributo ?? [])
+        .map((tipo) => {
+            const ids = seleccionMasiva.value[tipo.id] ?? [];
+            const valores = ids
+                .map((id) => (tipo.atributos ?? []).find((a) => Number(a.id) === Number(id)))
+                .filter(Boolean);
+
+            return valores.length
+                ? {
+                      tipoId: tipo.id,
+                      tipoNombre: tipo.nombre,
+                      valores,
+                  }
+                : null;
+        })
+        .filter(Boolean);
+
+    if (!grupos.length) return [];
+
+    return productoCartesiano(grupos).map((items, index) => {
+        const atributos = Object.fromEntries(
+            items.map((item) => [item.tipoId, item.atributo.id]),
+        );
+        const ids = Object.values(atributos).map(Number).sort((a, b) => a - b);
+        const labels = items.map((item) => item.atributo.valor);
+        return {
+            key: ids.join("-"),
+            atributos,
+            labels,
+            sku: skuPorCombo.value[ids.join("-")] ?? "",
+            existe: existeCombinacion(ids),
+        };
+    });
+});
+
+const variantesGenerables = computed(() =>
+    combinacionesMasivas.value.filter((combo) => !combo.existe),
+);
+
 function setVarTab(t) {
     emit("update:varTab", t);
 }
 
-function abrirInputImgNew(event) {
-    const contenedor = event.currentTarget.parentElement;
-    const input = contenedor?.querySelector('input[type="file"]');
-    input?.click();
+watch(
+    () => props.resetGeneradorKey,
+    () => limpiarGenerador(),
+);
+
+function valoresSeleccionados(tipo) {
+    const ids = seleccionMasiva.value[tipo.id] ?? [];
+    return ids
+        .map((id) => (tipo.atributos ?? []).find((a) => Number(a.id) === Number(id)))
+        .filter(Boolean);
+}
+
+function valoresDisponibles(tipo) {
+    const ids = new Set((seleccionMasiva.value[tipo.id] ?? []).map(Number));
+    return (tipo.atributos ?? []).filter((atributo) => !ids.has(Number(atributo.id)));
+}
+
+function agregarValorMasivo(tipoId) {
+    const atributoId = seleccionTemporal.value[tipoId];
+    if (!atributoId) return;
+
+    const actual = [...(seleccionMasiva.value[tipoId] ?? [])];
+    if (!actual.some((id) => Number(id) === Number(atributoId))) {
+        actual.push(Number(atributoId));
+    }
+
+    seleccionMasiva.value = {
+        ...seleccionMasiva.value,
+        [tipoId]: actual,
+    };
+    seleccionTemporal.value = {
+        ...seleccionTemporal.value,
+        [tipoId]: "",
+    };
+}
+
+function agregarValorMasivoDirecto(tipoId, atributoId) {
+    if (!atributoId) return;
+
+    const actual = [...(seleccionMasiva.value[tipoId] ?? [])];
+    if (!actual.some((id) => Number(id) === Number(atributoId))) {
+        actual.push(Number(atributoId));
+    }
+
+    seleccionMasiva.value = { ...seleccionMasiva.value, [tipoId]: actual };
+    seleccionTemporal.value = { ...seleccionTemporal.value, [tipoId]: null };
+}
+
+function quitarValorMasivo(tipoId, atributoId) {
+    const actual = [...(seleccionMasiva.value[tipoId] ?? [])].filter(
+        (id) => Number(id) !== Number(atributoId),
+    );
+
+    seleccionMasiva.value = {
+        ...seleccionMasiva.value,
+        [tipoId]: actual,
+    };
+}
+
+function limpiarTipoMasivo(tipoId) {
+    seleccionMasiva.value = {
+        ...seleccionMasiva.value,
+        [tipoId]: [],
+    };
+    seleccionTemporal.value = {
+        ...seleccionTemporal.value,
+        [tipoId]: "",
+    };
+}
+
+function limpiarGenerador() {
+    seleccionMasiva.value = {};
+    seleccionTemporal.value = {};
+    skuPorCombo.value = {};
+}
+
+function productoCartesiano(grupos) {
+    return grupos.reduce(
+        (acc, grupo) =>
+            acc.flatMap((combo) =>
+                grupo.valores.map((atributo) => [
+                    ...combo,
+                    {
+                        tipoId: grupo.tipoId,
+                        tipoNombre: grupo.tipoNombre,
+                        atributo,
+                    },
+                ]),
+            ),
+        [[]],
+    );
+}
+
+function existeCombinacion(ids) {
+    return (props.variantes ?? []).some((variante) => {
+        const existentes = (variante.atributos ?? [])
+            .map((va) => va.atributo_id ?? va.atributo?.id)
+            .filter(Boolean)
+            .map(Number)
+            .sort((a, b) => a - b);
+
+        return JSON.stringify(existentes) === JSON.stringify(ids);
+    });
 }
 
 function abrirInputImgEdit(event) {
     const contenedor = event.currentTarget.parentElement;
     const input = contenedor?.querySelector('input[type="file"]');
     input?.click();
-}
-
-function onNewImgChange(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-
-    emit("imagen-nueva-change", f);
-    e.target.value = "";
 }
 
 function onEditImgChange(e) {

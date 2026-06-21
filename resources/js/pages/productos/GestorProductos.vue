@@ -27,7 +27,7 @@
                 <div class="relative">
                     <BaseInput
                         v-model="busqueda"
-                        placeholder="Buscar nombre o código…"
+                        placeholder="Nombre, código, SKU variante…"
                         :rootClass="'w-full sm:w-64'"
                         @input="buscarDebounce"
                     />
@@ -161,24 +161,18 @@
             :varTab="varTab"
             :varEditandoId="varEditandoId"
             :cargandoVar="cargandoVar"
-            :formVar="formVar"
             :formEditVar="formEditVar"
-            :combinacionDuplicada="combinacionDuplicada"
-            :algunAtributoSeleccionado="algunAtributoSeleccionado"
+            :reset-generador-key="resetGeneradorKey"
             :formatPrecio="formatPrecio"
             @cerrar="cerrarVariantes"
             @update:varTab="varTab = $event"
-            @ir-nueva="irNuevaVariante"
-            @crear="agregarVariante"
-            @imagen-nueva-change="onImagenVarChange"
-            @quitar-imagen-nueva="quitarImagenNuevaVar"
+            @crear-masivo="agregarVariantesMasivas"
             @toggle-editar="abrirEditarVariante"
             @cerrar-edicion="varEditandoId = null"
             @guardar-edicion="(v) => guardarEditarVariante(v.id)"
             @imagen-edit-change="onImagenEditVarChange"
             @quitar-imagen-edit="quitarImagenEditVar"
             @eliminar="confirmarEliminarVariante"
-            @update:formVar="Object.assign(formVar, $event)"
             @update:formEditVar="Object.assign(formEditVar, $event)"
         />
     </div>
@@ -267,19 +261,7 @@ const modalVar = reactive({
 });
 const varTab = ref("lista");
 const variantes = ref([]);
-
-const formVar = reactive({
-    atributos: {},
-    sku: "",
-    codigo_barras: "",
-    imagen: null,
-    imagenPreview: null,
-    precio_venta: null,
-    stock_minimo: null,
-    precio_oferta: null,
-    oferta_activa: false,
-    oferta_hasta: "",
-});
+const resetGeneradorKey = ref(0);
 
 const varEditandoId = ref(null);
 const formEditVar = reactive({
@@ -316,36 +298,12 @@ const margen = computed(() => {
     return ((form.precio_venta - form.precio_costo) / form.precio_costo) * 100;
 });
 
-const combinacionDuplicada = computed(() => {
-    const sel = Object.values(formVar.atributos)
-        .filter((v) => v !== "" && v !== null)
-        .map(Number)
-        .sort();
-    if (!sel.length) return false;
-    return variantes.value.some((v) => {
-        const ex = (v.atributos ?? [])
-            .map((va) => va.atributo_id ?? va.atributo?.id)
-            .filter(Boolean)
-            .map(Number)
-            .sort();
-        return JSON.stringify(ex) === JSON.stringify(sel);
-    });
-});
-
-const algunAtributoSeleccionado = computed(() =>
-    Object.values(formVar.atributos).some((v) => v !== "" && v !== null),
-);
-
 // ── Init ───────────────────────────────────────────────────────────────────────
 onMounted(() => Promise.all([cargarProductos(), cargarCatalogos()]));
 
 async function cargarCatalogos() {
     const { data } = await http.get("/api/productos/atributos-empresa");
     catalogos.tiposAtributo = data?.data ?? data;
-    formVar.atributos = {};
-    catalogos.tiposAtributo.forEach((t) => {
-        formVar.atributos[t.id] = "";
-    });
 }
 
 async function cargarProductos(pagina = 1) {
@@ -734,9 +692,8 @@ async function abrirVariantes(p) {
     modalVar.productoId = p.id;
     modalVar.productoNombre = p.nombre;
     modalVar.mostrar = true;
-    varTab.value = p.tiene_variantes ? "lista" : "nueva";
+    varTab.value = p.tiene_variantes ? "lista" : "generar";
     varEditandoId.value = null;
-    resetFormVar();
     await cargarVariantes(p.id);
 }
 
@@ -753,39 +710,6 @@ async function cargarVariantes(id) {
     } catch {
         toastError("Error al cargar variantes");
     }
-}
-
-function resetFormVar() {
-    Object.assign(formVar, {
-        sku: "",
-        codigo_barras: "",
-        imagen: null,
-        imagenPreview: null,
-        precio_venta: null,
-        stock_minimo: null,
-        precio_oferta: null,
-        oferta_activa: false,
-        oferta_hasta: "",
-    });
-    formVar.atributos = {};
-    catalogos.tiposAtributo.forEach((t) => {
-        formVar.atributos[t.id] = "";
-    });
-}
-
-function irNuevaVariante() {
-    varTab.value = "nueva";
-    resetFormVar();
-}
-
-function onImagenVarChange(file) {
-    formVar.imagen = file;
-    formVar.imagenPreview = URL.createObjectURL(file);
-}
-
-function quitarImagenNuevaVar() {
-    formVar.imagen = null;
-    formVar.imagenPreview = null;
 }
 
 function abrirEditarVariante(v) {
@@ -840,56 +764,60 @@ function quitarImagenEditVar() {
     formEditVar.eliminarImagen = true;
 }
 
-async function agregarVariante() {
-    const atributosValidos = Object.fromEntries(
-        Object.entries(formVar.atributos).filter(
-            ([, v]) => v !== "" && v !== null,
-        ),
-    );
-    if (!Object.keys(atributosValidos).length) {
-        toastError("Selecciona al menos un atributo");
+async function agregarVariantesMasivas(items) {
+    const variantesNuevas = Array.isArray(items) ? items : [];
+    if (!variantesNuevas.length) {
+        toastError("No hay variantes nuevas por crear");
         return;
     }
+
+    const confirmar = await Swal.fire({
+        title: `Crear ${variantesNuevas.length} variantes`,
+        text: "Se guardaran las combinaciones nuevas y se omitiran las existentes.",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "Crear variantes",
+        cancelButtonText: "Cancelar",
+        confirmButtonColor: "#059669",
+        reverseButtons: true,
+    });
+
+    if (!confirmar.isConfirmed) return;
+
     cargandoVar.value = true;
+    let creadas = 0;
+    let fallidas = 0;
+
     try {
-        const fd = new FormData();
-        Object.entries(atributosValidos).forEach(([k, v]) =>
-            fd.append(`atributos[${k}]`, v),
-        );
-        if (formVar.sku) fd.append("sku", formVar.sku);
-        if (formVar.codigo_barras)
-            fd.append("codigo_barras", formVar.codigo_barras);
-        if (formVar.precio_venta != null)
-            fd.append("precio_venta", formVar.precio_venta);
-        if (formVar.stock_minimo != null)
-            fd.append("stock_minimo", formVar.stock_minimo);
-        if (formVar.precio_oferta != null)
-            fd.append("precio_oferta", formVar.precio_oferta);
-        fd.append("oferta_activa", formVar.oferta_activa ? "1" : "0");
-        if (formVar.oferta_hasta)
-            fd.append("oferta_hasta", formVar.oferta_hasta);
-        if (formVar.imagen) fd.append("imagen", formVar.imagen);
-        await http.post(`/api/productos/${modalVar.productoId}/variantes`, fd);
-        toastSuccess("Variante agregada");
+        for (const item of variantesNuevas) {
+            const fd = new FormData();
+
+            Object.entries(item.atributos ?? {}).forEach(([tipoId, atributoId]) => {
+                fd.append(`atributos[${tipoId}]`, atributoId);
+            });
+
+            if (item.sku) fd.append("sku", item.sku);
+            fd.append("oferta_activa", "0");
+
+            try {
+                await http.post(`/api/productos/${modalVar.productoId}/variantes`, fd);
+                creadas++;
+            } catch {
+                fallidas++;
+            }
+        }
+
         await cargarVariantes(modalVar.productoId);
         await cargarProductos(paginacion.value.current_page);
-        const r = await Swal.fire({
-            title: "Variante creada",
-            text: "¿Deseas crear otra variante?",
-            icon: "success",
-            showCancelButton: true,
-            confirmButtonText: "Sí, crear otra",
-            cancelButtonText: "Ver lista",
-            reverseButtons: true,
-        });
-        if (r.isConfirmed) {
-            resetFormVar();
-            varTab.value = "nueva";
+
+        if (fallidas > 0) {
+            toastError(`${creadas} variantes creadas, ${fallidas} no se pudieron crear`);
         } else {
+            toastSuccess(`${creadas} variantes creadas`);
             varTab.value = "lista";
         }
-    } catch (e) {
-        toastError(e.response?.data?.message ?? "Error");
+
+        if (creadas > 0) resetGeneradorKey.value++;
     } finally {
         cargandoVar.value = false;
     }

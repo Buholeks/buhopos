@@ -87,7 +87,7 @@ function resolverDimensiones(plantilla, perfil) {
 
 function envolver(cuerpo, ancho, alto, plantilla, transformacion) {
     return `<!doctype html><html><head><meta charset="utf-8"><title></title><style>
-      @page { size: ${ancho}mm ${alto}mm; margin: 0mm; }
+      @page { size: ${ancho}mm ${alto}mm ${ancho >= alto ? "landscape" : "portrait"}; margin: 0mm; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
       html, body { width: ${ancho}mm; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .page { display: block; position: relative; width: ${ancho}mm; height: ${alto}mm; overflow: hidden; break-after: page; page-break-after: always; }

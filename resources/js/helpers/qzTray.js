@@ -95,6 +95,7 @@ export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {
         size: { width: anchomm, height: altomm },
         units: "mm",
         margins: { top: 0, right: 0, bottom: 0, left: 0 },
+        orientation: anchomm >= altomm ? "landscape" : "portrait",
         colorType: "blackwhite",
         duplex: false,
         copies: 1,

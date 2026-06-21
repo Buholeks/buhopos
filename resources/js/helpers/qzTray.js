@@ -92,9 +92,9 @@ export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {
     if (!qz.websocket.isActive()) throw new Error("QZ Tray no está conectado.");
 
     const config = qz.configs.create(nombreImpresora, {
-        size: { width: anchomm, height: altomm },
+        size: { width: anchomm, height: 3000 },
         units: "mm",
-        margins: { top: 0, right: 0, bottom: 0, left: 0 },
+        margins: 0,
         colorType: "blackwhite",
         duplex: false,
         copies: 1,

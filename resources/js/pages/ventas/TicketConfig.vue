@@ -8,7 +8,7 @@
                 </div>
                 <div class="flex gap-2">
                     <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold" @click="restaurar">Restablecer</button>
-                    <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold" @click="imprimirPrueba">Imprimir prueba</button>
+                    <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60" :disabled="imprimiendoPrueba" @click="imprimirPrueba">{{ imprimiendoPrueba ? "Imprimiendo..." : "Imprimir prueba" }}</button>
                     <button class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white" @click="guardar">Guardar</button>
                 </div>
             </div>
@@ -424,6 +424,7 @@ const textoLibre = ref("");
 const conectado = ref(false);
 const impresoras = ref([]);
 const impresoraLocal = ref("");
+const imprimiendoPrueba = ref(false);
 
 const anchoInterior = computed(() => cfg.ancho_mm - 2 * cfg.margen_mm);
 
@@ -564,10 +565,14 @@ async function recargarImpresoras() {
 function guardarImpresora() { guardarImpresoraTicket(impresoraLocal.value); }
 
 async function imprimirPrueba() {
+    if (imprimiendoPrueba.value) return;
+    imprimiendoPrueba.value = true;
     try {
         await imprimirTicketVenta(muestra, impresoraLocal.value || null);
     } catch (err) {
         Swal.fire("Error", err.message, "error");
+    } finally {
+        imprimiendoPrueba.value = false;
     }
 }
 </script>

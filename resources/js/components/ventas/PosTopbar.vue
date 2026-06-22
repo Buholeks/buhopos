@@ -146,7 +146,7 @@
                     @click="$emit('reimprimirUltima')"
                 >
                     <Printer class="h-3.5 w-3.5 text-slate-600" />
-                    Reimprimir
+                    {{ imprimiendoUltima ? "Imprimiendo..." : "Reimprimir" }}
                 </button>
 
                 <button
@@ -236,6 +236,7 @@ const props = defineProps({
 
     disableAccionesVenta: { type: Boolean, default: false },
     disableReimprimirUltima: { type: Boolean, default: true },
+    imprimiendoUltima: { type: Boolean, default: false },
     cliente: { type: Object, default: null },
 });
 

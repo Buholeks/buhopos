@@ -8,7 +8,7 @@
                 </div>
                 <div class="flex gap-2">
                     <RouterLink to="/etiquetas/plantillas" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Diseñar plantillas</RouterLink>
-                    <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white" @click="imprimir">Imprimir {{ totalEtiquetas }} etiquetas</button>
+                    <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60" :disabled="imprimiendo" @click="imprimir">{{ imprimiendo ? "Imprimiendo..." : `Imprimir ${totalEtiquetas} etiquetas` }}</button>
                 </div>
             </div>
         </header>
@@ -92,6 +92,7 @@ const perfilId = ref(null);
 const buscar = ref("");
 const resultados = ref([]);
 const impresoraQz = ref(null);
+const imprimiendo = ref(false);
 
 const plantillaActual = computed(() => plantillas.value.find((p) => p.id === Number(plantillaId.value)));
 const perfilActual = computed(() => perfiles.value.find((p) => p.id === Number(perfilId.value)));
@@ -124,10 +125,14 @@ function quitar(item) { items.value = items.value.filter((i) => i !== item); }
 function seleccionarTodo(valor) { items.value.forEach((i) => { i.seleccionado = valor; }); }
 
 async function imprimir() {
+    if (imprimiendo.value) return;
+    imprimiendo.value = true;
     try {
         await imprimirEtiquetas({ plantilla: plantillaActual.value, perfil: perfilActual.value, items: items.value, impresoraQz: impresoraQz.value });
     } catch (e) {
         Swal.fire("No se pudo imprimir", e.response?.data?.message || e.message, "error");
+    } finally {
+        imprimiendo.value = false;
     }
 }
 </script>

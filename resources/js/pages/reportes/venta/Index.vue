@@ -665,13 +665,15 @@
                                             >
                                                 <button
                                                     type="button"
-                                                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-emerald-600"
-                                                    title="Reimprimir ticket"
+                                                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                                                    :disabled="reimprimiendoVentaId === v.id"
+                                                    :title="reimprimiendoVentaId === v.id ? 'Imprimiendo ticket' : 'Reimprimir ticket'"
                                                     @click.stop="
                                                         reimprimirVenta(v.id)
                                                     "
                                                 >
-                                                    <Printer class="h-4 w-4" />
+                                                    <Loader2 v-if="reimprimiendoVentaId === v.id" class="h-4 w-4 animate-spin" />
+                                                    <Printer v-else class="h-4 w-4" />
                                                 </button>
 
                                                 <ChevronDown
@@ -1001,6 +1003,7 @@ const props = defineProps({
     apiBase: { type: String, default: "/api/reportes/ventas" },
     cajeros: { type: Array, default: () => [] },
 });
+const reimprimiendoVentaId = ref(null);
 
 // ── Config estática ────────────────────────────────────────────────────────
 const formasPago = [
@@ -1101,12 +1104,16 @@ async function toggleDetalle(id) {
 }
 
 async function reimprimirVenta(id) {
+    if (reimprimiendoVentaId.value) return;
+    reimprimiendoVentaId.value = id;
     try {
         const { data } = await axios.get(`${props.apiBase}/${id}`);
         await imprimirTicketVenta(crearTicketVenta({ ...data, reimpresion: true }), obtenerImpresoraTicket());
     } catch (e) {
         console.error("reimprimirVenta", e);
         toastError("No se pudo reimprimir el ticket.");
+    } finally {
+        reimprimiendoVentaId.value = null;
     }
 }
 

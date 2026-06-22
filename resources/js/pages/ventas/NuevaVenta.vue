@@ -9,7 +9,8 @@
             :total="total"
             :showTotal="false"
             :disableAccionesVenta="detalles.length === 0"
-            :disableReimprimirUltima="!ultimaVentaDisponible"
+            :disableReimprimirUltima="!ultimaVentaDisponible || imprimiendoUltima"
+            :imprimiendoUltima="imprimiendoUltima"
             :cliente="cliente"
             @abrirCaja="abrirCaja"
             @modal-mov="modalMov = true"
@@ -369,6 +370,7 @@ const modalMov = ref(false);
 const guardandoMov = ref(false);
 const corteActual = ref(null);
 const abriendoCaja = ref(false);
+const imprimiendoUltima = ref(false);
 
 const store = useVentaPosStore();
 const {
@@ -1236,15 +1238,19 @@ function resetearTodo() {
 }
 
 async function reimprimirUltimaVenta() {
+    if (imprimiendoUltima.value) return;
     if (!ultimaVentaDisponible.value) {
         toastWarning("No hay una ultima venta para reimprimir");
         return;
     }
 
+    imprimiendoUltima.value = true;
     try {
         await imprimirTicketVenta(crearTicketVenta(ultimaVenta.value), obtenerImpresoraTicket());
     } catch (e) {
         toastError(e.message ?? "No se pudo reimprimir el ticket");
+    } finally {
+        imprimiendoUltima.value = false;
     }
 }
 
@@ -1399,7 +1405,7 @@ async function guardarVentaFinal() {
         return;
     }
 
-    const imprimir = await Swal.fire({
+    await Swal.fire({
         icon: "success",
         title: "¡Venta registrada!",
         html: `<p style="font-size:14px;color:#475569;">Stock actualizado correctamente.</p>`,
@@ -1408,15 +1414,18 @@ async function guardarVentaFinal() {
         confirmButtonText: "Imprimir ticket",
         cancelButtonText: "Nueva venta",
         reverseButtons: true,
+        showLoaderOnConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+        preConfirm: async () => {
+            try {
+                await imprimirTicketVenta(crearTicketVenta(res.venta), obtenerImpresoraTicket());
+            } catch (e) {
+                Swal.showValidationMessage(e.message ?? "No se pudo imprimir el ticket");
+                return false;
+            }
+            return true;
+        },
     });
-
-    if (imprimir.isConfirmed) {
-        try {
-            await imprimirTicketVenta(crearTicketVenta(res.venta), obtenerImpresoraTicket());
-        } catch (e) {
-            toastError(e.message ?? "No se pudo imprimir el ticket");
-        }
-    }
 
     busqueda.value = "";
     resultados.value = [];

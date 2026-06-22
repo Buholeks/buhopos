@@ -5,7 +5,7 @@
                 <div><h1 class="text-xl font-black">Diseñador de etiquetas</h1><p class="text-sm text-slate-500">Arrastra campos, ajusta medidas y guarda plantillas reutilizables.</p></div>
                 <div class="flex gap-2">
                     <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold" @click="nueva">Nueva plantilla</button>
-                    <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold" @click="imprimirPrueba">Imprimir prueba</button>
+                    <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60" :disabled="imprimiendoPrueba" @click="imprimirPrueba">{{ imprimiendoPrueba ? "Imprimiendo..." : "Imprimir prueba" }}</button>
                     <button class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white" @click="guardar">Guardar plantilla</button>
                 </div>
             </div>
@@ -165,6 +165,7 @@ const familiasFuente = [
 const plantillas = ref([]); const perfiles = ref([]); const variables = ref([]);
 const plantillaId = ref(null); const perfilId = ref(null); const seleccionado = ref(null); const campoPersonalizado = ref("");
 const impresoraQz = ref(null);
+const imprimiendoPrueba = ref(false);
 const edicion = reactive({ id: null, nombre: "", tipo: "compra", ancho_mm: 62, alto_mm: 29, predeterminada: false, diseno: { elementos: [] } });
 const perfil = reactive({ id: null, nombre: "Brother QL-800", impresora: "Brother QL-800", material: "precortada", ancho_mm: 62, alto_mm: 29, separacion_mm: 0, offset_x_mm: 0, offset_y_mm: 0, escala: 1, rotacion: 0, corte_automatico: true, predeterminado: false });
 const muestra = { empresa: { nombre: "MI EMPRESA", rfc: "RFC010101" }, sucursal: { nombre: "Sucursal Centro" }, compra: { folio: "12062601", fecha: "2026-06-12", folio_fecha: "12062601 · 12/06/2026", proveedor: "Proveedor" }, producto: { nombre: "Tenis deportivo", codigo: "TEN-001", marca: "Marca", modelo: "Runner", categoria: "Calzado" }, variante: { nombre: "Negro / 26 MX", sku: "TEN-N-26", codigo_barras: "7501234567890", atributos: { Color: "Negro", Talla: "26 MX" } }, precios: { compra: 500, venta: 899, precio1: 850, precio2: 800 }, calculados: { codigo_preferido: "7501234567890", producto_variante: "Tenis deportivo - Negro / 26 MX" } };
@@ -271,7 +272,15 @@ async function guardarPerfil() {
     await Swal.fire("Perfil guardado", `Medida conservada: ${data.ancho_mm} × ${data.alto_mm} mm.`, "success");
 }
 async function imprimirPrueba() {
-    await imprimirEtiquetas({ plantilla: edicion, perfil, items: [{ seleccionado: true, cantidad: 1, precio_impresion: 899, datos: muestra }], impresoraQz: impresoraQz.value });
+    if (imprimiendoPrueba.value) return;
+    imprimiendoPrueba.value = true;
+    try {
+        await imprimirEtiquetas({ plantilla: edicion, perfil, items: [{ seleccionado: true, cantidad: 1, precio_impresion: 899, datos: muestra }], impresoraQz: impresoraQz.value });
+    } catch (e) {
+        Swal.fire("No se pudo imprimir", e.response?.data?.message || e.message, "error");
+    } finally {
+        imprimiendoPrueba.value = false;
+    }
 }
 function aplicarTamanoPerfil() {
     if (perfil.material === "continua") normalizarContinua();

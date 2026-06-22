@@ -9,8 +9,8 @@
                 </div>
                 <div class="flex gap-2">
                     <RouterLink to="/etiquetas/plantillas" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Diseñar plantillas</RouterLink>
-                    <button class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700" @click="imprimirNavegador">Imprimir sin QZ</button>
-                    <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white" @click="imprimir">Imprimir {{ totalEtiquetas }} etiquetas</button>
+                    <button class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60" :disabled="imprimiendo" @click="imprimirNavegador">Imprimir sin QZ</button>
+                    <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60" :disabled="imprimiendo" @click="imprimir">{{ imprimiendo ? "Imprimiendo..." : `Imprimir ${totalEtiquetas} etiquetas` }}</button>
                 </div>
             </div>
         </header>
@@ -92,6 +92,7 @@ const perfiles = ref([]);
 const plantillaId = ref(null);
 const perfilId = ref(null);
 const impresoraQz = ref(null);
+const imprimiendo = ref(false);
 
 const plantillaActual = computed(() => plantillas.value.find((p) => p.id === Number(plantillaId.value)));
 const perfilActual = computed(() => perfiles.value.find((p) => p.id === Number(perfilId.value)));
@@ -128,13 +129,17 @@ function imprimirNavegador() {
 function seleccionarTodo(valor) { items.value.forEach((i) => { i.seleccionado = valor; }); }
 
 async function imprimir() {
+    if (imprimiendo.value) return;
     if (!plantillaActual.value) { Swal.fire("Sin plantilla", "No hay ninguna plantilla de tipo 'compra' seleccionada.", "warning"); return; }
     if (!totalEtiquetas.value) { Swal.fire("Sin etiquetas", "Selecciona al menos un artículo con cantidad > 0.", "warning"); return; }
     if (!impresoraQz.value) { Swal.fire("Sin impresora QZ", "Selecciona la impresora en el panel de QZ Tray antes de imprimir.", "warning"); return; }
+    imprimiendo.value = true;
     try {
         await imprimirEtiquetas({ plantilla: plantillaActual.value, perfil: perfilActual.value, items: items.value, impresoraQz: impresoraQz.value });
     } catch (e) {
         Swal.fire("No se pudo imprimir", e.response?.data?.message || e.message, "error");
+    } finally {
+        imprimiendo.value = false;
     }
 }
 </script>

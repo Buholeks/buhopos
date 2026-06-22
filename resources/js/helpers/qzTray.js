@@ -94,6 +94,7 @@ export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {
     const config = qz.configs.create(nombreImpresora, {
         size: { width: anchomm, height: altomm },
         units: "mm",
+        orientation: "portrait",
         margins: { top: 0, right: 0, bottom: 0, left: 0 },
         colorType: "blackwhite",
         duplex: false,
@@ -102,5 +103,5 @@ export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {
         rasterize: false,
     });
 
-    await qz.print(config, [{ type: "html", format: "plain", data: html }]);
+    await qz.print(config, [{ type: "pixel", format: "html", flavor: "plain", data: html }]);
 }

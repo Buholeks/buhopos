@@ -72,9 +72,8 @@ export function crearSvgBarcode(valor, anchoMm, altoMm, mostrarTexto = true, fue
 }
 
 function resolverDimensiones(plantilla, perfil) {
-    const esContinua = perfil?.material === "continua";
-    const ancho = Number((esContinua ? plantilla.ancho_mm : perfil?.ancho_mm) || plantilla.ancho_mm);
-    const alto = Number((esContinua ? plantilla.alto_mm : perfil?.alto_mm) || plantilla.alto_mm);
+    const ancho = Number(plantilla.ancho_mm);
+    const alto = Number(plantilla.alto_mm);
     const transformacion = crearTransformacion({
         anchoPagina: ancho, altoPagina: alto,
         anchoDiseno: Number(plantilla.ancho_mm), altoDiseno: Number(plantilla.alto_mm),

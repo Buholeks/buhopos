@@ -283,7 +283,10 @@ async function imprimirPrueba() {
     }
 }
 function aplicarTamanoPerfil() {
-    if (perfil.material === "continua") normalizarContinua();
+    if (perfil.material === "continua") {
+        edicion.ancho_mm = Math.min(62, Number(edicion.ancho_mm) || 62);
+        return;
+    }
     edicion.ancho_mm = Number(perfil.ancho_mm);
     edicion.alto_mm = Number(perfil.alto_mm);
 }

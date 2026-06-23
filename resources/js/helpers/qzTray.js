@@ -3,6 +3,7 @@ import http from "@/lib/http";
 
 const STORAGE_KEY = (perfilId) => `buhopos_qz_impresora_${perfilId}`;
 let seguridadConfigurada = false;
+let conexionEnCurso = null;
 
 // ── Certificado y firma (sin popup de confianza) ───────────────────────────────
 
@@ -30,13 +31,26 @@ function configurarSeguridad() {
 
 export async function conectar() {
     if (qz.websocket.isActive()) return true;
-    try {
-        configurarSeguridad();
-        await qz.websocket.connect({ retries: 2, delay: 1 });
-        return true;
-    } catch {
-        return false;
-    }
+    if (conexionEnCurso) return conexionEnCurso;
+
+    conexionEnCurso = (async () => {
+        try {
+            configurarSeguridad();
+            await qz.websocket.connect({ retries: 2, delay: 1 });
+            return true;
+        } catch {
+            return false;
+        } finally {
+            conexionEnCurso = null;
+        }
+    })();
+
+    return conexionEnCurso;
+}
+
+async function asegurarConexion() {
+    const conectado = await conectar();
+    if (!conectado) throw new Error("QZ Tray no está conectado.");
 }
 
 export function isConectado() {
@@ -46,7 +60,7 @@ export function isConectado() {
 // ── Impresoras ────────────────────────────────────────────────────────────────
 
 export async function listarImpresoras() {
-    if (!qz.websocket.isActive()) throw new Error("QZ Tray no está conectado.");
+    await asegurarConexion();
     const todas = await qz.printers.find();
     return Array.isArray(todas) ? todas : [todas];
 }
@@ -72,7 +86,7 @@ export const guardarImpresoraTicket = (nombre) =>
 // ── Impresión ─────────────────────────────────────────────────────────────────
 
 export async function imprimirTicketHtml(nombreImpresora, html, anchomm = 80) {
-    if (!qz.websocket.isActive()) throw new Error("QZ Tray no está conectado.");
+    await asegurarConexion();
 
     const config = qz.configs.create(nombreImpresora, {
         size: { width: anchomm, height: 3000 },
@@ -89,7 +103,7 @@ export async function imprimirTicketHtml(nombreImpresora, html, anchomm = 80) {
 }
 
 export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {
-    if (!qz.websocket.isActive()) throw new Error("QZ Tray no está conectado.");
+    await asegurarConexion();
 
     const config = qz.configs.create(nombreImpresora, {
         size: { width: anchomm, height: altomm },

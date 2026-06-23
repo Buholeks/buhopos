@@ -24,7 +24,7 @@
                     @input="onBusquedaInput"
                     @keydown.down.prevent="moverCursor(1)"
                     @keydown.up.prevent="moverCursor(-1)"
-                    @keydown.enter.prevent="seleccionarCursor"
+                    @keydown.enter.prevent="buscarOSeleccionar"
                     @keydown.escape.prevent="cerrarDropdown"
                     autocomplete="off"
                     placeholder="Escribe para buscar…"
@@ -201,6 +201,7 @@ import { Search, X, Loader2, ImageOff, CornerDownLeft } from "lucide-vue-next";
 
 const props = defineProps({
     formatPrecio: { type: Function, required: true },
+    escaneoRapido: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(["seleccionar"]);
@@ -214,6 +215,7 @@ const buscando = ref(false);
 const dropdown = ref(false);
 const cursor = ref(0);
 let buscarTimer = null;
+let requestSeq = 0;
 
 // ── Lifecycle ───────────────────────────────────────────────────────────────
 onMounted(() => {
@@ -244,36 +246,56 @@ function onBusquedaInput() {
     }
 
     buscando.value = true;
-    buscarTimer = setTimeout(async () => {
-        try {
-            const { data } = await http.get("/api/compras/buscar-variantes", {
-                params: { q },
-            });
+    buscarTimer = setTimeout(() => buscarProductos(q), 180);
+}
 
-            resultados.value = Array.isArray(data) ? data : [];
+async function buscarOSeleccionar() {
+    if (dropdown.value && resultados.value.length > 0) {
+        seleccionarCursor();
+        return;
+    }
 
-            // Selección automática por código exacto
-            if (resultados.value.length === 1) {
-                const qq = q.toLowerCase();
-                const r = resultados.value[0];
-                const exacto =
-                    r.codigo_barras?.toLowerCase() === qq ||
-                    r.sku?.toLowerCase() === qq ||
-                    r.codigo?.toLowerCase() === qq;
+    const q = busqueda.value.trim();
+    if (q.length < 1) return;
 
-                if (exacto) {
-                    seleccionarItem(r);
-                    return;
-                }
+    clearTimeout(buscarTimer);
+    await buscarProductos(q, true);
+}
+
+async function buscarProductos(q, exacta = false) {
+    const seq = ++requestSeq;
+    buscando.value = true;
+
+    try {
+        const { data } = await http.get("/api/compras/buscar-variantes", {
+            params: { q, exacta: exacta ? 1 : undefined },
+        });
+
+        if (seq !== requestSeq) return;
+
+        resultados.value = Array.isArray(data) ? data : [];
+
+        // Selección automática por código exacto
+        if (resultados.value.length === 1) {
+            const qq = q.toLowerCase();
+            const r = resultados.value[0];
+            const exacto =
+                r.codigo_barras?.toLowerCase() === qq ||
+                r.sku?.toLowerCase() === qq ||
+                r.codigo?.toLowerCase() === qq;
+
+            if (exacto) {
+                seleccionarItem(r, exacto);
+                return;
             }
-
-            dropdown.value = resultados.value.length > 0 || q.length > 1;
-        } catch {
-            toastError("Error en la búsqueda");
-        } finally {
-            buscando.value = false;
         }
-    }, 250);
+
+        dropdown.value = resultados.value.length > 0 || q.length > 1;
+    } catch {
+        toastError("Error en la búsqueda");
+    } finally {
+        if (seq === requestSeq) buscando.value = false;
+    }
 }
 
 function moverCursor(dir) {
@@ -286,7 +308,7 @@ function moverCursor(dir) {
 
 function seleccionarCursor() {
     if (!dropdown.value || resultados.value.length === 0) return;
-    seleccionarItem(resultados.value[cursor.value]);
+    seleccionarItem(resultados.value[cursor.value], false);
 }
 
 function cerrarDropdown() {
@@ -301,8 +323,11 @@ function limpiarBusqueda() {
     nextTick(() => inputRef.value?.focus());
 }
 
-function seleccionarItem(r) {
-    emit("seleccionar", r);
+function seleccionarItem(r, exacto = false) {
+    emit("seleccionar", r, {
+        escaneoRapido: props.escaneoRapido,
+        exacto,
+    });
     busqueda.value = "";
     resultados.value = [];
     dropdown.value = false;

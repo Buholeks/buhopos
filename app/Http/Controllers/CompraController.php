@@ -658,6 +658,66 @@ class CompraController extends Controller
 
         if (strlen($q) < 1) return response()->json([]);
 
+        $productoExacto = Producto::where('empresa_id', $empresaId)
+            ->where('activo', true)
+            ->where('tiene_variantes', false)
+            ->where('codigo', $q)
+            ->select('id', 'nombre', 'codigo', 'precio_costo', 'precio_venta', 'imagen', 'tiene_series', 'pedido_generico')
+            ->first();
+
+        if ($productoExacto) {
+            return response()->json([[
+                'id'              => null,
+                'producto_id'     => $productoExacto->id,
+                'nombre'          => $productoExacto->nombre,
+                'codigo'          => $productoExacto->codigo,
+                'sku'             => null,
+                'codigo_barras'   => null,
+                'nombre_variante' => null,
+                'precio_compra'   => (float) ($productoExacto->precio_costo ?? 0),
+                'precio_venta'    => (float) ($productoExacto->precio_venta ?? 0),
+                'imagen_url'      => $productoExacto->imagen_url,
+                'tiene_variantes' => false,
+                'tiene_series'    => (bool) $productoExacto->tiene_series,
+                'pedido_generico' => (bool) $productoExacto->pedido_generico,
+            ]]);
+        }
+
+        $varianteExacta = ProductoVariante::where('empresa_id', $empresaId)
+            ->where('activo', true)
+            ->where(fn($vq) => $vq
+                ->where('sku', $q)
+                ->orWhere('codigo_barras', $q))
+            ->whereHas('producto', fn($pq) => $pq
+                ->where('empresa_id', $empresaId)
+                ->where('activo', true)
+                ->where('tiene_variantes', true))
+            ->with([
+                'producto:id,nombre,codigo,precio_costo,precio_venta,imagen,tiene_series,pedido_generico',
+                'atributos.tipoAtributo:id,nombre',
+                'atributos.atributo:id,valor',
+            ])
+            ->select('id', 'producto_id', 'empresa_id', 'sku', 'codigo_barras', 'imagen', 'precio_costo', 'precio_venta')
+            ->first();
+
+        if ($varianteExacta) {
+            return response()->json([[
+                'id'              => $varianteExacta->id,
+                'producto_id'     => $varianteExacta->producto_id,
+                'nombre'          => $varianteExacta->producto->nombre,
+                'codigo'          => $varianteExacta->producto->codigo,
+                'sku'             => $varianteExacta->sku,
+                'codigo_barras'   => $varianteExacta->codigo_barras,
+                'nombre_variante' => $varianteExacta->nombreVariante(),
+                'precio_compra'   => (float) ($varianteExacta->precio_costo ?? $varianteExacta->producto->precio_costo ?? 0),
+                'precio_venta'    => (float) ($varianteExacta->precio_venta ?? $varianteExacta->producto->precio_venta ?? 0),
+                'imagen_url'      => $varianteExacta->imagen_url,
+                'tiene_variantes' => true,
+                'tiene_series'    => (bool) $varianteExacta->producto->tiene_series,
+                'pedido_generico' => (bool) $varianteExacta->producto->pedido_generico,
+            ]]);
+        }
+
         $resultados = collect();
 
         // ── 1. Productos SIN variantes ────────────────────────────────────
@@ -672,6 +732,7 @@ class CompraController extends Controller
             ->orderByDesc('pedido_generico')
             ->orderBy('nombre')
             ->limit(10)
+            ->select('id', 'nombre', 'codigo', 'precio_costo', 'precio_venta', 'imagen', 'tiene_series', 'pedido_generico')
             ->get()
             ->map(fn($p) => [
                 'id'              => null,           // sin variante_id
@@ -716,6 +777,7 @@ class CompraController extends Controller
                     )
             )
             ->limit(15)
+            ->select('id', 'producto_id', 'empresa_id', 'sku', 'codigo_barras', 'imagen', 'precio_costo', 'precio_venta')
             ->get()
             ->map(fn($v) => [
                 'id'              => $v->id,          // este es el variante_id

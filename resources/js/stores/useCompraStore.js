@@ -42,6 +42,12 @@ export const useCompraStore = defineStore("compra", () => {
     });
 
     const totalArticulos = computed(() => detalles.value.length);
+    const totalPiezas = computed(() =>
+        detalles.value.reduce((total, detalle) => {
+            const cantidad = Number(detalle.cantidad || 0);
+            return total + (Number.isFinite(cantidad) ? cantidad : 0);
+        }, 0),
+    );
     const proveedorActual = computed(() => {
         return proveedores.value.find(
             (proveedor) => Number(proveedor.id) === Number(form.proveedor_id),
@@ -139,7 +145,29 @@ export const useCompraStore = defineStore("compra", () => {
             .flatMap((d) => d.imeis ?? []);
     }
 
-    async function seleccionarItem(item) {
+    async function seleccionarItem(item, opciones = {}) {
+        const seleccionExactaRapida = Boolean(
+            opciones.escaneoRapido &&
+            opciones.exacto &&
+            !item?.tiene_series &&
+            !item?.pedido_generico
+        );
+
+        if (seleccionExactaRapida) {
+            agregarDetalle(
+                item,
+                1,
+                Number(item.precio_compra || 0),
+                Number(item.precio_venta || 0),
+                [],
+                [],
+                false,
+            );
+            toastSuccess(`+1 a ${item.nombre}`);
+            enfocarBuscador();
+            return;
+        }
+
         modalCantidad.item = item;
         modalCantidad.pedidosPendientes = [];
         modalCantidad.mostrar = true;
@@ -462,6 +490,7 @@ export const useCompraStore = defineStore("compra", () => {
 
         totalCompra,
         totalArticulos,
+        totalPiezas,
         saldoFavorDisponible,
         saldoFavorAplicado,
         restantePorPagar,

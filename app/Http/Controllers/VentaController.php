@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use App\Models\CorteCaja;
 use App\Models\Serie;
+use App\Support\ProductVariantSearch;
 use App\Support\TerminalResolver;
 
 class VentaController extends Controller
@@ -712,6 +713,7 @@ class VentaController extends Controller
         $pedidoDetalleId = $request->integer('pedido_detalle_id') ?: null;
 
         if (strlen($q) < 1) return response()->json([]);
+        $tokens = ProductVariantSearch::tokens($q);
 
         $resultados = collect();
 
@@ -815,17 +817,17 @@ class VentaController extends Controller
             return response()->json($resultados->values());
         }
 
+        if ($tokens === []) {
+            return response()->json([]);
+        }
+
         // ══════════════════════════════════════════════════════════════════════
         // CASO 2 — Productos SIN variantes
         // ══════════════════════════════════════════════════════════════════════
         $productos = Producto::where('empresa_id', $empresaId)
             ->where('activo', true)
             ->where('tiene_variantes', false)
-            ->where(
-                fn($pq) => $pq
-                    ->where('nombre', 'like', "%{$q}%")
-                    ->orWhere('codigo', 'like', "%{$q}%")
-            )
+            ->tap(fn($query) => ProductVariantSearch::applyProductoTokens($query, $tokens))
             ->select(
                 'id',
                 'nombre',
@@ -840,8 +842,12 @@ class VentaController extends Controller
                 'imagen',
                 'tiene_series'
             )
-            ->limit(10)
-            ->get();
+            ->limit(40)
+            ->get()
+            ->filter(fn($p) => ProductVariantSearch::matches($tokens, ProductVariantSearch::productoText($p)))
+            ->sortByDesc(fn($p) => ProductVariantSearch::score($tokens, $q, ['codigo' => $p->codigo], ProductVariantSearch::productoText($p)))
+            ->take(10)
+            ->values();
 
         // ── Bulk stock comprometido para productos sin variante ───────────────
         $paresProductos = $productos->map(fn($p) => ['producto_id' => $p->id, 'variante_id' => null])->all();
@@ -909,18 +915,18 @@ class VentaController extends Controller
                 'precio5'
             ])
             ->where(
-                fn($q2) => $q2
-                    ->where('sku', 'like', "%{$q}%")
-                    ->orWhere('codigo_barras', 'like', "%{$q}%")
-                    ->orWhereHas(
-                        'producto',
-                        fn($pq) => $pq
-                            ->where('nombre', 'like', "%{$q}%")
-                            ->orWhere('codigo', 'like', "%{$q}%")
-                    )
+                fn($q2) => ProductVariantSearch::applyVarianteTokens($q2, $tokens)
             )
-            ->limit(15)
-            ->get();
+            ->limit(80)
+            ->get()
+            ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)))
+            ->sortByDesc(fn($v) => ProductVariantSearch::score($tokens, $q, [
+                'codigo' => $v->producto->codigo,
+                'sku' => $v->sku,
+                'codigo_barras' => $v->codigo_barras,
+            ], ProductVariantSearch::varianteText($v)))
+            ->take(15)
+            ->values();
 
         // ── Bulk stock comprometido para variantes ────────────────────────────
         $paresVariantes = $variantes->map(fn($v) => ['producto_id' => $v->producto_id, 'variante_id' => $v->id])->all();

@@ -1,79 +1,7 @@
 <template>
-    <div class="min-h-screen bg-slate-50 text-slate-900">
-        <!-- TOPBAR -->
-        <section
-            class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-xl"
-        >
-            <div
-                class="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 sm:px-6 py-3 sm:py-4"
-            >
-                <div class="flex min-w-0 items-center gap-3">
-                    <div
-                        class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm shadow-emerald-200"
-                    >
-                        <PackagePlus class="h-5 w-5" />
-                    </div>
-
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-2">
-                            <h1
-                                class="truncate text-lg font-bold tracking-tight text-slate-950"
-                            >
-                                Nueva compra
-                            </h1>
-                            <span
-                                class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700"
-                            >
-                                Recepción
-                            </span>
-                        </div>
-                        <p class="truncate text-xs text-slate-500">
-                            Agrega mercancía, controla costos y actualiza stock.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-1.5 sm:gap-2">
-                    <button
-                        type="button"
-                        @click="panelDatos = true"
-                        class="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-white px-2.5 sm:px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                    >
-                        <SlidersHorizontal class="h-4 w-4" />
-                        <span class="hidden sm:inline">Datos</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        @click="compra.resetear"
-                        class="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-xl border border-slate-200 bg-white px-2.5 sm:px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                    >
-                        <RotateCcw class="h-4 w-4" />
-                        <span class="hidden sm:inline">Limpiar</span>
-                    </button>
-
-                    <button
-                        v-if="auth.can('compras.crear')"
-                        type="button"
-                        @click="compra.confirmarGuardar"
-                        :disabled="
-                            compra.guardando || compra.detalles.length === 0
-                        "
-                        class="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-xl bg-emerald-600 px-3 sm:px-5 text-sm font-bold text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <Loader2
-                            v-if="compra.guardando"
-                            class="h-4 w-4 animate-spin"
-                        />
-                        <CheckCircle2 v-else class="h-4 w-4" />
-                        Guardar
-                    </button>
-                </div>
-            </div>
-        </section>
-
+    <div class="min-h-screen">
         <!-- CONTENT -->
-        <main class="mx-auto max-w-7xl space-y-4 sm:space-y-5 px-3 sm:px-6 py-4 sm:py-6">
+        <main class="mx-auto max-w-7xl space-y-4 sm:space-y-5">
             <!-- RESUMEN SUPERIOR -->
             <section
                 class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px_200px]"
@@ -105,7 +33,9 @@
                                 </div>
                             </div>
 
-                            <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                            <div
+                                class="mt-2 flex flex-wrap items-center gap-1.5"
+                            >
                                 <span
                                     class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600"
                                 >
@@ -165,15 +95,10 @@
                 <div
                     class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                 >
-                    <p
-                        class="text-xs font-bold uppercase tracking-wide text-slate-400"
-                    >
-                        Mercancia
-                    </p>
                     <div class="mt-2 grid grid-cols-2 gap-3">
                         <div>
                             <p class="text-[11px] font-semibold text-slate-400">
-                                Articulos
+                                Artículos
                             </p>
                             <p class="text-2xl font-black text-slate-950">
                                 {{ compra.totalArticulos }}
@@ -211,16 +136,9 @@
             <section
                 class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
             >
-                <div class="mb-4 flex items-start justify-between gap-4">
-                    <div>
-                        <h2 class="text-base font-black text-slate-950">
-                            Agregar mercancía
-                        </h2>
-                        <p class="text-xs text-slate-500">
-                            Busca por nombre, código, SKU o código de barras.
-                        </p>
-                    </div>
-
+                <div
+                    class="mb-4 flex flex-wrap items-center justify-between gap-3"
+                >
                     <div
                         class="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1"
                     >
@@ -253,6 +171,34 @@
                             Manual
                         </button>
                     </div>
+
+                    <div class="flex shrink-0 items-center gap-2">
+                        <button
+                            type="button"
+                            @click="compra.resetear"
+                            class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                            <RotateCcw class="h-4 w-4" />
+                            Limpiar
+                        </button>
+
+                        <button
+                            v-if="auth.can('compras.crear')"
+                            type="button"
+                            @click="compra.confirmarGuardar"
+                            :disabled="
+                                compra.guardando || compra.detalles.length === 0
+                            "
+                            class="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-xs font-black text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <Loader2
+                                v-if="compra.guardando"
+                                class="h-4 w-4 animate-spin"
+                            />
+                            <CheckCircle2 v-else class="h-4 w-4" />
+                            Guardar compra
+                        </button>
+                    </div>
                 </div>
 
                 <CompraBuscador
@@ -267,34 +213,6 @@
             <section
                 class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
             >
-                <div
-                    class="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4"
-                >
-                    <div>
-                        <h2 class="text-base font-black text-slate-950">
-                            Detalle de mercancía
-                        </h2>
-                        <p class="text-xs text-slate-500">
-                            Ajusta cantidad, costo, precio de venta e IMEIs.
-                        </p>
-                    </div>
-
-                    <div
-                        class="hidden rounded-2xl bg-slate-50 px-4 py-2 text-right sm:block"
-                    >
-                        <p
-                            class="text-[10px] font-bold uppercase tracking-wide text-slate-400"
-                        >
-                            Total actual
-                        </p>
-                        <p
-                            class="font-mono text-base font-black text-emerald-700"
-                        >
-                            {{ compra.formatPrecio(compra.totalCompra) }}
-                        </p>
-                    </div>
-                </div>
-
                 <CompraDetalles
                     :detalles="compra.detalles"
                     :total="compra.totalCompra"
@@ -305,40 +223,6 @@
                 />
             </section>
         </main>
-
-        <!-- FOOTER STICKY -->
-        <section
-            class="sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 px-3 sm:px-6 py-3 backdrop-blur-xl"
-        >
-            <div
-                class="mx-auto flex max-w-7xl items-center justify-between gap-4"
-            >
-                <div class="min-w-0">
-                    <p class="truncate text-xs font-semibold text-slate-500">
-                        {{ proveedorNombre }}
-                    </p>
-                    <p class="font-mono text-lg font-black text-emerald-700">
-                        {{ compra.formatPrecio(compra.totalCompra) }}
-                    </p>
-                </div>
-
-                <button
-                    v-if="auth.can('compras.crear')"
-                    type="button"
-                    @click="compra.confirmarGuardar"
-                    :disabled="compra.guardando || compra.detalles.length === 0"
-                    class="inline-flex h-11 items-center gap-2 rounded-2xl bg-emerald-600 px-6 text-sm font-black text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    <Loader2
-                        v-if="compra.guardando"
-                        class="h-4 w-4 animate-spin"
-                    />
-                    <CheckCircle2 v-else class="h-4 w-4" />
-                    Guardar compra
-                </button>
-            </div>
-        </section>
-
         <!-- PANEL LATERAL DATOS -->
         <Teleport to="body">
             <Transition
@@ -384,7 +268,9 @@
                                 :form="compra.form"
                                 :total="compra.totalCompra"
                                 :cantidadArticulos="compra.totalArticulos"
-                                :saldoFavorDisponible="compra.saldoFavorDisponible"
+                                :saldoFavorDisponible="
+                                    compra.saldoFavorDisponible
+                                "
                                 :saldoFavorAplicado="compra.saldoFavorAplicado"
                                 :restantePorPagar="compra.restantePorPagar"
                                 :formatPrecio="compra.formatPrecio"
@@ -444,17 +330,14 @@ import { useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
 import {
-    PackagePlus,
     Loader2,
     CheckCircle2,
     RotateCcw,
     Barcode,
     Keyboard,
-    SlidersHorizontal,
     Building2,
     CalendarDays,
     CreditCard,
-    Boxes,
     X,
 } from "lucide-vue-next";
 

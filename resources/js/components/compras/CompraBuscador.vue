@@ -62,26 +62,41 @@
                 >
                     <div class="max-h-72 overflow-y-auto">
                         <div
-                            v-for="(r, i) in resultados"
-                            :key="r.id"
-                            @click="seleccionarItem(r)"
-                            @mouseenter="cursor = i"
-                            class="flex cursor-pointer items-center gap-3 px-4 py-3 transition"
-                            :class="
-                                cursor === i
-                                    ? 'bg-emerald-50'
-                                    : 'hover:bg-slate-50'
-                            "
+                            v-for="row in filasResultados"
+                            :key="row.key"
                         >
+                            <div
+                                v-if="row.tipo === 'grupo'"
+                                class="border-b border-slate-100 bg-slate-50 px-4 py-2"
+                            >
+                                <p class="truncate text-xs font-black uppercase tracking-wide text-slate-500">
+                                    {{ row.nombre }}
+                                </p>
+                                <p class="text-[11px] text-slate-400">
+                                    {{ row.total }} variante{{ row.total !== 1 ? "s" : "" }} encontrada{{ row.total !== 1 ? "s" : "" }}
+                                </p>
+                            </div>
+
+                            <div
+                                v-else
+                                @click="seleccionarItem(row.item)"
+                                @mouseenter="cursor = row.index"
+                                class="flex cursor-pointer items-center gap-3 px-4 py-3 transition"
+                                :class="
+                                    cursor === row.index
+                                        ? 'bg-emerald-50'
+                                        : 'hover:bg-slate-50'
+                                "
+                            >
                             <!-- Imagen -->
                             <div
                                 class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
                             >
                                 <img
-                                    v-if="r.imagen_url"
-                                    :src="r.imagen_url"
+                                    v-if="row.item.imagen_url"
+                                    :src="row.item.imagen_url"
                                     class="h-full w-full object-contain"
-                                    :alt="r.nombre"
+                                    :alt="row.item.nombre"
                                 />
                                 <ImageOff
                                     v-else
@@ -94,17 +109,17 @@
                                 <p
                                     class="truncate text-sm font-medium text-slate-900"
                                 >
-                                    {{ r.nombre }}
+                                    {{ row.item.nombre }}
                                     <span
-                                        v-if="r.nombre_variante"
+                                        v-if="row.item.nombre_variante"
                                         class="text-violet-600"
                                     >
-                                        - {{ r.nombre_variante }}
+                                        - {{ row.item.nombre_variante }}
                                     </span>
                                 </p>
                                 <div class="mt-0.5 flex items-center gap-2">
                                     <span
-                                        v-if="r.pedido_generico"
+                                        v-if="row.item.pedido_generico"
                                         class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-700"
                                     >
                                         Pedido genérico
@@ -112,19 +127,19 @@
                                     <span
                                         class="font-mono text-xs text-slate-400"
                                     >
-                                        {{ r.codigo }}
+                                        {{ row.item.codigo }}
                                     </span>
                                     <span
-                                        v-if="r.sku"
+                                        v-if="row.item.sku"
                                         class="font-mono text-xs text-slate-400"
                                     >
-                                        · {{ r.sku }}
+                                        · {{ row.item.sku }}
                                     </span>
                                     <span
-                                        v-if="r.codigo_barras"
+                                        v-if="row.item.codigo_barras"
                                         class="font-mono text-xs text-slate-400"
                                     >
-                                        · {{ r.codigo_barras }}
+                                        · {{ row.item.codigo_barras }}
                                     </span>
                                 </div>
                             </div>
@@ -132,10 +147,10 @@
                             <!-- Precios -->
                             <div class="text-right">
                                 <p class="font-mono text-xs text-slate-500">
-                                    Costo: {{ formatPrecio(r.precio_compra) }}
+                                    Costo: {{ formatPrecio(row.item.precio_compra) }}
                                 </p>
                                 <p class="font-mono text-xs text-emerald-600">
-                                    Venta: {{ formatPrecio(r.precio_venta) }}
+                                    Venta: {{ formatPrecio(row.item.precio_venta) }}
                                 </p>
                             </div>
 
@@ -143,13 +158,14 @@
                             <div
                                 class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
                                 :class="
-                                    cursor === i
+                                    cursor === row.index
                                         ? 'bg-emerald-100 text-emerald-700'
                                         : 'bg-slate-100 text-slate-400'
                                 "
                                 title="Enter"
                             >
                                 <CornerDownLeft class="h-4 w-4" />
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -184,7 +200,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import http from "@/lib/http";
 import Swal from "sweetalert2";
 import { toastError } from "@/lib/alert";
@@ -217,9 +233,53 @@ const cursor = ref(0);
 let buscarTimer = null;
 let requestSeq = 0;
 
+const filasResultados = computed(() => {
+    const grupos = new Map();
+
+    resultados.value.forEach((item) => {
+        const key = item.grupo_producto_id ?? item.producto_id ?? item.nombre;
+        if (!grupos.has(key)) {
+            grupos.set(key, {
+                nombre: item.grupo_producto || item.nombre,
+                total: 0,
+            });
+        }
+        grupos.get(key).total += item.tiene_variantes ? 1 : 0;
+    });
+
+    const filas = [];
+    let grupoActual = null;
+
+    resultados.value.forEach((item, index) => {
+        const grupoKey = item.tiene_variantes
+            ? (item.grupo_producto_id ?? item.producto_id ?? item.nombre)
+            : null;
+        const grupo = grupoKey ? grupos.get(grupoKey) : null;
+
+        if (grupo && grupo.total > 1 && grupoActual !== grupoKey) {
+            filas.push({
+                tipo: "grupo",
+                key: `g:${grupoKey}`,
+                nombre: grupo.nombre,
+                total: grupo.total,
+            });
+            grupoActual = grupoKey;
+        }
+
+        filas.push({
+            tipo: "item",
+            key: `i:${item.id ?? "p"}:${item.producto_id}:${index}`,
+            item,
+            index,
+        });
+    });
+
+    return filas;
+});
+
 // ── Lifecycle ───────────────────────────────────────────────────────────────
 onMounted(() => {
-    nextTick(() => inputRef.value?.focus());
+    enfocarYSeleccionar();
     document.addEventListener("click", onDocClick);
 });
 
@@ -320,7 +380,7 @@ function limpiarBusqueda() {
     busqueda.value = "";
     resultados.value = [];
     dropdown.value = false;
-    nextTick(() => inputRef.value?.focus());
+    enfocarYSeleccionar();
 }
 
 function seleccionarItem(r, exacto = false) {
@@ -328,13 +388,19 @@ function seleccionarItem(r, exacto = false) {
         escaneoRapido: props.escaneoRapido,
         exacto,
     });
-    busqueda.value = "";
     resultados.value = [];
     dropdown.value = false;
     cursor.value = 0;
-    nextTick(() => inputRef.value?.focus());
+    enfocarYSeleccionar();
+}
+
+function enfocarYSeleccionar() {
+    nextTick(() => {
+        inputRef.value?.focus();
+        inputRef.value?.select?.();
+    });
 }
 
 // Expuesto para que el padre pueda enfocar el input si necesita
-defineExpose({ focus: () => inputRef.value?.focus() });
+defineExpose({ focus: enfocarYSeleccionar });
 </script>

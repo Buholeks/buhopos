@@ -12,6 +12,7 @@ use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
 use App\Models\Producto;
 use App\Models\ProveedorSaldoMovimiento;
+use App\Support\ProductVariantSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -657,6 +658,7 @@ class CompraController extends Controller
         $q         = trim($request->q ?? '');
 
         if (strlen($q) < 1) return response()->json([]);
+        $tokens = ProductVariantSearch::tokens($q);
 
         $productoExacto = Producto::where('empresa_id', $empresaId)
             ->where('activo', true)
@@ -680,6 +682,8 @@ class CompraController extends Controller
                 'tiene_variantes' => false,
                 'tiene_series'    => (bool) $productoExacto->tiene_series,
                 'pedido_generico' => (bool) $productoExacto->pedido_generico,
+                'grupo_producto_id' => $productoExacto->id,
+                'grupo_producto'   => $productoExacto->nombre,
             ]]);
         }
 
@@ -715,7 +719,13 @@ class CompraController extends Controller
                 'tiene_variantes' => true,
                 'tiene_series'    => (bool) $varianteExacta->producto->tiene_series,
                 'pedido_generico' => (bool) $varianteExacta->producto->pedido_generico,
+                'grupo_producto_id' => $varianteExacta->producto_id,
+                'grupo_producto'   => $varianteExacta->producto->nombre,
             ]]);
+        }
+
+        if ($tokens === []) {
+            return response()->json([]);
         }
 
         $resultados = collect();
@@ -724,31 +734,35 @@ class CompraController extends Controller
         $productos = Producto::where('empresa_id', $empresaId)
             ->where('activo', true)
             ->where('tiene_variantes', false)        // solo los que no tienen variantes
-            ->where(
-                fn($pq) => $pq
-                    ->where('nombre', 'like', "%{$q}%")
-                    ->orWhere('codigo', 'like', "%{$q}%")
-            )
+            ->tap(fn($query) => ProductVariantSearch::applyProductoTokens($query, $tokens))
             ->orderByDesc('pedido_generico')
             ->orderBy('nombre')
-            ->limit(10)
+            ->limit(40)
             ->select('id', 'nombre', 'codigo', 'precio_costo', 'precio_venta', 'imagen', 'tiene_series', 'pedido_generico')
             ->get()
-            ->map(fn($p) => [
-                'id'              => null,           // sin variante_id
-                'producto_id'     => $p->id,
-                'nombre'          => $p->nombre,
-                'codigo'          => $p->codigo,
-                'sku'             => null,
-                'codigo_barras'   => null,
-                'nombre_variante' => null,
-                'precio_compra'   => (float) ($p->precio_costo ?? 0),
-                'precio_venta'    => (float) ($p->precio_venta ?? 0),
-                'imagen_url'      => $p->imagen_url,
-                'tiene_variantes' => false,
-                'tiene_series'    => (bool) $p->tiene_series,
-                'pedido_generico' => (bool) $p->pedido_generico,
-            ]);
+            ->filter(fn($p) => ProductVariantSearch::matches($tokens, ProductVariantSearch::productoText($p)))
+            ->map(function ($p) use ($tokens, $q) {
+                $searchText = ProductVariantSearch::productoText($p);
+
+                return [
+                    'id'              => null,           // sin variante_id
+                    'producto_id'     => $p->id,
+                    'nombre'          => $p->nombre,
+                    'codigo'          => $p->codigo,
+                    'sku'             => null,
+                    'codigo_barras'   => null,
+                    'nombre_variante' => null,
+                    'precio_compra'   => (float) ($p->precio_costo ?? 0),
+                    'precio_venta'    => (float) ($p->precio_venta ?? 0),
+                    'imagen_url'      => $p->imagen_url,
+                    'tiene_variantes' => false,
+                    'tiene_series'    => (bool) $p->tiene_series,
+                    'pedido_generico' => (bool) $p->pedido_generico,
+                    'grupo_producto_id' => $p->id,
+                    'grupo_producto'   => $p->nombre,
+                    '_score'         => ProductVariantSearch::score($tokens, $q, ['codigo' => $p->codigo], $searchText),
+                ];
+            });
 
         $resultados = $resultados->merge($productos);
 
@@ -766,38 +780,52 @@ class CompraController extends Controller
                 'atributos.atributo:id,valor',
             ])
             ->where(
-                fn($q2) => $q2
-                    ->where('sku', 'like', "%{$q}%")
-                    ->orWhere('codigo_barras', 'like', "%{$q}%")
-                    ->orWhereHas(
-                        'producto',
-                        fn($pq) => $pq
-                            ->where('nombre', 'like', "%{$q}%")
-                            ->orWhere('codigo', 'like', "%{$q}%")
-                    )
+                fn($q2) => ProductVariantSearch::applyVarianteTokens($q2, $tokens)
             )
-            ->limit(15)
+            ->limit(80)
             ->select('id', 'producto_id', 'empresa_id', 'sku', 'codigo_barras', 'imagen', 'precio_costo', 'precio_venta')
             ->get()
-            ->map(fn($v) => [
-                'id'              => $v->id,          // este es el variante_id
-                'producto_id'     => $v->producto_id,
-                'nombre'          => $v->producto->nombre,
-                'codigo'          => $v->producto->codigo,
-                'sku'             => $v->sku,
-                'codigo_barras'   => $v->codigo_barras,
-                'nombre_variante' => $v->nombreVariante(),
-                'precio_compra'   => (float) ($v->precio_costo ?? $v->producto->precio_costo ?? 0),
-                'precio_venta'    => (float) ($v->precio_venta ?? $v->producto->precio_venta ?? 0),
-                'imagen_url'      => $v->imagen_url,
-                'tiene_variantes' => true,
-                'tiene_series'    => (bool) $v->producto->tiene_series,
-                'pedido_generico' => (bool) $v->producto->pedido_generico,
-            ]);
+            ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)))
+            ->map(function ($v) use ($tokens, $q) {
+                $searchText = ProductVariantSearch::varianteText($v);
+
+                return [
+                    'id'              => $v->id,          // este es el variante_id
+                    'producto_id'     => $v->producto_id,
+                    'nombre'          => $v->producto->nombre,
+                    'codigo'          => $v->producto->codigo,
+                    'sku'             => $v->sku,
+                    'codigo_barras'   => $v->codigo_barras,
+                    'nombre_variante' => $v->nombreVariante(),
+                    'precio_compra'   => (float) ($v->precio_costo ?? $v->producto->precio_costo ?? 0),
+                    'precio_venta'    => (float) ($v->precio_venta ?? $v->producto->precio_venta ?? 0),
+                    'imagen_url'      => $v->imagen_url,
+                    'tiene_variantes' => true,
+                    'tiene_series'    => (bool) $v->producto->tiene_series,
+                    'pedido_generico' => (bool) $v->producto->pedido_generico,
+                    'grupo_producto_id' => $v->producto_id,
+                    'grupo_producto'   => $v->producto->nombre,
+                    '_score'         => ProductVariantSearch::score($tokens, $q, [
+                        'codigo' => $v->producto->codigo,
+                        'sku' => $v->sku,
+                        'codigo_barras' => $v->codigo_barras,
+                    ], $searchText),
+                ];
+            });
 
         $resultados = $resultados->merge($variantes)->values();
         $resultados = $resultados
+            ->sortBy([
+                fn($a, $b) => ($b['_score'] ?? 0) <=> ($a['_score'] ?? 0),
+                fn($a, $b) => strcmp($a['nombre'] ?? '', $b['nombre'] ?? ''),
+                fn($a, $b) => strcmp($a['nombre_variante'] ?? '', $b['nombre_variante'] ?? ''),
+            ])
             ->sortByDesc(fn($resultado) => (int) ($resultado['pedido_generico'] ?? false))
+            ->take(25)
+            ->map(function ($resultado) {
+                unset($resultado['_score']);
+                return $resultado;
+            })
             ->values();
 
         return response()->json($resultados);

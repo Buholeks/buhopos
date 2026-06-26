@@ -7,6 +7,7 @@ use App\Models\EtiquetaPerfil;
 use App\Models\EtiquetaPlantilla;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
+use App\Support\ProductVariantSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -182,22 +183,70 @@ class EtiquetaController extends Controller
         $empresaId = (int) Auth::user()->empresa_id;
         $texto = trim((string) $request->query('q', ''));
         if ($texto === '') return response()->json([]);
+        $tokens = ProductVariantSearch::tokens($texto);
+
+        $productoExacto = Producto::where('empresa_id', $empresaId)
+            ->where('activo', true)
+            ->where('tiene_variantes', false)
+            ->where('codigo', $texto)
+            ->with(['empresa', 'sucursal', 'marca', 'modelo', 'categoria'])
+            ->first();
+
+        if ($productoExacto) return response()->json([$this->catalogoItem($productoExacto, null)]);
+
+        $varianteExacta = ProductoVariante::where('empresa_id', $empresaId)
+            ->where('activo', true)
+            ->where(fn($q) => $q->where('sku', $texto)->orWhere('codigo_barras', $texto))
+            ->whereHas('producto', fn($p) => $p->where('empresa_id', $empresaId)->where('activo', true)->where('tiene_variantes', true))
+            ->with(['producto.empresa', 'producto.sucursal', 'producto.marca', 'producto.modelo', 'producto.categoria', 'atributos.tipoAtributo', 'atributos.atributo'])
+            ->first();
+
+        if ($varianteExacta) return response()->json([$this->catalogoItem($varianteExacta->producto, $varianteExacta)]);
+
+        if ($tokens === []) return response()->json([]);
 
         $productos = Producto::where('empresa_id', $empresaId)
             ->where('activo', true)->where('tiene_variantes', false)
             ->with(['empresa', 'sucursal', 'marca', 'modelo', 'categoria'])
-            ->where(fn($q) => $q->where('nombre', 'like', "%{$texto}%")->orWhere('codigo', 'like', "%{$texto}%"))
-            ->limit(10)->get()->map(fn($p) => $this->catalogoItem($p, null));
+            ->tap(fn($query) => ProductVariantSearch::applyProductoTokens($query, $tokens))
+            ->limit(40)->get()
+            ->filter(fn($p) => ProductVariantSearch::matches($tokens, ProductVariantSearch::productoText($p)))
+            ->map(function ($p) use ($tokens, $texto) {
+                $item = $this->catalogoItem($p, null);
+                $item['_score'] = ProductVariantSearch::score($tokens, $texto, ['codigo' => $p->codigo], ProductVariantSearch::productoText($p));
+                return $item;
+            });
 
         $variantes = ProductoVariante::where('empresa_id', $empresaId)
             ->where('activo', true)
+            ->whereHas('producto', fn($p) => $p->where('empresa_id', $empresaId)->where('activo', true)->where('tiene_variantes', true))
             ->with(['producto.empresa', 'producto.sucursal', 'producto.marca', 'producto.modelo', 'producto.categoria', 'atributos.tipoAtributo', 'atributos.atributo'])
-            ->where(fn($q) => $q->where('sku', 'like', "%{$texto}%")
-                ->orWhere('codigo_barras', 'like', "%{$texto}%")
-                ->orWhereHas('producto', fn($p) => $p->where('nombre', 'like', "%{$texto}%")->orWhere('codigo', 'like', "%{$texto}%")))
-            ->limit(15)->get()->map(fn($v) => $this->catalogoItem($v->producto, $v));
+            ->where(fn($q) => ProductVariantSearch::applyVarianteTokens($q, $tokens))
+            ->limit(80)->get()
+            ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)))
+            ->map(function ($v) use ($tokens, $texto) {
+                $item = $this->catalogoItem($v->producto, $v);
+                $item['_score'] = ProductVariantSearch::score($tokens, $texto, [
+                    'codigo' => $v->producto->codigo,
+                    'sku' => $v->sku,
+                    'codigo_barras' => $v->codigo_barras,
+                ], ProductVariantSearch::varianteText($v));
+                return $item;
+            });
 
-        return response()->json($productos->values()->concat($variantes->values()));
+        return response()->json($productos->values()
+            ->concat($variantes->values())
+            ->sortBy([
+                fn($a, $b) => ($b['_score'] ?? 0) <=> ($a['_score'] ?? 0),
+                fn($a, $b) => strcmp(data_get($a, 'datos.producto.nombre', ''), data_get($b, 'datos.producto.nombre', '')),
+                fn($a, $b) => strcmp(data_get($a, 'datos.variante.nombre', ''), data_get($b, 'datos.variante.nombre', '')),
+            ])
+            ->take(25)
+            ->map(function ($item) {
+                unset($item['_score']);
+                return $item;
+            })
+            ->values());
     }
 
     public function guardarPlantilla(Request $request, ?int $id = null): JsonResponse

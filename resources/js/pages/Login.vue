@@ -59,6 +59,19 @@
                         </template>
                     </BaseInput>
 
+                    <label class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                        <input
+                            v-model="remember"
+                            type="checkbox"
+                            class="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                        />
+                        <span>
+                            <span class="block font-medium text-slate-800">
+                                Recordar sesión
+                            </span>
+                        </span>
+                    </label>
+
                     <div
                         v-if="error"
                         class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"
@@ -155,7 +168,7 @@ const router = useRouter();
 
 const email = ref("");
 const password = ref("");
-const remember = ref(true);
+const remember = ref(false);
 const showPassword = ref(false);
 
 const error = ref("");

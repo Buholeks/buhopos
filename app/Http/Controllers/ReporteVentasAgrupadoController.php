@@ -11,11 +11,11 @@ class ReporteVentasAgrupadoController extends Controller
 {
     // ── Entidades disponibles para autocomplete ───────────────────────────
     private const ENTIDADES = [
-        'clientes'    => ['tabla' => 'clientes',    'campo' => 'nombre'],
-        'categorias'  => ['tabla' => 'categorias',  'campo' => 'nombre'],
-        'marcas'      => ['tabla' => 'marcas',       'campo' => 'nombre'],
-        'modelos'     => ['tabla' => 'modelos',      'campo' => 'nombre'],
-        'proveedores' => ['tabla' => 'proveedores',  'campo' => 'nombre_comercial'],
+        'clientes'    => ['tabla' => 'clientes',    'campo' => 'nombre',           'por_sucursal' => false],
+        'categorias'  => ['tabla' => 'categorias',  'campo' => 'nombre',           'por_sucursal' => false],
+        'marcas'      => ['tabla' => 'marcas',       'campo' => 'nombre',           'por_sucursal' => false],
+        'modelos'     => ['tabla' => 'modelos',      'campo' => 'nombre',           'por_sucursal' => false],
+        'proveedores' => ['tabla' => 'proveedores',  'campo' => 'nombre_comercial', 'por_sucursal' => false],
     ];
 
     // ─────────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ class ReporteVentasAgrupadoController extends Controller
 
     $resultados = DB::table($cfg['tabla'])
         ->where('empresa_id',  $user->empresa_id)
-        ->where('sucursal_id', $user->sucursal_id) // ← faltaba este
+        ->when($cfg['por_sucursal'], fn($q) => $q->where('sucursal_id', $user->sucursal_id))
         ->select('id', DB::raw("{$cfg['campo']} as nombre"))
         ->when($texto !== '', fn($q) => $q->where($cfg['campo'], 'like', "%{$texto}%"))
         ->orderBy($cfg['campo'])

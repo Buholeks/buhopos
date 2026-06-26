@@ -144,6 +144,7 @@ class CatalogoPreciosController extends Controller
                 'atributos' => $atributos,
                 'variante' => $atributos->pluck('valor')->join(' / '),
                 'precios' => $precios,
+                'precio_venta' => (float) $row->producto_precio_venta,
                 'precio_minimo' => collect($precios)->pluck('valor')->filter(fn($v) => $v > 0)->min(),
             ];
         });

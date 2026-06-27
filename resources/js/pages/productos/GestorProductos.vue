@@ -361,7 +361,7 @@ function duplicarProducto(p) {
     abrirModal();
     asegurarCatalogosSeleccionados(p);
     Object.assign(form, {
-        nombre: `Copia de ${p.nombre}`,
+        nombre: p.nombre,
         codigo: "",
         descripcion: p.descripcion ?? "",
         categoria_id: p.categoria_id ?? "",

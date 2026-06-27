@@ -56,6 +56,7 @@ import ReporteCaja from "@/pages/reportes/caja/Index.vue";
 import ReporteVentas from "@/pages/reportes/venta/Index.vue";
 import VentasAgrupado from "@/pages/reportes/venta/VentasAgrupado.vue";
 import ReporteUtilidades from "@/pages/reportes/utilidades/Index.vue";
+import ReporteInventario from "@/pages/reportes/inventario/Index.vue";
 
 import ConfiguracionIndex from "@/pages/configuracion/ConfiguracionIndex.vue";
 import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
@@ -125,6 +126,7 @@ const routes = [
       { path: "reportes-ventas",         name: "reportes-ventas",         component: ReporteVentas,     meta: { title: "Consulta de ventas",  permiso: "ventas.ver" } },
       { path: "reportes-ventas-agrupado",name: "reportes-ventas-agrupado",component: VentasAgrupado,    meta: { title: "Ventas agrupadas",    permiso: "ventas.ver" } },
       { path: "reportes-utilidades",     name: "reportes-utilidades",     component: ReporteUtilidades, meta: { title: "Reporte de utilidades",permiso: "reportes.utilidades" } },
+      { path: "reportes-inventario",     name: "reportes-inventario",     component: ReporteInventario, meta: { title: "Inversion en mercancia", permiso: "reportes.ver" } },
 
       { path: "configuracion", name: "configuracion", component: ConfiguracionIndex, meta: { title: "Configuración" } },
       { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios",permiso: "usuarios.gestionar" } },

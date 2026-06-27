@@ -12,6 +12,8 @@ use App\Models\Pedido;
 use App\Models\PedidoDetalle;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
+use App\Models\Atributo;
+use App\Models\VarianteAtributo;
 use App\Services\FolioService;
 use App\Support\TerminalResolver;
 use Illuminate\Http\JsonResponse;
@@ -122,6 +124,23 @@ class PedidoController extends Controller
             }
         }
 
+        foreach ($data['detalles'] as $i => $detalle) {
+            if (empty($detalle['producto_id'])) {
+                continue;
+            }
+
+            $producto = Producto::where('empresa_id', $empresaId)
+                ->select('id', 'tiene_variantes')
+                ->findOrFail($detalle['producto_id']);
+
+            if ($producto->tiene_variantes && empty($detalle['variante_id'])) {
+                return response()->json([
+                    'message' => 'Selecciona una variante para los productos que manejan variantes.',
+                    'errors' => ["detalles.{$i}.variante_id" => ['Este producto requiere una variante.']],
+                ], 422);
+            }
+        }
+
         $subtotalValidacion = collect($data['detalles'])->sum(
             fn($d) => ((float) $d['precio_acordado']) * ((int) $d['cantidad'])
         );
@@ -225,7 +244,8 @@ class PedidoController extends Controller
             ->where(fn($pq) => $pq
                 ->where('nombre', 'like', "%{$q}%")
                 ->orWhere('codigo', 'like', "%{$q}%"))
-            ->limit(12)
+            ->orderBy('nombre')
+            ->limit(20)
             ->get()
             ->map(fn($p) => [
                 'tipo_resultado' => 'producto',
@@ -240,36 +260,238 @@ class PedidoController extends Controller
                 'tiene_variantes' => (bool) $p->tiene_variantes,
             ]);
 
-        $variantes = ProductoVariante::whereHas('producto', fn($pq) => $pq
-            ->where('empresa_id', $empresaId)
-            ->where('activo', true))
-            ->with([
-                'producto:id,nombre,codigo,precio_venta,tiene_variantes',
-                'atributos.tipoAtributo:id,nombre',
-                'atributos.atributo:id,valor',
-            ])
-            ->where(fn($vq) => $vq
-                ->where('sku', 'like', "%{$q}%")
-                ->orWhere('codigo_barras', 'like', "%{$q}%")
-                ->orWhereHas('producto', fn($pq) => $pq
-                    ->where('nombre', 'like', "%{$q}%")
-                    ->orWhere('codigo', 'like', "%{$q}%")))
-            ->limit(20)
+        return response()->json($productos->values());
+    }
+
+    public function variantesProducto(int $productoId): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
+
+        $user = Auth::user();
+        $producto = Producto::where('empresa_id', $user->empresa_id)
+            ->where('activo', true)
+            ->findOrFail($productoId);
+
+        $variantes = ProductoVariante::where('empresa_id', $user->empresa_id)
+            ->where('producto_id', $producto->id)
+            ->where('activo', true)
+            ->with(['atributos.tipoAtributo:id,nombre', 'atributos.atributo:id,valor'])
+            ->orderBy('id')
             ->get()
             ->map(fn($v) => [
                 'tipo_resultado' => 'variante',
                 'id' => $v->id,
-                'producto_id' => $v->producto_id,
-                'nombre' => $v->producto->nombre,
-                'codigo' => $v->producto->codigo,
+                'producto_id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'codigo' => $producto->codigo,
                 'sku' => $v->sku,
                 'codigo_barras' => $v->codigo_barras,
                 'nombre_variante' => $v->nombreVariante(),
-                'precio_venta' => (float) ($v->precio_venta ?? $v->producto->precio_venta ?? 0),
-                'tiene_variantes' => (bool) $v->producto->tiene_variantes,
+                'precio_venta' => (float) ($v->precio_venta ?? $producto->precio_venta ?? 0),
+                'tiene_variantes' => true,
             ]);
 
-        return response()->json($productos->merge($variantes)->values());
+        return response()->json([
+            'producto' => [
+                'id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'codigo' => $producto->codigo,
+                'precio_venta' => (float) ($producto->precio_venta ?? 0),
+            ],
+            'variantes' => $variantes,
+        ]);
+    }
+
+    public function varianteRapida(Request $request, int $productoId): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
+
+        $user = Auth::user();
+        $empresaId = (int) $user->empresa_id;
+        $producto = Producto::where('empresa_id', $empresaId)
+            ->where('activo', true)
+            ->findOrFail($productoId);
+
+        $data = $request->validate([
+            'atributos' => ['required', 'array', 'min:1'],
+            'atributos.*' => ['required', 'integer', 'exists:atributos,id'],
+        ]);
+
+        $atributos = collect($data['atributos'])
+            ->mapWithKeys(fn($atributoId, $tipoId) => [(int) $tipoId => (int) $atributoId])
+            ->filter();
+
+        foreach ($atributos as $tipoId => $atributoId) {
+            $valido = Atributo::where('id', $atributoId)
+                ->where('empresa_id', $empresaId)
+                ->where('tipo_atributo_id', $tipoId)
+                ->where('activo', true)
+                ->exists();
+
+            if (! $valido) {
+                return response()->json(['message' => 'Selecciona atributos validos para la variante.'], 422);
+            }
+        }
+
+        $atributosNuevos = $atributos->values()->sort()->values()->toArray();
+        $duplicado = ProductoVariante::where('empresa_id', $empresaId)
+            ->where('producto_id', $producto->id)
+            ->whereNull('deleted_at')
+            ->with('atributos')
+            ->get()
+            ->first(function ($v) use ($atributosNuevos) {
+                $existentes = $v->atributos->pluck('atributo_id')->sort()->values()->toArray();
+                return $existentes === $atributosNuevos;
+            });
+
+        if ($duplicado) {
+            return response()->json([
+                'message' => 'Ya existe una variante con esos atributos.',
+            ], 422);
+        }
+
+        $variante = DB::transaction(function () use ($producto, $empresaId, $atributos) {
+            $variante = ProductoVariante::create([
+                'producto_id' => $producto->id,
+                'empresa_id' => $empresaId,
+                'sku' => ProductoVariante::generarSku($producto->id, $empresaId),
+                'codigo_barras' => null,
+                'precio_costo' => null,
+                'precio_venta' => null,
+                'stock_minimo' => null,
+                'activo' => true,
+            ]);
+
+            foreach ($atributos as $tipoId => $atributoId) {
+                VarianteAtributo::create([
+                    'variante_id' => $variante->id,
+                    'tipo_atributo_id' => $tipoId,
+                    'atributo_id' => $atributoId,
+                ]);
+            }
+
+            if (! $producto->tiene_variantes) {
+                $producto->update(['tiene_variantes' => true]);
+            }
+
+            return $variante;
+        });
+
+        $variante->load(['atributos.tipoAtributo:id,nombre', 'atributos.atributo:id,valor']);
+
+        return response()->json([
+            'message' => 'Variante creada.',
+            'data' => [
+                'tipo_resultado' => 'variante',
+                'id' => $variante->id,
+                'producto_id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'codigo' => $producto->codigo,
+                'sku' => $variante->sku,
+                'codigo_barras' => null,
+                'nombre_variante' => $variante->nombreVariante(),
+                'precio_venta' => (float) ($producto->precio_venta ?? 0),
+                'tiene_variantes' => true,
+            ],
+        ], 201);
+    }
+
+    public function productoRapido(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
+
+        $user = Auth::user();
+        $empresaId = (int) $user->empresa_id;
+
+        $data = $request->validate([
+            'nombre' => ['required', 'string', 'min:2', 'max:200'],
+            'codigo' => [
+                'nullable',
+                'string',
+                'max:100',
+                Rule::unique('productos', 'codigo')
+                    ->where(fn($q) => $q->where('empresa_id', $empresaId)->whereNull('deleted_at')),
+            ],
+            'precio_costo' => ['nullable', 'numeric', 'min:0'],
+            'precio_venta' => ['required', 'numeric', 'min:0'],
+            'atributos' => ['required', 'array', 'min:1'],
+            'atributos.*' => ['required', 'integer', 'exists:atributos,id'],
+        ]);
+
+        $atributos = collect($data['atributos'])
+            ->mapWithKeys(fn($atributoId, $tipoId) => [(int) $tipoId => (int) $atributoId])
+            ->filter();
+
+        foreach ($atributos as $tipoId => $atributoId) {
+            $valido = Atributo::where('id', $atributoId)
+                ->where('empresa_id', $empresaId)
+                ->where('tipo_atributo_id', $tipoId)
+                ->where('activo', true)
+                ->exists();
+
+            if (! $valido) {
+                return response()->json(['message' => 'Selecciona atributos validos para la variante.'], 422);
+            }
+        }
+
+        $producto = null;
+        $variante = null;
+
+        DB::transaction(function () use (&$producto, &$variante, $data, $user, $empresaId, $atributos) {
+            $producto = Producto::create([
+                'empresa_id' => $empresaId,
+                'sucursal_id' => (int) $user->sucursal_id,
+                'user_id' => $user->id,
+                'nombre' => $data['nombre'],
+                'codigo' => ($data['codigo'] ?? null) ?: Producto::generarCodigo($empresaId),
+                'descripcion' => null,
+                'precio_costo' => (float) ($data['precio_costo'] ?? 0),
+                'precio_venta' => (float) $data['precio_venta'],
+                'stock_minimo' => 0,
+                'tiene_variantes' => true,
+                'tiene_series' => false,
+                'pedido_generico' => false,
+                'activo' => true,
+            ]);
+
+            $variante = ProductoVariante::create([
+                'producto_id' => $producto->id,
+                'empresa_id' => $empresaId,
+                'sku' => ProductoVariante::generarSku($producto->id, $empresaId),
+                'codigo_barras' => null,
+                'precio_costo' => (float) ($data['precio_costo'] ?? 0),
+                'precio_venta' => (float) $data['precio_venta'],
+                'stock_minimo' => 0,
+                'activo' => true,
+            ]);
+
+            foreach ($atributos as $tipoId => $atributoId) {
+                VarianteAtributo::create([
+                    'variante_id' => $variante->id,
+                    'tipo_atributo_id' => $tipoId,
+                    'atributo_id' => $atributoId,
+                ]);
+            }
+        });
+
+        $variante->load(['atributos.tipoAtributo', 'atributos.atributo']);
+
+        return response()->json([
+            'message' => 'Producto rapido creado.',
+            'data' => [
+                'tipo_resultado' => 'variante',
+                'id' => $variante->id,
+                'producto_id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'codigo' => $producto->codigo,
+                'sku' => $variante->sku,
+                'codigo_barras' => $variante->codigo_barras,
+                'nombre_variante' => $variante->nombreVariante(),
+                'precio_venta' => (float) ($variante->precio_venta ?? $producto->precio_venta),
+                'tiene_variantes' => true,
+                'pedido_generico' => false,
+            ],
+        ], 201);
     }
 
     public function pendientesCompra(Request $request): JsonResponse

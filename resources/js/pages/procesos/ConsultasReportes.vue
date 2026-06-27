@@ -16,6 +16,7 @@ import {
     TrendingUp,
     FileSearch,
     ClipboardList,
+    PackageSearch,
 } from "lucide-vue-next";
 
 const consultas = [
@@ -53,6 +54,13 @@ const consultas = [
         to: { name: "reportes-utilidades" },
         badge: "Disponible",
         permiso: "reportes.utilidades",
+    },
+    {
+        label: "Inversion en mercancia",
+        icon: PackageSearch,
+        to: { name: "reportes-inventario" },
+        badge: "Disponible",
+        permiso: "reportes.ver",
     },
     {
         label: "Traspasos entrada",

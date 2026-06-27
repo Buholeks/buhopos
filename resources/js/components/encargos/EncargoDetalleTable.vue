@@ -13,6 +13,7 @@
                 <thead class="bg-white text-left text-xs font-bold uppercase tracking-wide text-slate-500">
                     <tr>
                         <th class="min-w-260px px-3 py-2">Producto</th>
+                        <th class="min-w-260px px-3 py-2">Descripcion</th>
                         <th class="w-24 px-3 py-2 text-right">Cant.</th>
                         <th class="w-32 px-3 py-2 text-right">Precio</th>
                         <th class="w-32 px-3 py-2 text-right">Importe</th>
@@ -22,11 +23,20 @@
                 <tbody class="divide-y divide-slate-100">
                     <tr v-for="(detalle, index) in detalles" :key="detalle.uid" class="align-middle hover:bg-slate-50/70">
                         <td class="px-3 py-2">
-                            <p class="font-bold text-slate-800">{{ detalle.descripcion }}</p>
+                            <p class="font-bold text-slate-800">{{ detalle.producto_label || detalle.descripcion }}</p>
                             <p v-if="metaDetalle(detalle)" class="mt-1 text-xs text-slate-500">{{ metaDetalle(detalle) }}</p>
                             <p class="mt-1 text-[11px] text-slate-400">
                                 {{ detalle.variante_id ? 'Variante vinculada' : detalle.producto_id ? 'Producto base vinculado' : 'Sin vínculo' }}
                             </p>
+                        </td>
+                        <td class="px-3 py-2">
+                            <input
+                                :value="detalle.descripcion"
+                                type="text"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                placeholder="Opcional; si queda vacia usa el producto"
+                                @input="actualizar(index, 'descripcion', $event.target.value)"
+                            />
                         </td>
                         <td class="px-3 py-2">
                             <input

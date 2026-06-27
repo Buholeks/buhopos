@@ -39,6 +39,7 @@ use App\Http\Controllers\ReporteComprasController;
 use App\Http\Controllers\ReporteVentasController;
 use App\Http\Controllers\ReporteVentasAgrupadoController;
 use App\Http\Controllers\ReporteUtilidadesController;
+use App\Http\Controllers\ReporteInventarioController;
 use App\Http\Controllers\DevolucionProveedorController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\ProfileController;
@@ -244,6 +245,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/clientes/{cliente}/pedidos-resumen', [PedidoController::class, 'clienteResumen']);
     Route::get('/pedidos/buscar-catalogo', [PedidoController::class, 'buscarCatalogo']);
     Route::get('/pedidos/pendientes-compra', [PedidoController::class, 'pendientesCompra']);
+    Route::post('/pedidos/producto-rapido', [PedidoController::class, 'productoRapido']);
+    Route::get('/pedidos/productos/{productoId}/variantes', [PedidoController::class, 'variantesProducto']);
+    Route::post('/pedidos/productos/{productoId}/variantes', [PedidoController::class, 'varianteRapida']);
     Route::get('/pedidos', [PedidoController::class, 'index']);
     Route::post('/pedidos', [PedidoController::class, 'store']);
     Route::get('/pedidos/{pedido}', [PedidoController::class, 'show']);
@@ -398,5 +402,6 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::get('/utilidades', [ReporteUtilidadesController::class, 'index']);
+        Route::get('/inventario', [ReporteInventarioController::class, 'index']);
     });
 });

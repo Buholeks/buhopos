@@ -327,7 +327,7 @@
                                 <div>
                                     <p class="text-sm font-medium text-slate-700">Producto genérico por encargo</p>
                                     <p class="text-xs text-slate-500">
-                                        Para artículos tipo SHEIN o Amazon que comparten producto base, pero representan encargos diferentes.
+                                        Para productos tipo MercadoLibre o Amazon que comparten producto base, pero representan precios diferentes.
                                     </p>
                                 </div>
                             </div>

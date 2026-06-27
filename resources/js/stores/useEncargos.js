@@ -36,6 +36,7 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
             selector_id: null,
             producto_id: null,
             variante_id: null,
+            producto_label: '',
             descripcion: '',
             marca_texto: '',
             modelo_texto: '',
@@ -85,15 +86,13 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
 
     function labelProducto(item) {
         const variante = item.nombre_variante ? ` - ${item.nombre_variante}` : ''
-        const prefijo = item.tipo_resultado === 'producto' && item.tiene_variantes ? 'Producto base: ' : ''
-        return `${prefijo}${item.nombre || 'Producto'}${variante}`
+        return `${item.nombre || 'Producto'}${variante}`
     }
 
     function subLabelProducto(item) {
         const partes = []
         if (item.codigo) partes.push(item.codigo)
-        if (item.sku) partes.push(`SKU ${item.sku}`)
-        if (item.tipo_resultado === 'producto' && item.tiene_variantes) partes.push('nueva variante')
+        if (item.tipo_resultado === 'producto' && item.tiene_variantes) partes.push('seleccionar variante')
         if (item.stock != null) partes.push(`Stock ${Number(item.stock ?? 0)}`)
         partes.push(money(item.precio_venta))
         return partes.join(' | ')
@@ -105,7 +104,8 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         detalle.selector_id = item.selector_id
         detalle.producto_id = item.producto_id
         detalle.variante_id = item.id || null
-        detalle.descripcion = labelProducto(item)
+        detalle.producto_label = labelProducto(item)
+        detalle.descripcion = ''
         detalle.precio_acordado = Number(item.precio_venta ?? 0)
 
         if (item.nombre_variante) {
@@ -157,7 +157,7 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         const detalles = form.detalles.map((detalle) => ({
             producto_id: detalle.producto_id,
             variante_id: detalle.variante_id,
-            descripcion: detalle.descripcion,
+            descripcion: String(detalle.descripcion || '').trim() || detalle.producto_label || '',
             marca_texto: detalle.marca_texto,
             modelo_texto: detalle.modelo_texto,
             color_texto: detalle.color_texto,

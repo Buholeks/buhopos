@@ -2,6 +2,11 @@ import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import http from "@/lib/http";
 
+function fechaLocal() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export const useVentaPosStore = defineStore("VentaPos", () => {
     const guardando = ref(false);
     const ultimaVenta = ref(cargarUltimaVenta());
@@ -11,7 +16,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
 
     const form = reactive({
         folio: "",
-        fecha: new Date().toISOString().slice(0, 10),
+        fecha: fechaLocal(),
         descuento: 0,
         notas: "",
     });
@@ -231,7 +236,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
 
         Object.assign(form, {
             folio: "",
-            fecha: new Date().toISOString().slice(0, 10),
+            fecha: fechaLocal(),
             descuento: 0,
             notas: "",
         });

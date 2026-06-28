@@ -120,8 +120,6 @@ class CorteCaja extends Model
             'ventas_saldo_favor'   => $ventas->saldo_favor   ?? 0,
             'num_ventas'           => $ventas->num           ?? 0,
         ]);
-
-        $this->recalcularEsperados();
     }
 
     /** Recalcula movimientos extras desde tabla movimientos_caja */

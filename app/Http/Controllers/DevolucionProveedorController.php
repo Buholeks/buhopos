@@ -157,6 +157,18 @@ class DevolucionProveedorController extends Controller
             abort_if($excedente > 0 && empty($data['destino_excedente']), 422, 'Selecciona dónde recibir el dinero de la devolución.');
             abort_if($excedente > 0 && $data['destino_excedente'] === 'caja' && empty($data['forma_reembolso']), 422, 'Selecciona la forma de ingreso a caja.');
 
+            // Validar corte antes de cualquier mutación para evitar inconsistencias si la caja no está abierta
+            $corte = null;
+            if ($excedente > 0 && ($data['destino_excedente'] ?? null) === 'caja') {
+                $corte = CorteCaja::where('empresa_id', $user->empresa_id)
+                    ->where('sucursal_id', $compra->sucursal_id)
+                    ->where('terminal', $terminal)
+                    ->where('estado', 'abierto')
+                    ->lockForUpdate()
+                    ->first();
+                abort_if(! $corte, 422, 'No hay un corte abierto para registrar el ingreso.');
+            }
+
             $devolucion = DevolucionProveedor::create([
                 'empresa_id' => $user->empresa_id,
                 'sucursal_id' => $compra->sucursal_id,
@@ -215,13 +227,6 @@ class DevolucionProveedorController extends Controller
             }
 
             if ($excedente > 0 && $data['destino_excedente'] === 'caja') {
-                $corte = CorteCaja::where('empresa_id', $user->empresa_id)
-                    ->where('sucursal_id', $compra->sucursal_id)
-                    ->where('terminal', $terminal)
-                    ->where('estado', 'abierto')
-                    ->lockForUpdate()
-                    ->first();
-                abort_if(! $corte, 422, 'No hay un corte abierto para registrar el ingreso.');
                 $movimiento = MovimientoCaja::create([
                     'corte_id' => $corte->id,
                     'user_id' => $user->id,
@@ -238,6 +243,86 @@ class DevolucionProveedorController extends Controller
         });
 
         return response()->json($devolucion->load('detalles'), 201);
+    }
+
+    public function destroy(Request $request, int $devolucionId): JsonResponse
+    {
+        $user = $request->user();
+
+        DB::transaction(function () use ($user, $devolucionId) {
+            $devolucion = DevolucionProveedor::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->with(['detalles'])
+                ->lockForUpdate()
+                ->findOrFail($devolucionId);
+
+            abort_if(
+                $devolucion->estado === 'anulada',
+                422,
+                'Esta devolución ya fue anulada.'
+            );
+
+            $compra = Compra::where('id', $devolucion->compra_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            // Restaurar stock e invertir series
+            foreach ($devolucion->detalles as $detalle) {
+                $inventario = Inventario::where([
+                    'empresa_id' => $devolucion->empresa_id,
+                    'sucursal_id' => $devolucion->sucursal_id,
+                    'producto_id' => $detalle->producto_id,
+                    'variante_id' => $detalle->variante_id,
+                ])->lockForUpdate()->first();
+
+                if ($inventario) {
+                    $inventario->increment('stock', $detalle->cantidad);
+                }
+
+                // Devolver series a disponible
+                Serie::whereIn('id', function ($q) use ($detalle) {
+                    $q->select('serie_id')
+                        ->from('devolucion_proveedor_series')
+                        ->where('devolucion_proveedor_detalle_id', $detalle->id);
+                })->update(['estado' => 'disponible']);
+            }
+
+            // Revertir movimiento de saldo de proveedor si aplica
+            ProveedorSaldoMovimiento::where('devolucion_proveedor_id', $devolucion->id)->delete();
+
+            // Revertir movimiento de caja si aplica
+            if ($devolucion->movimiento_caja_id) {
+                MovimientoCaja::where('id', $devolucion->movimiento_caja_id)->delete();
+                CorteCaja::whereHas('movimientos', fn($q) => $q->where('id', $devolucion->movimiento_caja_id))
+                    ->first()
+                    ?->recalcularMovimientos();
+            }
+
+            // Restaurar saldo de compra y recalcular estado
+            DB::table('compras')->where('id', $compra->id)->update([
+                'saldo' => (float) $compra->saldo + (float) $devolucion->aplicado_saldo,
+                'estado' => $this->estadoCompraDespuesDeAnulacion($compra->id, $devolucion->id),
+                'updated_at' => now(),
+            ]);
+
+            $devolucion->update(['estado' => 'anulada']);
+        });
+
+        return response()->json(['message' => 'Devolución anulada correctamente.']);
+    }
+
+    private function estadoCompraDespuesDeAnulacion(int $compraId, int $devolucionAnuladaId): string
+    {
+        $comprado = (float) DB::table('compra_detalles')->where('compra_id', $compraId)->sum('cantidad');
+        $devuelto = (float) DB::table('devolucion_proveedor_detalles as dd')
+            ->join('devoluciones_proveedor as d', 'd.id', '=', 'dd.devolucion_proveedor_id')
+            ->where('d.compra_id', $compraId)
+            ->where('d.estado', 'confirmada')
+            ->where('d.id', '!=', $devolucionAnuladaId)
+            ->sum('dd.cantidad');
+
+        if ($devuelto <= 0) return 'confirmada';
+        return $devuelto >= $comprado ? 'devuelta' : 'devuelta_parcial';
     }
 
     public function cancelar(Request $request, int $compraId): JsonResponse

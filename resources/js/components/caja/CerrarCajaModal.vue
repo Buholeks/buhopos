@@ -300,7 +300,7 @@
 
               <button
                 type="button"
-                :disabled="loading || saving || (modo === 'manual' && !manualValido)"
+                :disabled="loading || (modo === 'manual' && !manualValido)"
                 class="rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
                 @click="submit"
               >

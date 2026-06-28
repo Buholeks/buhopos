@@ -45,11 +45,11 @@
                             class="bg-transparent font-semibold text-slate-800 outline-none"
                             @change="seleccionarTerminal(terminalSeleccionada)"
                         >
-                            <option :value="terminalActual">
+                                <option :value="terminalActual">
                                 {{ terminalActual }}
                             </option>
                             <option
-                                v-for="c in cajasAbiertas"
+                                v-for="c in cajasAbiertas.filter(c => c.terminal !== terminalActual)"
                                 :key="c.id"
                                 :value="c.terminal"
                             >
@@ -214,7 +214,6 @@
                         :movimientos="corte?.movimientos ?? []"
                         @nuevo="modalMov = true"
                     />
-                    <!-- @eliminar="eliminarMovimiento -->
                     <!-- DESGLOSE -->
                     <div class="space-y-6 lg:col-span-2">
                         <DesgloseTable :corte="corte" />
@@ -263,32 +262,11 @@
                 <div
                     class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                 >
-                    <div
-                        class="flex flex-wrap items-center justify-between gap-3"
-                    >
-                        <div class="text-sm text-slate-600">
-                            Apertura:
-                            <span class="ml-1 font-semibold text-slate-900">{{
-                                formatFechaHora(corte.fecha_apertura)
-                            }}</span>
-                        </div>
-
-                        <div class="flex items-center gap-2">
-                            <button
-                                v-if="auth.can('caja.cerrar')"
-                                type="button"
-                                @click="modalCerrar = true"
-                                :disabled="cerrandoCaja"
-                                class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
-                            >
-                                <Loader2
-                                    v-if="cerrandoCaja"
-                                    class="h-4 w-4 animate-spin"
-                                />
-                                <Lock v-else class="h-4 w-4" />
-                                Cerrar caja
-                            </button>
-                        </div>
+                    <div class="text-sm text-slate-600">
+                        Apertura:
+                        <span class="ml-1 font-semibold text-slate-900">{{
+                            formatFechaHora(corte.fecha_apertura)
+                        }}</span>
                     </div>
                 </div>
             </div>
@@ -499,35 +477,6 @@ async function guardarMovimiento(payload) {
         guardandoMov.value = false;
     }
 }
-
-// async function eliminarMovimiento(movId) {
-//     if (!corte.value?.id) return;
-
-//     const r = await Swal.fire({
-//         title: "¿Eliminar movimiento?",
-//         icon: "question",
-//         showCancelButton: true,
-//         confirmButtonColor: "#dc2626",
-//         confirmButtonText: "Eliminar",
-//         cancelButtonText: "Cancelar",
-//         reverseButtons: true,
-//     });
-//     if (!r.isConfirmed) return;
-
-//     try {
-//         await axios.delete(
-//             `/api/cortes-caja/${corte.value.id}/movimiento/${movId}`,
-//         );
-//         Toast.fire({ icon: "success", title: "Movimiento eliminado" });
-//         await cargarActual(true);
-//     } catch (e) {
-//         Swal.fire({
-//             icon: "error",
-//             title: "Error",
-//             text: e.response?.data?.message ?? "Error al eliminar movimiento",
-//         });
-//     }
-// }
 
 async function cerrarCaja(formCierre) {
     if (!corte.value?.id) return;

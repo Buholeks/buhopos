@@ -73,8 +73,8 @@ class CancelacionDevolucionController extends Controller
                 ], 422);
             }
 
-            $tipoProceso = $data['tipo_proceso'] ?? 'anulacion';
-            $destinoPedido = $data['destino_pedido'] ?? ($tipoProceso === 'devolucion' ? 'devuelto' : 'disponible');
+            $tipoProceso = ($data['tipo_proceso'] ?? '') ?: 'anulacion';
+            $destinoPedido = ($data['destino_pedido'] ?? '') ?: ($tipoProceso === 'devolucion' ? 'devuelto' : 'disponible');
             $formaDevolucion = $data['forma_devolucion'] ?? 'efectivo';
             $desglose = $this->desgloseCancelacion($venta, $formaDevolucion);
 
@@ -134,6 +134,7 @@ class CancelacionDevolucionController extends Controller
             ]);
 
             $venta->corte?->recalcularVentas();
+            $venta->corte?->recalcularEsperados();
 
             return response()->json([
                 'message' => 'Venta cancelada correctamente.',
@@ -503,20 +504,13 @@ class CancelacionDevolucionController extends Controller
         }
 
         $pagadoEnCaja = $this->montoCobradoEnFormaPago($venta);
-        $cajaDevueltaPrevia = 0.0;
-        $venta->devoluciones()
-            ->where('estado', 'confirmada')
-            ->orderBy('id')
-            ->get(['forma_devolucion', 'total_devuelto'])
-            ->each(function ($devolucion) use (&$cajaDevueltaPrevia, $pagadoEnCaja) {
-                if ($devolucion->forma_devolucion === 'credito') {
-                    return;
-                }
-
-                $cajaDisponible = max(0, $pagadoEnCaja - $cajaDevueltaPrevia);
-                $cajaDevueltaPrevia += min((float) $devolucion->total_devuelto, $cajaDisponible);
-            });
-
+        $cajaDevueltaPrevia = min(
+            (float) $venta->devoluciones()
+                ->where('estado', 'confirmada')
+                ->where('forma_devolucion', '!=', 'credito')
+                ->sum('total_devuelto'),
+            $pagadoEnCaja
+        );
         $cajaDisponible = max(0, $pagadoEnCaja - $cajaDevueltaPrevia);
         $caja = min($total, $cajaDisponible);
 

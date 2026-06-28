@@ -157,28 +157,18 @@ class CorteCajaController extends Controller
 public function cerrar(Request $request, int $id): JsonResponse
 {
     abort_unless(Auth::user()->tienePermiso('caja.cerrar'), 403, 'Sin permiso: caja.cerrar');
-    $user = Auth::user();
+    $user     = Auth::user();
     $terminal = TerminalResolver::fromRequest($request);
 
-    $corte = CorteCaja::where('empresa_id', $user->empresa_id)
-        ->where('sucursal_id', $user->sucursal_id)
-        ->where('terminal', $terminal)
-        ->where('id', $id)
-        ->where('estado', 'abierto')
-        ->firstOrFail();
-
+    // Validar antes de abrir la transacción para devolver 422 sin overhead de BD
     $datos = $request->validate([
-        'modo' => ['required', 'in:arqueo,manual'],
+        'modo'             => ['required', 'in:arqueo,manual'],
+        'contado_efectivo' => ['nullable', 'numeric', 'min:0', 'required_if:modo,manual'],
 
-        // manual
-        'contado_efectivo' => ['nullable', 'numeric', 'min:0'],
-
-        // otras formas
         'contado_tarjeta'       => ['nullable', 'numeric', 'min:0'],
         'contado_transferencia' => ['nullable', 'numeric', 'min:0'],
         'notas_cierre'          => ['nullable', 'string'],
 
-        // arqueo
         'billetes_1000' => ['nullable', 'integer', 'min:0'],
         'billetes_500'  => ['nullable', 'integer', 'min:0'],
         'billetes_200'  => ['nullable', 'integer', 'min:0'],
@@ -195,48 +185,42 @@ public function cerrar(Request $request, int $id): JsonResponse
 
     DB::beginTransaction();
     try {
-        // Recalcular desde datos amarrados al corte_id
+        // lockForUpdate dentro de la transacción para evitar doble cierre concurrente
+        $corte = CorteCaja::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->where('terminal', $terminal)
+            ->where('id', $id)
+            ->where('estado', 'abierto')
+            ->lockForUpdate()
+            ->firstOrFail();
+
         $corte->recalcularVentas();
         $corte->recalcularMovimientos();
         $corte->recalcularEsperados();
 
-        $modo = $datos['modo'];
-
+        $modo          = $datos['modo'];
         $totalEfectivo = 0.0;
 
-        // Helper: detectar si el request realmente trae denominaciones
         $keysDenoms = [
             'billetes_1000','billetes_500','billetes_200','billetes_100','billetes_50','billetes_20',
             'monedas_20','monedas_10','monedas_5','monedas_2','monedas_1','monedas_050',
         ];
 
-        $traeDenoms = false;
-        foreach ($keysDenoms as $k) {
-            if (array_key_exists($k, $datos)) { // OJO: validate siempre “puede” incluirlos si vienen
-                // si viene y no es null, consideramos que trae info
-                if ($datos[$k] !== null) { $traeDenoms = true; break; }
-            }
-        }
+        $traeDenoms = collect($keysDenoms)->contains(
+            fn($k) => isset($datos[$k]) && $datos[$k] !== null
+        );
 
         if ($modo === 'manual') {
-            if (!array_key_exists('contado_efectivo', $datos) || $datos['contado_efectivo'] === null) {
-                DB::rollBack();
-                return response()->json(['message' => 'El campo contado_efectivo es obligatorio en modo manual.'], 422);
-            }
-
             $totalEfectivo = (float) $datos['contado_efectivo'];
 
         } else {
-            // ✅ ARQUEO
-            // Si NO trae denominaciones, NO pises el desglose: usa el que ya esté guardado.
-            if (!$traeDenoms) {
+            if (! $traeDenoms) {
                 $desglose = CorteDesgloseEfectivo::where('corte_id', $corte->id)->first();
 
-                if (!$desglose) {
-                    // no hay nada guardado y no mandaron denoms -> error claro
+                if (! $desglose) {
                     DB::rollBack();
                     return response()->json([
-                        'message' => 'No se recibieron denominaciones y no existe desglose guardado para cerrar en modo arqueo.'
+                        'message' => 'No se recibieron denominaciones y no existe desglose guardado para cerrar en modo arqueo.',
                     ], 422);
                 }
 
@@ -244,7 +228,6 @@ public function cerrar(Request $request, int $id): JsonResponse
                 $desglose->update(['total_calculado' => $totalEfectivo]);
 
             } else {
-                // sí trae denominaciones: guarda/update y calcula
                 $desglose = CorteDesgloseEfectivo::updateOrCreate(
                     ['corte_id' => $corte->id],
                     [
@@ -308,27 +291,6 @@ public function cerrar(Request $request, int $id): JsonResponse
 
         return response()->json($corte);
     }
-
-    // public function eliminarMovimiento(int $id, int $movId): JsonResponse
-    // {
-    //     $user = Auth::user();
-
-    //     $corte = CorteCaja::where('empresa_id', $user->empresa_id)
-    //         ->where('sucursal_id', $user->sucursal_id)
-    //         ->where('user_id', $user->id)
-    //         ->where('id', $id)
-    //         ->where('estado', 'abierto')
-    //         ->firstOrFail();
-
-    //     $mov = MovimientoCaja::where('corte_id', $corte->id)
-    //         ->where('id', $movId)
-    //         ->firstOrFail();
-
-    //     $mov->delete();
-    //     $corte->recalcularMovimientos();
-
-    //     return response()->json(['mensaje' => 'Movimiento eliminado.']);
-    // }
 
     public function ventas(Request $request, int $id): JsonResponse
     {

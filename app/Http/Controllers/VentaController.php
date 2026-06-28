@@ -425,6 +425,7 @@ class VentaController extends Controller
             }
 
             $corte->recalcularVentas();
+            $corte->recalcularEsperados();
 
             DB::commit();
 

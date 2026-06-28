@@ -208,6 +208,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/compras/{compraId}', [DevolucionProveedorController::class, 'show']);
         Route::post('/compras/{compraId}/cancelar', [DevolucionProveedorController::class, 'cancelar']);
         Route::post('/', [DevolucionProveedorController::class, 'store']);
+        Route::delete('/{devolucionId}', [DevolucionProveedorController::class, 'destroy']);
     });
 
     /*

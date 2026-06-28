@@ -509,7 +509,6 @@ class PedidoController extends Controller
                 ->where('sucursal_id', $user->sucursal_id)
                 ->where('tipo', 'pedido')
                 ->whereIn('estado', ['pendiente', 'en_proceso', 'parcial']))
-            ->whereHas('producto', fn($query) => $query->where('pedido_generico', true))
             ->when($buscar !== '', fn($query) => $query->where(function ($subquery) use ($buscar) {
                 $subquery
                     ->where('descripcion', 'like', "%{$buscar}%")
@@ -556,7 +555,7 @@ class PedidoController extends Controller
             ->where('sucursal_id', $user->sucursal_id)
             ->findOrFail($id);
 
-        if (in_array($pedido->estado, ['entregado', 'cancelado'])) {
+        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
             return response()->json(['message' => 'Este pedido ya está cerrado.'], 422);
         }
 
@@ -601,7 +600,7 @@ class PedidoController extends Controller
             ->where('sucursal_id', $user->sucursal_id)
             ->findOrFail($pedidoId);
 
-        if (in_array($pedido->estado, ['entregado', 'cancelado'])) {
+        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
             return response()->json(['message' => 'No se puede modificar un pedido cerrado.'], 422);
         }
 
@@ -681,8 +680,8 @@ class PedidoController extends Controller
             ->where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
             ->where('cliente_id', $clienteId)
-            ->whereNotIn('estado', ['entregado', 'cancelado']))
-            ->whereNotIn('estado', ['entregado', 'cancelado'])
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
             ->exists();
 
         return response()->json([
@@ -701,7 +700,7 @@ class PedidoController extends Controller
             ->where('sucursal_id', $user->sucursal_id)
             ->findOrFail($id);
 
-        if (in_array($pedido->estado, ['entregado', 'cancelado'])) {
+        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
             return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
         }
 
@@ -714,7 +713,7 @@ class PedidoController extends Controller
 
             // Cancelar todos los detalles y limpiar vínculo con compra
             PedidoDetalle::where('pedido_id', $pedido->id)
-                ->whereNotIn('estado', ['entregado', 'cancelado'])
+                ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
                 ->update([
                     'estado' => 'cancelado',
                     'compra_detalle_id' => null,

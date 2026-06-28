@@ -220,12 +220,12 @@ class VentaController extends Controller
                     ->values();
 
                 $detallesValidos = PedidoDetalle::whereIn('id', $detalleIds)
-                    ->whereNotIn('estado', ['entregado', 'cancelado'])
+                    ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
                     ->whereHas('pedido', fn($query) => $query
                         ->where('empresa_id', $empresaId)
                         ->where('sucursal_id', $sucursalId)
                         ->where('cliente_id', $datos['cliente_id'])
-                        ->whereNotIn('estado', ['entregado', 'cancelado']))
+                        ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
                     ->count();
 
                 if ($detalleIds->count() !== count($datos['detalles']) || $detallesValidos !== $detalleIds->count()) {
@@ -452,67 +452,6 @@ class VentaController extends Controller
         }
     }
 
-    // ── DELETE /api/ventas/{id} — solo cancela, no borra ───────────────────
-    public function destroy(int $id): JsonResponse
-    {
-        abort_unless(Auth::user()->tienePermiso('ventas.cancelar'), 403, 'Sin permiso: ventas.cancelar');
-        $user      = Auth::user();
-        $empresaId = (int) $user->empresa_id;
-
-        $venta = Venta::where('empresa_id', $empresaId)
-            ->with('detalles')
-            ->findOrFail($id);
-
-        if ($venta->estado === 'cancelada') {
-            return response()->json(['message' => 'La venta ya está cancelada.'], 422);
-        }
-
-        DB::beginTransaction();
-        try {
-            foreach ($venta->detalles as $det) {
-                $productoId = (int) $det->producto_id;
-                $varianteId = $det->variante_id ? (int) $det->variante_id : null;
-                $cantidad   = (float) $det->cantidad;
-
-                $inv = Inventario::where([
-                    'empresa_id'  => $empresaId,
-                    'sucursal_id' => (int) $venta->sucursal_id,
-                    'producto_id' => $productoId,
-                    'variante_id' => $varianteId,
-                ])
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$inv) {
-                    DB::rollBack();
-                    return response()->json([
-                        'message' => "Inventario no encontrado para revertir stock (producto {$productoId}, variante " . ($varianteId ?? 'NULL') . ").",
-                    ], 422);
-                }
-
-                $inv->stock = (float) $inv->stock + $cantidad;
-                $inv->save();
-
-                if ($det->pedido_detalle_id) {
-                    $this->revertirPedidoDetalleVenta($det);
-                }
-            }
-
-            if ((float) ($venta->saldo_aplicado ?? 0) > 0 && $venta->cliente_id) {
-                $this->devolverSaldoPorCancelacion($venta);
-            }
-
-            $venta->update(['estado' => 'cancelada']);
-            $venta->corte?->recalcularVentas();
-            DB::commit();
-
-            return response()->json(['mensaje' => 'Venta cancelada y stock revertido.']);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
-        }
-    }
-
     // ── GET /api/ventas/buscar-variantes ────────────────────────────────────────
     // CAMBIOS:
     //   1. Se agrega precio_1..precio_5 al select del producto (with)
@@ -546,7 +485,7 @@ class VentaController extends Controller
         return round((float) ClienteSaldoMovimiento::where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
             ->where('cliente_id', $clienteId)
-            ->sum(DB::raw("CASE WHEN tipo IN ('abono','ajuste') THEN monto ELSE -monto END")), 2);
+            ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END")), 2);
     }
 
     private function clienteTieneProductosPendientes(int $empresaId, int $sucursalId, int $clienteId): bool
@@ -555,8 +494,8 @@ class VentaController extends Controller
             ->where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
             ->where('cliente_id', $clienteId)
-            ->whereNotIn('estado', ['entregado', 'cancelado']))
-            ->whereNotIn('estado', ['entregado', 'cancelado'])
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
             ->exists();
     }
 
@@ -580,34 +519,6 @@ class VentaController extends Controller
             'monto' => $monto,
             'saldo_resultante' => max(0, $saldoAnterior - $monto),
             'concepto' => "Aplicacion de saldo en venta {$venta->folio}",
-        ]);
-    }
-
-    private function devolverSaldoPorCancelacion(Venta $venta): void
-    {
-        $monto = (float) ($venta->saldo_aplicado ?? 0);
-        if ($monto <= 0 || ! $venta->cliente_id) {
-            return;
-        }
-
-        $saldoAnterior = $this->saldoDisponibleCliente(
-            (int) $venta->empresa_id,
-            (int) $venta->sucursal_id,
-            (int) $venta->cliente_id
-        );
-
-        ClienteSaldoMovimiento::create([
-            'empresa_id' => $venta->empresa_id,
-            'sucursal_id' => $venta->sucursal_id,
-            'cliente_id' => $venta->cliente_id,
-            'venta_id' => $venta->id,
-            'corte_id' => $venta->corte_id,
-            'user_id' => Auth::id(),
-            'tipo' => 'ajuste',
-            'forma_pago' => 'saldo_favor',
-            'monto' => $monto,
-            'saldo_resultante' => $saldoAnterior + $monto,
-            'concepto' => "Devolucion de saldo por cancelacion {$venta->folio}",
         ]);
     }
 
@@ -643,7 +554,7 @@ class VentaController extends Controller
         $pedido->update(['venta_id' => $venta->id]);
 
         $pendientes = $pedido->detalles()
-            ->whereNotIn('estado', ['entregado', 'cancelado'])
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
             ->exists();
 
         if ($pendientes) {
@@ -656,51 +567,6 @@ class VentaController extends Controller
             'estado_pago' => 'pagado',
             'saldo_pendiente' => 0,
         ]);
-    }
-
-    private function revertirPedidoDetalleVenta(VentaDetalle $ventaDetalle): void
-    {
-        $detalle = PedidoDetalle::where('id', $ventaDetalle->pedido_detalle_id)
-            ->with('pedido')
-            ->lockForUpdate()
-            ->first();
-
-        if (! $detalle) {
-            return;
-        }
-
-        $detalle->update(['estado' => 'disponible']);
-
-        InventarioReserva::updateOrCreate(
-            [
-                'pedido_detalle_id' => $detalle->id,
-                'estado' => 'activa',
-            ],
-            [
-                'empresa_id' => $detalle->pedido->empresa_id,
-                'sucursal_id' => $detalle->pedido->sucursal_id,
-                'pedido_id' => $detalle->pedido_id,
-                'producto_id' => $detalle->producto_id,
-                'variante_id' => $detalle->variante_id,
-                'cantidad' => $detalle->cantidad,
-            ]
-        );
-
-        $detalle->pedido->update([
-            'estado' => 'disponible',
-            'estado_pago' => $this->estadoPagoPedido(
-                (float) $detalle->pedido->subtotal,
-                (float) $detalle->pedido->anticipo
-            ),
-            'saldo_pendiente' => max(0, (float) $detalle->pedido->subtotal - (float) $detalle->pedido->anticipo),
-        ]);
-    }
-
-    private function estadoPagoPedido(float $subtotal, float $anticipo): string
-    {
-        if ($anticipo <= 0) return 'sin_anticipo';
-        if ($anticipo >= $subtotal && $subtotal > 0) return 'pagado';
-        return 'con_anticipo';
     }
 
     public function buscarVariantes(Request $request): JsonResponse
@@ -753,7 +619,7 @@ class VentaController extends Controller
                 ->whereHas('pedido', fn($q) => $q
                     ->where('empresa_id', $empresaId)
                     ->where('sucursal_id', $sucursalId)
-                    ->whereNotIn('estado', ['entregado', 'cancelado']))
+                    ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
                 ->selectRaw('producto_id, variante_id, SUM(cantidad) as total')
                 ->groupBy('producto_id', 'variante_id')
                 ->get()
@@ -1026,7 +892,7 @@ class VentaController extends Controller
             ->whereHas('pedido', fn($q) => $q
                 ->where('empresa_id', $empresaId)
                 ->whereIn('sucursal_id', $sucursalIds)
-                ->whereNotIn('estado', ['entregado', 'cancelado']))
+                ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
             ->join('pedidos', 'pedidos.id', '=', 'pedido_detalles.pedido_id')
             ->selectRaw('pedidos.sucursal_id, SUM(pedido_detalles.cantidad) as total')
             ->groupBy('pedidos.sucursal_id')

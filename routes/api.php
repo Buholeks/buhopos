@@ -233,7 +233,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/existencias', [VentaController::class, 'existenciasPorSucursal']);
         Route::post('/', [VentaController::class, 'store']);
         Route::get('/{id}', [VentaController::class, 'show']);
-        Route::delete('/{id}', [VentaController::class, 'destroy']);
     });
 
     /*

@@ -18,6 +18,7 @@
                         <option value="pendiente">Pendiente</option>
                         <option value="disponible">Disponible</option>
                         <option value="entregado">Entregado</option>
+                        <option value="devuelto">Devuelto</option>
                         <option value="cancelado">Cancelado</option>
                         <option value="vencido">Vencido</option>
                     </select>

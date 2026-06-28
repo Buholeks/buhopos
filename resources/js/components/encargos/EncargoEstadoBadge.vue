@@ -17,6 +17,7 @@ const labels = {
     disponible: 'Disponible',
     parcial: 'Parcial',
     entregado: 'Entregado',
+    devuelto: 'Devuelto',
     cancelado: 'Cancelado',
     vencido: 'Vencido',
 }
@@ -27,6 +28,7 @@ const clases = {
     disponible: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100',
     parcial: 'bg-violet-50 text-violet-700 ring-1 ring-violet-100',
     entregado: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200',
+    devuelto: 'bg-orange-50 text-orange-700 ring-1 ring-orange-100',
     cancelado: 'bg-red-50 text-red-700 ring-1 ring-red-100',
     vencido: 'bg-red-50 text-red-700 ring-1 ring-red-100',
 }

@@ -152,7 +152,7 @@ defineProps({
 defineEmits(['detalle', 'cancelar', 'abonar'])
 
 function pedidoCerrado(pedido) {
-    return ['entregado', 'cancelado'].includes(pedido?.estado)
+    return ['entregado', 'devuelto', 'cancelado', 'vencido'].includes(pedido?.estado)
 }
 
 function money(value) {

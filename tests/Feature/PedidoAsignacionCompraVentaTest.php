@@ -46,7 +46,7 @@ class PedidoAsignacionCompraVentaTest extends TestCase
         $this->assertNull($segundo->fresh()->compra_detalle_id);
     }
 
-    public function test_bandeja_de_compra_masiva_muestra_solo_pedidos_genericos_pendientes(): void
+    public function test_bandeja_de_compra_masiva_muestra_pedidos_genericos_y_no_genericos_pendientes(): void
     {
         [$user, $cliente, , $producto] = $this->crearContexto();
         Sanctum::actingAs($user);
@@ -57,15 +57,14 @@ class PedidoAsignacionCompraVentaTest extends TestCase
         $generico->pedido_generico = true;
         $generico->save();
 
-        $this->crearPedido($user, $cliente, $producto, 'PED-NORMAL', 40);
+        $detalleNormal = $this->crearPedido($user, $cliente, $producto, 'PED-NORMAL', 40);
         $detalleGenerico = $this->crearPedido($user, $cliente, $generico, 'PED-GENERICO', 75);
 
         $this->getJson('/api/pedidos/pendientes-compra')
             ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.id', $detalleGenerico->id)
-            ->assertJsonPath('0.producto_id', $generico->id)
-            ->assertJsonPath('0.precio_venta', 75);
+            ->assertJsonCount(2)
+            ->assertJsonFragment(['id' => $detalleNormal->id, 'producto_id' => $producto->id])
+            ->assertJsonFragment(['id' => $detalleGenerico->id, 'producto_id' => $generico->id]);
     }
 
     public function test_compra_y_venta_conservan_renglones_de_pedido_seleccionados(): void
@@ -127,6 +126,7 @@ class PedidoAsignacionCompraVentaTest extends TestCase
             'sucursal_id' => $user->sucursal_id,
             'user_id' => $user->id,
             'estado' => 'abierto',
+            'terminal' => 'POS-01',
             'fecha_apertura' => now(),
             'fondo_inicial_efectivo' => 0,
         ]);

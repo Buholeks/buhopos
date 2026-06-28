@@ -144,8 +144,8 @@
                         >
                             <Ban class="h-5 w-5" />
                             <span>
-                                <span class="block font-semibold">Cancelacion completa</span>
-                                <span class="block text-sm opacity-80">Anula toda la venta y regresa todo el inventario.</span>
+                                <span class="block font-semibold">Procesar ticket completo</span>
+                                <span class="block text-sm opacity-80">Anula o devuelve toda la venta y regresa todo el inventario.</span>
                             </span>
                         </button>
 
@@ -181,12 +181,38 @@
                         <div class="flex items-center gap-2">
                             <Ban class="h-5 w-5 text-red-600" />
                             <h3 class="font-semibold text-slate-900">
-                                Cancelar venta completa
+                                Procesar ticket completo
                             </h3>
                         </div>
                         <p class="mt-2 text-sm text-slate-500">
-                            Cancela la venta completa y regresa todas las partidas al inventario.
+                            Cancela la venta completa y define el destino del dinero.
                         </p>
+
+                        <div class="mt-4 grid gap-3 md:grid-cols-2">
+                            <label v-if="ventaTienePedido" class="block">
+                                <span class="text-sm font-medium text-slate-700">Tipo de proceso</span>
+                                <select
+                                    v-model="tipoProcesoCancelacion"
+                                    class="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                                >
+                                    <option value="anulacion">Anulacion</option>
+                                    <option value="devolucion">Devolucion</option>
+                                </select>
+                            </label>
+
+                            <label class="block" :class="ventaTienePedido ? '' : 'md:col-span-2'">
+                                <span class="text-sm font-medium text-slate-700">Destino del dinero</span>
+                                <select
+                                    v-model="formaCancelacion"
+                                    class="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                                >
+                                    <option value="efectivo">Reembolso efectivo</option>
+                                    <option value="tarjeta">Reverso tarjeta</option>
+                                    <option value="transferencia">Reverso transferencia</option>
+                                    <option v-if="ventaTieneCliente" value="credito">Saldo a favor</option>
+                                </select>
+                            </label>
+                        </div>
 
                         <label class="mt-4 block text-sm font-medium text-slate-700">
                             Motivo de cancelacion
@@ -207,7 +233,7 @@
                         >
                             <Loader2 v-if="procesandoAccion === 'cancelar'" class="h-4 w-4 animate-spin" />
                             <Ban v-else class="h-4 w-4" />
-                            Cancelar venta
+                            Procesar ticket
                         </button>
                 </section>
 
@@ -233,7 +259,7 @@
                                     <option value="efectivo">Efectivo</option>
                                     <option value="tarjeta">Tarjeta</option>
                                     <option value="transferencia">Transferencia</option>
-                                    <option value="credito">Credito</option>
+                                    <option v-if="ventaTieneCliente" value="credito">Saldo a favor</option>
                                 </select>
                             </label>
                         </div>
@@ -348,6 +374,8 @@ const mensajeTipo = ref("ok");
 const motivoCancelacion = ref("");
 const motivoDevolucion = ref("");
 const formaDevolucion = ref("efectivo");
+const tipoProcesoCancelacion = ref("anulacion");
+const formaCancelacion = ref("efectivo");
 const modo = ref(null);
 const cantidades = reactive({});
 
@@ -356,6 +384,11 @@ const puedeDevolucionParcial = computed(() => {
     const detalles = venta.value?.detalles ?? [];
     return detalles.filter((detalle) => Number(detalle.cantidad || 0) > 0).length > 1;
 });
+const ventaTienePedido = computed(() =>
+    Boolean(venta.value?.tiene_pedido) ||
+    (venta.value?.detalles ?? []).some((detalle) => detalle.pedido_detalle_id),
+);
+const ventaTieneCliente = computed(() => Boolean(venta.value?.cliente?.id));
 const totalDevolucion = computed(() => {
     if (!venta.value) return 0;
 
@@ -411,6 +444,8 @@ async function cancelarVenta() {
         const { data } = await http.post("/api/cancelaciones-devoluciones/cancelar", {
             folio: venta.value.folio,
             motivo: motivoCancelacion.value,
+            tipo_proceso: ventaTienePedido.value ? tipoProcesoCancelacion.value : "anulacion",
+            forma_devolucion: formaCancelacion.value,
         });
         cargarVenta(data.venta);
         motivoCancelacion.value = "";
@@ -478,6 +513,10 @@ async function registrarDevolucion() {
 
 function cargarVenta(data) {
     venta.value = data;
+    if (!ventaTieneCliente.value) {
+        formaCancelacion.value = "efectivo";
+        formaDevolucion.value = "efectivo";
+    }
     if (!puedeDevolucionParcial.value && modo.value === "devolucion") {
         modo.value = null;
     }
@@ -491,6 +530,8 @@ function limpiarFormulario() {
     motivoCancelacion.value = "";
     motivoDevolucion.value = "";
     formaDevolucion.value = "efectivo";
+    tipoProcesoCancelacion.value = "anulacion";
+    formaCancelacion.value = "efectivo";
     modo.value = null;
     limpiarCantidades();
 }

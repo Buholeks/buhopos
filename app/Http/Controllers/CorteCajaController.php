@@ -315,6 +315,97 @@ public function cerrar(Request $request, int $id): JsonResponse
     }
 
 
+    public function consultaMovimientos(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+        $user  = Auth::user();
+        $sid   = (int) $user->sucursal_id;
+
+        $hoy   = now()->toDateString();
+        $desde = $request->input('desde', $hoy);
+        $hasta = $request->input('hasta', $hoy);
+
+        // Rangos de timestamp completos para que los índices en columnas datetime funcionen
+        $desdeTs = $desde . ' 00:00:00';
+        $hastaTs = $hasta . ' 23:59:59';
+
+        $origen     = $request->input('origen', '');
+        $tipo       = $request->input('tipo', '');
+        $formaPago  = $request->input('forma_pago', '');
+        $userId     = $request->input('user_id', '');
+        $concepto   = $request->input('concepto', '');
+        $porPagina  = (int) $request->input('por_pagina', 25);
+
+        // ── Rama 1: movimientos manuales ─────────────────────────────────────
+        $qMov = DB::table('movimientos_caja as m')
+            ->join('cortes_caja as c', 'm.corte_id', '=', 'c.id')
+            ->join('users as u', 'm.user_id', '=', 'u.id')
+            ->where('c.sucursal_id', $sid)
+            ->where('c.fecha_apertura', '>=', $desdeTs)
+            ->where('c.fecha_apertura', '<=', $hastaTs)
+            ->select([
+                'm.id',
+                DB::raw("'movimiento' as origen"),
+                'm.created_at as fecha_hora',
+                'u.name as usuario',
+                'm.tipo',
+                'm.forma_pago',
+                DB::raw('CAST(m.monto AS DECIMAL(14,2)) as monto'),
+                'm.concepto',
+                'c.terminal',
+                DB::raw('NULL as folio'),
+            ]);
+
+        if ($tipo)      $qMov->where('m.tipo', $tipo);
+        if ($formaPago) $qMov->where('m.forma_pago', $formaPago);
+        if ($userId)    $qMov->where('m.user_id', $userId);
+        if ($concepto)  $qMov->where('m.concepto', 'like', "%{$concepto}%");
+
+        // ── Rama 2: ventas confirmadas ────────────────────────────────────────
+        $qVentas = DB::table('ventas as v')
+            ->join('users as u', 'v.user_id', '=', 'u.id')
+            ->join('cortes_caja as c', 'v.corte_id', '=', 'c.id')
+            ->where('v.sucursal_id', $sid)
+            ->where('v.estado', 'confirmada')
+            ->whereNotNull('v.corte_id')
+            ->where('v.fecha', '>=', $desde)
+            ->where('v.fecha', '<=', $hasta)
+            ->select([
+                'v.id',
+                DB::raw("'venta' as origen"),
+                'v.created_at as fecha_hora',
+                'u.name as usuario',
+                DB::raw("'ingreso' as tipo"),
+                'v.forma_pago',
+                DB::raw('CAST(v.total AS DECIMAL(14,2)) as monto'),
+                DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id)) as concepto"),
+                'c.terminal',
+                'v.folio',
+            ]);
+
+        if ($formaPago) $qVentas->where('v.forma_pago', $formaPago);
+        if ($userId)    $qVentas->where('v.user_id', $userId);
+        if ($concepto)  $qVentas->where(DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id))"), 'like', "%{$concepto}%");
+        // ventas son siempre ingreso; si filtran egreso, excluimos ventas
+        if ($tipo === 'egreso') $qVentas->whereRaw('1=0');
+
+        // ── UNION y paginación ────────────────────────────────────────────────
+        if ($origen === 'movimiento') {
+            $query = $qMov;
+        } elseif ($origen === 'venta') {
+            $query = $qVentas;
+        } else {
+            $query = $qMov->unionAll($qVentas);
+        }
+
+        $resultado = DB::table(DB::raw("({$query->toSql()}) as t"))
+            ->mergeBindings($query)
+            ->orderByDesc('fecha_hora')
+            ->paginate($porPagina);
+
+        return response()->json($resultado);
+    }
+
    public function guardarDesgloseEnVivo(Request $request, int $id): JsonResponse
 {
     $user = Auth::user();

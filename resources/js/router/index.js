@@ -51,6 +51,7 @@ import EtiquetasEditor from "@/pages/etiquetas/EtiquetasEditor.vue";
 import CorteCaja from "../pages/caja/CorteCaja.vue";
 import HistorialCortes from "../pages/caja/HistorialCortes.vue";
 import CorteDetalle from "../pages/caja/CorteDetalle.vue";
+import ConsultaCaja from "../pages/caja/ConsultaCaja.vue";
 
 import ReporteCaja from "@/pages/reportes/caja/Index.vue";
 import ReporteVentas from "@/pages/reportes/venta/Index.vue";
@@ -121,6 +122,7 @@ const routes = [
       { path: "caja",          name: "caja",          component: CorteCaja,      meta: { title: "Corte de caja",   permiso: "caja.abrir" } },
       { path: "cortes-caja",   name: "cortes-caja",   component: HistorialCortes,meta: { title: "Cortes de caja",  permiso: "caja.historial" } },
       { path: "corte-detalle/:id", name: "corte-detalle", component: CorteDetalle, props: true, meta: { title: "Detalle de corte", permiso: "caja.historial" } },
+      { path: "consulta-caja",    name: "consulta-caja",    component: ConsultaCaja,    meta: { title: "Consulta de caja",   permiso: "caja.historial" } },
 
       { path: "reportes-caja",           name: "reportes-caja",           component: ReporteCaja,       meta: { title: "Reporte de caja",     permiso: "reportes.ver" } },
       { path: "reportes-ventas",         name: "reportes-ventas",         component: ReporteVentas,     meta: { title: "Consulta de ventas",  permiso: "ventas.ver" } },

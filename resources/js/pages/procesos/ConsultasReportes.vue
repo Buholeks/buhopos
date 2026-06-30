@@ -21,6 +21,13 @@ import {
 
 const consultas = [
     {
+        label: "Consulta de caja",
+        icon: ClipboardList,
+        to: { name: "consulta-caja" },
+        badge: "Disponible",
+        permiso: "caja.historial",
+    },
+    {
         label: "Reporte de caja",
         icon: Landmark,
         to: { name: "reportes-caja" },

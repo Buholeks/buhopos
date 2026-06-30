@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\CorteCaja;
 use App\Models\CorteDesgloseEfectivo;
 use App\Models\MovimientoCaja;
+use App\Models\User;
 use App\Models\Venta;
 use App\Support\TerminalResolver;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class CorteCajaController extends Controller
 {
@@ -314,35 +317,95 @@ public function cerrar(Request $request, int $id): JsonResponse
         return response()->json($ventas);
     }
 
+    public function usuariosConsulta(Request $request): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+
+        $user = Auth::user();
+
+        $usuarios = User::query()
+            ->where('empresa_id', $user->empresa_id)
+            ->where('activo', true)
+            ->where(fn($q) => $q
+                ->where('sucursal_id', $user->sucursal_id)
+                ->orWhereHas('sucursales', fn($sub) => $sub->where('sucursales.id', $user->sucursal_id)))
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->limit(300)
+            ->get();
+
+        return response()->json($usuarios);
+    }
+
+    public function eliminarMovimiento(Request $request, int $id, int $movId): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('caja.abrir'), 403, 'Sin permiso: caja.abrir');
+
+        $user = Auth::user();
+        $terminal = TerminalResolver::fromRequest($request);
+
+        DB::transaction(function () use ($user, $terminal, $id, $movId) {
+            $corte = CorteCaja::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->where('terminal', $terminal)
+                ->where('id', $id)
+                ->where('estado', 'abierto')
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            MovimientoCaja::where('corte_id', $corte->id)
+                ->where('id', $movId)
+                ->firstOrFail()
+                ->delete();
+
+            $corte->recalcularMovimientos();
+        });
+
+        return response()->json(['message' => 'Movimiento eliminado.']);
+    }
+
 
     public function consultaMovimientos(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
         $user  = Auth::user();
+        $eid   = (int) $user->empresa_id;
         $sid   = (int) $user->sucursal_id;
 
         $hoy   = now()->toDateString();
-        $desde = $request->input('desde', $hoy);
-        $hasta = $request->input('hasta', $hoy);
+        $datos = $request->validate([
+            'desde' => ['nullable', 'date'],
+            'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
+            'origen' => ['nullable', Rule::in(['', 'venta', 'movimiento'])],
+            'tipo' => ['nullable', Rule::in(['', 'ingreso', 'egreso'])],
+            'forma_pago' => ['nullable', Rule::in(['', 'efectivo', 'tarjeta', 'transferencia', 'credito'])],
+            'user_id' => ['nullable', 'integer'],
+            'concepto' => ['nullable', 'string', 'max:120'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
 
-        // Rangos de timestamp completos para que los índices en columnas datetime funcionen
-        $desdeTs = $desde . ' 00:00:00';
-        $hastaTs = $hasta . ' 23:59:59';
+        $desde = $datos['desde'] ?? $hoy;
+        $hasta = $datos['hasta'] ?? $hoy;
 
-        $origen     = $request->input('origen', '');
-        $tipo       = $request->input('tipo', '');
-        $formaPago  = $request->input('forma_pago', '');
-        $userId     = $request->input('user_id', '');
-        $concepto   = $request->input('concepto', '');
-        $porPagina  = (int) $request->input('por_pagina', 25);
+        // Carbon respeta config('app.timezone') y convierte a UTC para la comparación en BD
+        $desdeTs = Carbon::parse($desde)->startOfDay();
+        $hastaTs = Carbon::parse($hasta)->endOfDay();
+
+        $origen     = $datos['origen'] ?? '';
+        $tipo       = $datos['tipo'] ?? '';
+        $formaPago  = $datos['forma_pago'] ?? '';
+        $userId     = $datos['user_id'] ?? '';
+        $concepto   = trim((string) ($datos['concepto'] ?? ''));
+        $porPagina  = min((int) ($datos['por_pagina'] ?? 25), 100);
 
         // ── Rama 1: movimientos manuales ─────────────────────────────────────
         $qMov = DB::table('movimientos_caja as m')
             ->join('cortes_caja as c', 'm.corte_id', '=', 'c.id')
             ->join('users as u', 'm.user_id', '=', 'u.id')
+            ->where('c.empresa_id', $eid)
             ->where('c.sucursal_id', $sid)
-            ->where('c.fecha_apertura', '>=', $desdeTs)
-            ->where('c.fecha_apertura', '<=', $hastaTs)
+            ->whereBetween('m.created_at', [$desdeTs, $hastaTs])
             ->select([
                 'm.id',
                 DB::raw("'movimiento' as origen"),
@@ -365,7 +428,9 @@ public function cerrar(Request $request, int $id): JsonResponse
         $qVentas = DB::table('ventas as v')
             ->join('users as u', 'v.user_id', '=', 'u.id')
             ->join('cortes_caja as c', 'v.corte_id', '=', 'c.id')
+            ->where('v.empresa_id', $eid)
             ->where('v.sucursal_id', $sid)
+            ->where('c.empresa_id', $eid)
             ->where('v.estado', 'confirmada')
             ->whereNotNull('v.corte_id')
             ->where('v.fecha', '>=', $desde)
@@ -377,7 +442,7 @@ public function cerrar(Request $request, int $id): JsonResponse
                 'u.name as usuario',
                 DB::raw("'ingreso' as tipo"),
                 'v.forma_pago',
-                DB::raw('CAST(v.total AS DECIMAL(14,2)) as monto'),
+                DB::raw('CAST(GREATEST(v.total - COALESCE(v.saldo_aplicado, 0), 0) AS DECIMAL(14,2)) as monto'),
                 DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id)) as concepto"),
                 'c.terminal',
                 'v.folio',
@@ -398,12 +463,28 @@ public function cerrar(Request $request, int $id): JsonResponse
             $query = $qMov->unionAll($qVentas);
         }
 
-        $resultado = DB::table(DB::raw("({$query->toSql()}) as t"))
-            ->mergeBindings($query)
+        $base = DB::table(DB::raw("({$query->toSql()}) as t"))
+            ->mergeBindings($query);
+
+        $resumen = (clone $base)
+            ->selectRaw("
+                COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) as ingresos,
+                COALESCE(SUM(CASE WHEN tipo = 'egreso' THEN monto ELSE 0 END), 0) as egresos,
+                COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE -monto END), 0) as neto
+            ")
+            ->first();
+
+        $resultado = $base
             ->orderByDesc('fecha_hora')
             ->paginate($porPagina);
 
-        return response()->json($resultado);
+        return response()->json(array_merge($resultado->toArray(), [
+            'summary' => [
+                'ingresos' => round((float) ($resumen->ingresos ?? 0), 2),
+                'egresos' => round((float) ($resumen->egresos ?? 0), 2),
+                'neto' => round((float) ($resumen->neto ?? 0), 2),
+            ],
+        ]));
     }
 
    public function guardarDesgloseEnVivo(Request $request, int $id): JsonResponse

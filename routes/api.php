@@ -283,6 +283,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/desglose', [CorteCajaController::class, 'guardarDesgloseEnVivo']);
     });
 
+    Route::get('/movimientos-caja/usuarios', [CorteCajaController::class, 'usuariosConsulta']);
     Route::get('/movimientos-caja', [CorteCajaController::class, 'consultaMovimientos']);
 
     /*

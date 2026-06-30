@@ -9,6 +9,7 @@ use App\Models\Serie;
 use App\Models\Sucursal;
 use App\Models\Traspaso;
 use App\Models\TraspasoDetalle;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -52,8 +53,8 @@ class TraspasoController extends Controller
                         ->orWhere('traspasos.destino_sucursal_id', $sucursalId);
                 });
             })
-            ->when($request->filled('desde'), fn($q) => $q->whereDate('traspasos.created_at', '>=', $request->date('desde')))
-            ->when($request->filled('hasta'), fn($q) => $q->whereDate('traspasos.created_at', '<=', $request->date('hasta')))
+            ->when($request->filled('desde'), fn($q) => $q->where('traspasos.created_at', '>=', Carbon::parse($request->date('desde'), 'America/Mexico_City')->startOfDay()->utc()))
+            ->when($request->filled('hasta'), fn($q) => $q->where('traspasos.created_at', '<=', Carbon::parse($request->date('hasta'), 'America/Mexico_City')->endOfDay()->utc()))
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $buscar = trim((string) $request->buscar);
                 $q->where(function ($sub) use ($buscar) {

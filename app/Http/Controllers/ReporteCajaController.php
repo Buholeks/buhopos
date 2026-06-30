@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CorteCaja;
 use App\Models\MovimientoCaja;
 use App\Models\Venta;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,11 +37,11 @@ class ReporteCajaController extends Controller
             ->with(['user:id,name'])
             ->when(
                 $request->filled('fecha_desde'),
-                fn ($q) => $q->where('fecha_apertura', '>=', $request->fecha_desde . ' 00:00:00')
+                fn ($q) => $q->where('fecha_apertura', '>=', Carbon::parse($request->fecha_desde, 'America/Mexico_City')->startOfDay()->utc())
             )
             ->when(
                 $request->filled('fecha_hasta'),
-                fn ($q) => $q->where('fecha_apertura', '<=', $request->fecha_hasta . ' 23:59:59')
+                fn ($q) => $q->where('fecha_apertura', '<=', Carbon::parse($request->fecha_hasta, 'America/Mexico_City')->endOfDay()->utc())
             )
             ->when(
                 $request->filled('user_id'),
@@ -56,7 +57,7 @@ class ReporteCajaController extends Controller
             $cortes = $query->get();
 
             $agrupado = $cortes
-                ->groupBy(fn ($corte) => $corte->fecha_apertura->toDateString())
+                ->groupBy(fn ($corte) => $corte->fecha_apertura->copy()->setTimezone('America/Mexico_City')->toDateString())
                 ->map(function ($grupo, $fecha) {
                     return [
                         'fecha'                => $fecha,

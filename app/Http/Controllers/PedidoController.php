@@ -16,6 +16,7 @@ use App\Models\Atributo;
 use App\Models\VarianteAtributo;
 use App\Services\FolioService;
 use App\Support\TerminalResolver;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,8 +42,8 @@ class PedidoController extends Controller
             ->when($request->filled('tipo'), fn($q) => $q->where('tipo', $request->tipo))
             ->when($request->filled('estado'), fn($q) => $q->where('estado', $request->estado))
             ->when($request->filled('cliente_id'), fn($q) => $q->where('cliente_id', $request->integer('cliente_id')))
-            ->when($request->filled('fecha_desde'), fn($q) => $q->whereDate('created_at', '>=', $request->fecha_desde))
-            ->when($request->filled('fecha_hasta'), fn($q) => $q->whereDate('created_at', '<=', $request->fecha_hasta))
+            ->when($request->filled('fecha_desde'), fn($q) => $q->where('created_at', '>=', Carbon::parse($request->fecha_desde, 'America/Mexico_City')->startOfDay()->utc()))
+            ->when($request->filled('fecha_hasta'), fn($q) => $q->where('created_at', '<=', Carbon::parse($request->fecha_hasta, 'America/Mexico_City')->endOfDay()->utc()))
             ->when($request->filled('buscar'), function ($q) use ($request) {
                 $b = trim((string) $request->buscar);
                 $q->where(function ($sq) use ($b) {

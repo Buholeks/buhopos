@@ -17,6 +17,7 @@ use App\Models\ProductoVariante;
 use App\Models\Serie;
 use App\Models\Traspaso;
 use App\Models\Venta;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -51,8 +52,8 @@ class InventarioConteoController extends Controller
             ->with(['user:id,name', 'sucursal:id,nombre'])
             ->withCount('detalles')
             ->when($estado, fn($query) => $query->where('estado', $estado))
-            ->when(request('desde'), fn($query, $desde) => $query->whereDate('created_at', '>=', $desde))
-            ->when(request('hasta'), fn($query, $hasta) => $query->whereDate('created_at', '<=', $hasta))
+            ->when(request('desde'), fn($query, $desde) => $query->where('created_at', '>=', Carbon::parse($desde, 'America/Mexico_City')->startOfDay()->utc()))
+            ->when(request('hasta'), fn($query, $hasta) => $query->where('created_at', '<=', Carbon::parse($hasta, 'America/Mexico_City')->endOfDay()->utc()))
             ->when($q !== '', fn($query) => $query->where(function ($sub) use ($q) {
                 $sub->where('folio', 'like', "%{$q}%")
                     ->orWhere('notas', 'like', "%{$q}%");

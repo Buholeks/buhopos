@@ -372,7 +372,7 @@ public function cerrar(Request $request, int $id): JsonResponse
         $eid   = (int) $user->empresa_id;
         $sid   = (int) $user->sucursal_id;
 
-        $hoy   = now()->toDateString();
+        $hoy   = now('America/Mexico_City')->toDateString();
         $datos = $request->validate([
             'desde' => ['nullable', 'date'],
             'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
@@ -388,9 +388,9 @@ public function cerrar(Request $request, int $id): JsonResponse
         $desde = $datos['desde'] ?? $hoy;
         $hasta = $datos['hasta'] ?? $hoy;
 
-        $timezone = config('app.timezone', 'UTC');
-        $desdeTs = Carbon::parse($desde, $timezone)->startOfDay()->format('Y-m-d H:i:s');
-        $hastaTs = Carbon::parse($hasta, $timezone)->endOfDay()->format('Y-m-d H:i:s');
+        $timezone = 'America/Mexico_City';
+        $desdeTs = Carbon::parse($desde, $timezone)->startOfDay()->utc()->format('Y-m-d H:i:s');
+        $hastaTs = Carbon::parse($hasta, $timezone)->endOfDay()->utc()->format('Y-m-d H:i:s');
 
         $origen     = $datos['origen'] ?? '';
         $tipo       = $datos['tipo'] ?? '';

@@ -106,11 +106,45 @@
                             </div>
 
                             <div
-                                v-if="(variantesFiltradas?.length ?? 0) > 0"
-                                class="space-y-2"
+                                v-if="variantesAgrupadas.length > 0"
+                                class="space-y-3"
                             >
                                 <div
-                                    v-for="v in variantesFiltradas"
+                                    v-for="grupo in variantesAgrupadas"
+                                    :key="grupo.key"
+                                    class="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                                >
+                                    <button
+                                        type="button"
+                                        class="flex w-full items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-left hover:bg-slate-100"
+                                        @click="toggleGrupo(grupo.key)"
+                                    >
+                                        <div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                            <img
+                                                v-if="grupo.imagen_url"
+                                                :src="grupo.imagen_url"
+                                                :alt="grupo.label"
+                                                class="h-full w-full object-contain"
+                                            />
+                                            <Image v-else class="h-4 w-4 text-slate-300" />
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate text-sm font-semibold text-slate-900">
+                                                {{ grupo.label }}
+                                            </p>
+                                            <p class="text-xs text-slate-500">
+                                                {{ grupo.tipo }} · {{ grupo.variantes.length }} variantes
+                                            </p>
+                                        </div>
+                                        <ChevronDown
+                                            class="h-4 w-4 text-slate-400 transition"
+                                            :class="grupoColapsado(grupo.key) ? '-rotate-90' : ''"
+                                        />
+                                    </button>
+
+                                    <div v-show="!grupoColapsado(grupo.key)" class="space-y-2 p-2">
+                                <div
+                                    v-for="v in grupo.variantes"
                                     :key="v.id"
                                     class="rounded-xl border border-slate-200 bg-slate-50 p-3"
                                     @dblclick="emit('toggle-editar', v)"
@@ -124,8 +158,8 @@
                                             class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white"
                                         >
                                             <img
-                                                v-if="v.imagen_url"
-                                                :src="v.imagen_url"
+                                                v-if="imagenVariante(v)"
+                                                :src="imagenVariante(v)"
                                                 :alt="v.nombre_variante"
                                                 class="h-full w-full object-contain"
                                             />
@@ -618,6 +652,8 @@
                                         </div>
                                     </Transition>
                                 </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div
@@ -951,6 +987,7 @@ import {
     Loader2,
     AlertTriangle,
     Search,
+    ChevronDown,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -993,6 +1030,7 @@ const busquedaVariante = ref("");
 const seleccionMasiva = ref({});
 const seleccionTemporal = ref({});
 const skuPorCombo = ref({});
+const gruposColapsados = ref(new Set());
 
 const existingSkus = computed(() =>
     new Set((props.variantes ?? []).map((v) => v.sku).filter(Boolean)),
@@ -1034,6 +1072,72 @@ const variantesFiltradas = computed(() => {
     });
 });
 
+const tipoAgrupadorVisual = computed(() => {
+    const tipos = props.catalogos?.tiposAtributo ?? [];
+    const porNombre = tipos.find((tipo) =>
+        ["color", "colores", "colors", "colour", "colours"].includes(normalizar(tipo.nombre ?? "")),
+    );
+
+    if (porNombre) return porNombre;
+    if (tipos.length > 0) return tipos[0];
+
+    const primerAtributo = (props.variantes ?? [])
+        .flatMap((v) => v.atributos ?? [])
+        .sort((a, b) => Number(a.tipo_atributo_id ?? 0) - Number(b.tipo_atributo_id ?? 0))[0];
+
+    return primerAtributo
+        ? {
+              id: primerAtributo.tipo_atributo_id ?? primerAtributo.tipo_atributo?.id,
+              nombre: primerAtributo.tipo_atributo?.nombre ?? "Atributo",
+          }
+        : null;
+});
+
+const variantesAgrupadas = computed(() => {
+    const tipo = tipoAgrupadorVisual.value;
+    const grupos = new Map();
+
+    for (const variante of variantesFiltradas.value) {
+        const atributo = atributoDeTipo(variante, tipo?.id);
+        const key = atributo
+            ? `tipo:${tipo.id}:atributo:${atributo.id}`
+            : `sin-grupo:${variante.id}`;
+        const label = atributo?.valor ?? variante.grupo_visual ?? "Sin grupo";
+
+        if (!grupos.has(key)) {
+            grupos.set(key, {
+                key,
+                label,
+                tipo: tipo?.nombre ?? "Atributo",
+                imagen_url: imagenVariante(variante),
+                variantes: [],
+            });
+        }
+
+        const grupo = grupos.get(key);
+        if (!grupo.imagen_url) grupo.imagen_url = imagenVariante(variante);
+        grupo.variantes.push(variante);
+    }
+
+    return Array.from(grupos.values()).map((grupo) => ({
+        ...grupo,
+        variantes: grupo.variantes.sort(ordenarVariantesDentroDeGrupo),
+    }));
+});
+
+watch(
+    variantesAgrupadas,
+    (grupos) => {
+        if (busquedaVariante.value.trim()) {
+            gruposColapsados.value = new Set();
+            return;
+        }
+
+        gruposColapsados.value = new Set(grupos.map((grupo) => grupo.key));
+    },
+    { immediate: true },
+);
+
 const variantesActivas = computed(
     () => (props.variantes ?? []).filter((v) => v.activo).length,
 );
@@ -1041,6 +1145,41 @@ const variantesActivas = computed(
 const variantesInactivas = computed(
     () => (props.variantes ?? []).filter((v) => !v.activo).length,
 );
+
+function imagenVariante(v) {
+    return v?.imagen_url_resuelta ?? v?.imagen_url ?? null;
+}
+
+function atributoDeTipo(variante, tipoId) {
+    if (!tipoId) return null;
+
+    const atributo = (variante.atributos ?? []).find(
+        (attr) => Number(attr.tipo_atributo_id ?? attr.tipo_atributo?.id) === Number(tipoId),
+    );
+
+    if (!atributo) return null;
+
+    return {
+        id: atributo.atributo_id ?? atributo.atributo?.id,
+        valor: atributo.atributo?.valor ?? atributo.valor,
+    };
+}
+
+function ordenarVariantesDentroDeGrupo(a, b) {
+    return String(a.nombre_variante ?? a.sku ?? "").localeCompare(
+        String(b.nombre_variante ?? b.sku ?? ""),
+        "es",
+        { numeric: true },
+    );
+}
+
+function normalizar(value) {
+    return String(value)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/\s+/g, "");
+}
 
 const combinacionesMasivas = computed(() => {
     const grupos = (props.catalogos?.tiposAtributo ?? [])
@@ -1084,6 +1223,20 @@ const variantesGenerables = computed(() =>
 
 function setVarTab(t) {
     emit("update:varTab", t);
+}
+
+function grupoColapsado(key) {
+    return gruposColapsados.value.has(key);
+}
+
+function toggleGrupo(key) {
+    const next = new Set(gruposColapsados.value);
+    if (next.has(key)) {
+        next.delete(key);
+    } else {
+        next.add(key);
+    }
+    gruposColapsados.value = next;
 }
 
 watch(

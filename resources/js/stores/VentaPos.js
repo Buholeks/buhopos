@@ -106,8 +106,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         const _idkey = r.pedido_detalle_id
             ? `pedido:${r.pedido_detalle_id}`
             : r.id
-              ? `v:${r.id}`
-              : `p:${r.producto_id}`;
+                ? `v:${r.id}`
+                : `p:${r.producto_id}`;
         const existe = detalles.value.find((d) => d._idkey === _idkey);
 
         if (existe) {

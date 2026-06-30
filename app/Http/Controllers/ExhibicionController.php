@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Inventario;
-use App\Models\ProductoVariante;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -21,8 +20,12 @@ class ExhibicionController extends Controller
         $query = Inventario::with([
             'producto:id,nombre,codigo,imagen,tiene_variantes,categoria_id',
             'producto.categoria:id,nombre',
-            'variante:id,sku,codigo_barras,imagen',
-            'varianteExhibida:id,sku',
+            'variante:id,producto_id,sku,codigo_barras,imagen',
+            'variante.atributos.tipoAtributo:id,nombre',
+            'variante.atributos.atributo:id,valor',
+            'varianteExhibida:id,producto_id,sku',
+            'varianteExhibida.atributos.tipoAtributo:id,nombre',
+            'varianteExhibida.atributos.atributo:id,valor',
         ])
             ->deSucursal($empresaId, $sucursalId);
 
@@ -30,7 +33,9 @@ class ExhibicionController extends Controller
         match ($request->input('filtro')) {
             'exhibidos'     => $query->exhibidos(),
             'sinExhibicion' => $query->sinExhibicion(),
-            default         => null,
+            default         => $query->where(fn($q) => $q
+                ->where('exhibido', true)
+                ->orWhere(fn($q2) => $q2->sinExhibicion())),
         };
 
         // Búsqueda
@@ -47,6 +52,14 @@ class ExhibicionController extends Controller
                         fn($v) =>
                         $v->where('sku', 'like', "%{$busqueda}%")
                             ->orWhere('codigo_barras', 'like', "%{$busqueda}%")
+                            ->orWhereHas(
+                                'atributos.atributo',
+                                fn($a) => $a->where('valor', 'like', "%{$busqueda}%")
+                            )
+                            ->orWhereHas(
+                                'atributos.tipoAtributo',
+                                fn($t) => $t->where('nombre', 'like', "%{$busqueda}%")
+                            )
                     );
             });
         }
@@ -59,6 +72,8 @@ class ExhibicionController extends Controller
         $items = $query->orderBy('exhibido', 'desc')
             ->orderBy('stock', 'desc')
             ->paginate($request->input('per_page', 50));
+
+        $this->agregarNombreVariante($items->getCollection());
 
         // Contadores (solo los relevantes para control de exhibición)
         $base  = Inventario::deSucursal($empresaId, $sucursalId);
@@ -98,18 +113,29 @@ class ExhibicionController extends Controller
         }
 
         // Obtener inventario de cada variante de este producto en esta sucursal
-        $variantes = Inventario::with('variante:id,sku,codigo_barras,imagen')
+        $variantes = Inventario::with([
+            'variante:id,producto_id,sku,codigo_barras,imagen',
+            'variante.atributos.tipoAtributo:id,nombre',
+            'variante.atributos.atributo:id,valor',
+        ])
             ->deSucursal($inventario->empresa_id, $inventario->sucursal_id)
             ->where('producto_id', $inventario->producto_id)
             ->whereNotNull('variante_id')
             ->where('stock', '>', 0)
             ->get()
-            ->map(fn($inv) => [
-                'inventario_id' => $inv->id,
-                'variante_id'   => $inv->variante_id,
-                'sku'           => $inv->variante?->sku ?? "#{$inv->variante_id}",
-                'stock'         => (float) $inv->stock,
-            ]);
+            ->map(function ($inv) {
+                $color = $this->atributoColor($inv->variante);
+
+                return [
+                    'inventario_id' => $inv->id,
+                    'variante_id'   => $inv->variante_id,
+                    'sku'           => $inv->variante?->sku ?? "#{$inv->variante_id}",
+                    'nombre_variante' => $inv->variante?->nombreVariante() ?: null,
+                    'grupo_exhibicion' => $color ? 'color' : 'producto',
+                    'grupo_label' => $color?->atributo?->valor,
+                    'stock'         => (float) $inv->stock,
+                ];
+            });
 
         return response()->json(['variantes' => $variantes]);
     }
@@ -150,7 +176,13 @@ class ExhibicionController extends Controller
 
         return response()->json([
             'message' => 'Producto marcado como exhibido.',
-            'item'    => $inventario->fresh(['producto', 'variante', 'varianteExhibida']),
+            'item'    => $inventario->fresh([
+                'producto',
+                'variante.atributos.tipoAtributo',
+                'variante.atributos.atributo',
+                'varianteExhibida.atributos.tipoAtributo',
+                'varianteExhibida.atributos.atributo',
+            ]),
         ]);
     }
 
@@ -172,7 +204,48 @@ class ExhibicionController extends Controller
 
         return response()->json([
             'message' => 'Producto quitado de exhibición.',
-            'item'    => $inventario->fresh(['producto', 'variante', 'varianteExhibida']),
+            'item'    => $inventario->fresh([
+                'producto',
+                'variante.atributos.tipoAtributo',
+                'variante.atributos.atributo',
+                'varianteExhibida.atributos.tipoAtributo',
+                'varianteExhibida.atributos.atributo',
+            ]),
         ]);
+    }
+
+    private function agregarNombreVariante($inventarios): void
+    {
+        foreach ($inventarios as $inventario) {
+            foreach (['variante', 'varianteExhibida'] as $relacion) {
+                if ($inventario->{$relacion}) {
+                    $inventario->{$relacion}->setAttribute(
+                        'nombre_variante',
+                        $inventario->{$relacion}->nombreVariante() ?: null
+                    );
+                }
+            }
+        }
+    }
+
+    private function atributoColor($variante)
+    {
+        if (! $variante) {
+            return null;
+        }
+
+        return collect($variante->atributos ?? [])
+            ->first(fn($attr) => in_array(
+                $this->normalizarAtributo($attr->tipoAtributo?->nombre ?? ''),
+                Inventario::nombresAtributoColor(),
+                true
+            ));
+    }
+
+    private function normalizarAtributo(string $valor): string
+    {
+        $valor = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $valor) ?: $valor;
+
+        return strtolower(trim($valor));
     }
 }

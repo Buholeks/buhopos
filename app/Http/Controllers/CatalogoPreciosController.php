@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProductoVariante;
 use App\Models\TipoAtributo;
 use App\Support\PublicImageStorage;
+use App\Support\VariantImageResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -115,6 +117,8 @@ class CatalogoPreciosController extends Controller
             ->filter()
             ->values();
 
+        $imagenesResueltas = $this->imagenesResueltasPorVariante($varianteIds, $empresaId);
+
         $atributosPorVariante = DB::table('variante_atributos as va')
             ->join('tipo_atributos as ta', 'ta.id', '=', 'va.tipo_atributo_id')
             ->join('atributos as a', 'a.id', '=', 'va.atributo_id')
@@ -124,7 +128,7 @@ class CatalogoPreciosController extends Controller
             ->get()
             ->groupBy('variante_id');
 
-        $catalogo->getCollection()->transform(function ($row) use ($atributosPorVariante) {
+        $catalogo->getCollection()->transform(function ($row) use ($atributosPorVariante, $imagenesResueltas) {
             $precios = $this->mapPrecios($row);
             $atributos = ($atributosPorVariante[$row->variante_id] ?? collect())
                 ->map(fn($a) => ['tipo' => $a->tipo, 'valor' => $a->valor])
@@ -140,7 +144,12 @@ class CatalogoPreciosController extends Controller
                 'marca' => $row->marca,
                 'modelo' => $row->modelo,
                 'stock' => (float) $row->stock,
-                'imagen_url' => $this->imagenUrl($row),
+                'imagen_url' => $row->variante_id
+                    ? ($imagenesResueltas[$row->variante_id] ?? $this->imagenUrl($row))
+                    : $this->imagenUrl($row),
+                'imagen_url_resuelta' => $row->variante_id
+                    ? ($imagenesResueltas[$row->variante_id] ?? $this->imagenUrl($row))
+                    : $this->imagenUrl($row),
                 'atributos' => $atributos,
                 'variante' => $atributos->pluck('valor')->join(' / '),
                 'precios' => $precios,
@@ -209,6 +218,31 @@ class CatalogoPreciosController extends Controller
         return collect($precios)
             ->filter(fn($p) => (float) $p['valor'] > 0)
             ->values()
+            ->all();
+    }
+
+    private function imagenesResueltasPorVariante($varianteIds, int $empresaId): array
+    {
+        $ids = collect($varianteIds)->filter()->unique()->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $variantes = ProductoVariante::where('empresa_id', $empresaId)
+            ->whereIn('id', $ids)
+            ->with([
+                'producto:id,imagen',
+                'atributos.tipoAtributo:id,nombre',
+                'atributos.atributo:id,valor',
+            ])
+            ->select('id', 'producto_id', 'empresa_id', 'imagen')
+            ->get();
+
+        return VariantImageResolver::applyResolvedImagesWithSiblingImages($variantes, $empresaId)
+            ->mapWithKeys(fn($variante) => [
+                $variante->id => $variante->imagen_url_resuelta ?? $variante->imagen_url,
+            ])
             ->all();
     }
 

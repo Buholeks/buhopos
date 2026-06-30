@@ -1,5 +1,5 @@
 <template>
-    <div class="min-h-screen bg-slate-50 p-3 sm:p-6">
+    <div class="min-h-screen">
         <!-- TOPBAR -->
         <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-3">
@@ -729,8 +729,8 @@ function abrirEditarVariante(v) {
         atributos: atributosEdit,
         sku: v.sku ?? "",
         codigo_barras: v.codigo_barras ?? "",
-        imagenMedia: v.imagen_url ? { url: v.imagen_url } : null,
-        imagenActualUrl: v.imagen_url ?? null,
+        imagenMedia: (v.imagen_url_resuelta ?? v.imagen_url) ? { url: v.imagen_url_resuelta ?? v.imagen_url } : null,
+        imagenActualUrl: v.imagen_url_resuelta ?? v.imagen_url ?? null,
         eliminarImagen: false,
         precio_costo: v.precio_costo ?? null,
         precio_venta: v.precio_venta ?? null,
@@ -851,15 +851,14 @@ async function guardarEditarVariante(varianteId) {
         fd.append("activo", formEditVar.activo ? "1" : "0");
         if (formEditVar.imagenMedia?.id) fd.append("imagen_media_id", formEditVar.imagenMedia.id);
         if (formEditVar.eliminarImagen) fd.append("eliminar_imagen", "1");
-        const { data } = await http.post(
+        await http.post(
             `/api/productos/${modalVar.productoId}/variantes/${varianteId}`,
             fd,
             { headers: { "Content-Type": "multipart/form-data" } },
         );
-        const idx = variantes.value.findIndex((v) => v.id === varianteId);
-        if (idx !== -1) variantes.value[idx] = data.data ?? data;
         toastSuccess("Variante actualizada");
         varEditandoId.value = null;
+        await cargarVariantes(modalVar.productoId);
         await cargarProductos(paginacion.value.current_page);
     } catch (e) {
         toastError(e.response?.data?.message ?? "Error al guardar");

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Inventario extends Model
 {
@@ -108,6 +109,49 @@ class Inventario extends Model
                                         ->whereColumn('inv3.sucursal_id', 'inventario.sucursal_id')
                                         ->where('inv3.exhibido', true)
                                         ->whereNull('inv3.variante_exhibida_id');
+                                })
+                                ->where(function ($variantScope) {
+                                    $variantScope->where(function ($noColor) {
+                                        $noColor->whereNotExists(function ($sub) {
+                                            $sub->from('producto_variantes as pv_color')
+                                                ->join('variante_atributos as va_color', 'va_color.variante_id', '=', 'pv_color.id')
+                                                ->join('tipo_atributos as ta_color', 'ta_color.id', '=', 'va_color.tipo_atributo_id')
+                                                ->whereColumn('pv_color.producto_id', 'inventario.producto_id')
+                                                ->whereIn(DB::raw('LOWER(ta_color.nombre)'), self::nombresAtributoColor());
+                                        })
+                                        ->whereNotExists(function ($sub) {
+                                            $sub->from('inventario as inv4')
+                                                ->whereColumn('inv4.producto_id', 'inventario.producto_id')
+                                                ->whereColumn('inv4.empresa_id', 'inventario.empresa_id')
+                                                ->whereColumn('inv4.sucursal_id', 'inventario.sucursal_id')
+                                                ->where('inv4.exhibido', true);
+                                        });
+                                    })
+                                    ->orWhere(function ($withColor) {
+                                        $withColor->whereExists(function ($sub) {
+                                            $sub->from('producto_variantes as pv_color')
+                                                ->join('variante_atributos as va_color', 'va_color.variante_id', '=', 'pv_color.id')
+                                                ->join('tipo_atributos as ta_color', 'ta_color.id', '=', 'va_color.tipo_atributo_id')
+                                                ->whereColumn('pv_color.producto_id', 'inventario.producto_id')
+                                                ->whereIn(DB::raw('LOWER(ta_color.nombre)'), self::nombresAtributoColor());
+                                        })
+                                        ->whereNotExists(function ($sub) {
+                                            $sub->from('inventario as inv5')
+                                                ->join('producto_variantes as pv_exhibida', 'pv_exhibida.id', '=', 'inv5.variante_exhibida_id')
+                                                ->join('variante_atributos as va_exhibida', 'va_exhibida.variante_id', '=', 'pv_exhibida.id')
+                                                ->join('tipo_atributos as ta_exhibida', 'ta_exhibida.id', '=', 'va_exhibida.tipo_atributo_id')
+                                                ->join('variante_atributos as va_actual', function ($join) {
+                                                    $join->on('va_actual.variante_id', '=', 'inventario.variante_id')
+                                                        ->on('va_actual.tipo_atributo_id', '=', 'va_exhibida.tipo_atributo_id')
+                                                        ->on('va_actual.atributo_id', '=', 'va_exhibida.atributo_id');
+                                                })
+                                                ->whereColumn('inv5.producto_id', 'inventario.producto_id')
+                                                ->whereColumn('inv5.empresa_id', 'inventario.empresa_id')
+                                                ->whereColumn('inv5.sucursal_id', 'inventario.sucursal_id')
+                                                ->where('inv5.exhibido', true)
+                                                ->whereIn(DB::raw('LOWER(ta_exhibida.nombre)'), self::nombresAtributoColor());
+                                        });
+                                    });
                                 });
                          });
                      });
@@ -214,5 +258,10 @@ class Inventario extends Model
         if ($eraExhibido || ($this->exhibido && $this->fresh()->stock <= 0)) {
             $this->quitarExhibicion();
         }
+    }
+
+    public static function nombresAtributoColor(): array
+    {
+        return ['color', 'colores', 'colors', 'colour', 'colours'];
     }
 }

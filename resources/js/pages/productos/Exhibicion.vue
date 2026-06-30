@@ -191,7 +191,6 @@
                             >
                                 <th class="px-4 py-3">ID</th>
                                 <th class="px-4 py-3">Producto</th>
-                                <th class="px-4 py-3">Variante / SKU</th>
                                 <th class="px-4 py-3 text-center">Stock</th>
                                 <th class="px-4 py-3 text-center">Bodega</th>
                                 <th class="px-4 py-3 text-center">
@@ -206,7 +205,7 @@
                         <tbody class="divide-y divide-slate-100">
                             <tr v-if="items.length === 0">
                                 <td
-                                    colspan="9"
+                                    colspan="8"
                                     class="px-4 py-10 text-center text-sm text-slate-500"
                                 >
                                     No hay registros para este filtro.
@@ -261,26 +260,10 @@
                                             <p
                                                 class="truncate text-xs text-slate-500"
                                             >
-                                                {{
-                                                    item.producto?.codigo || "—"
-                                                }}
+                                                {{ codigoProductoSku(item) }}
                                             </p>
                                         </div>
                                     </div>
-                                </td>
-
-                                <!-- Variante -->
-                                <td class="px-4 py-3">
-                                    <span
-                                        v-if="skuVariante(item)"
-                                        class="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700 ring-1 ring-violet-200"
-                                    >
-                                        <Tag class="h-3.5 w-3.5" />
-                                        {{ skuVariante(item) }}
-                                    </span>
-                                    <span v-else class="text-sm text-slate-400"
-                                        >Sin variante</span
-                                    >
                                 </td>
 
                                 <!-- Stock -->
@@ -299,15 +282,28 @@
 
                                 <!-- Variante exhibida -->
                                 <td class="px-4 py-3 text-center">
-                                    <span
+                                    <div
                                         v-if="
-                                            item.exhibido && skuExhibida(item)
+                                            item.exhibido &&
+                                            varianteExhibida(item)
                                         "
-                                        class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                                        class="mx-auto min-w-[9rem]"
                                     >
-                                        <Tag class="h-3.5 w-3.5" />
-                                        {{ skuExhibida(item) }}
-                                    </span>
+                                        <span
+                                            class="inline-flex max-w-xs items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"
+                                        >
+                                            <Tag class="h-3.5 w-3.5 shrink-0" />
+                                            <span class="truncate">{{
+                                                varianteExhibida(item)
+                                            }}</span>
+                                        </span>
+                                        <p
+                                            v-if="skuExhibida(item)"
+                                            class="mt-1 truncate text-xs text-slate-500"
+                                        >
+                                            SKU: {{ skuExhibida(item) }}
+                                        </p>
+                                    </div>
                                     <span
                                         v-else-if="item.exhibido"
                                         class="text-sm text-slate-500"
@@ -469,7 +465,7 @@
                 @click.self="modal = null"
             >
                 <div
-                    class="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+                    class="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
                 >
                     <!-- Header modal -->
                     <div class="border-b border-slate-200 bg-white px-6 py-4">
@@ -565,7 +561,7 @@
                     </div>
 
                     <!-- Body modal -->
-                    <div class="px-6 py-5">
+                    <div class="flex-1 overflow-y-auto px-6 py-5">
                         <!-- Paso 1 -->
                         <div v-if="modal.paso === 1">
                             <div
@@ -579,12 +575,13 @@
                             <div v-else class="space-y-2">
                                 <!-- Sin variante -->
                                 <label
-                                    class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:bg-slate-50"
+                                    v-if="false"
+                                    class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:bg-slate-50"
                                 >
                                     <input
                                         type="radio"
                                         name="variante"
-                                        class="mt-1 h-4 w-4 accent-amber-600"
+                                        class="h-4 w-4 accent-amber-600"
                                         :checked="
                                             modal.varianteSeleccionada ===
                                             'sin_variante'
@@ -610,12 +607,12 @@
                                 <label
                                     v-for="v in modal.variantes"
                                     :key="v.variante_id"
-                                    class="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:bg-slate-50"
+                                    class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:bg-slate-50"
                                 >
                                     <input
                                         type="radio"
                                         name="variante"
-                                        class="mt-1 h-4 w-4 accent-amber-600"
+                                        class="h-4 w-4 accent-amber-600"
                                         :checked="
                                             modal.varianteSeleccionada
                                                 ?.variante_id === v.variante_id
@@ -623,16 +620,16 @@
                                         @change="modal.varianteSeleccionada = v"
                                     />
                                     <div
-                                        class="flex min-w-0 flex-1 items-start justify-between gap-3"
+                                        class="flex min-w-0 flex-1 items-center justify-between gap-3"
                                     >
                                         <div class="min-w-0">
                                             <p
                                                 class="truncate text-sm font-semibold text-slate-900"
                                             >
-                                                {{ v.sku }}
+                                                {{ nombreVarianteModal(v) }}
                                             </p>
-                                            <p class="text-xs text-slate-500">
-                                                Stock: {{ v.stock }}
+                                            <p class="truncate text-xs text-slate-500">
+                                                {{ metaVarianteModal(v) }}
                                             </p>
                                         </div>
                                         <span
@@ -800,7 +797,7 @@
                         >
                             Variante en piso:
                             <strong>{{
-                                modal.inventario.variante_exhibida.sku
+                                varianteExhibida(modal.inventario)
                             }}</strong>
                         </div>
                     </div>
@@ -1030,13 +1027,45 @@ function stockBodega(item) {
         : parseFloat(item.stock);
 }
 function nombreItem(item) {
-    return item.producto?.nombre ?? "—";
+    const producto = item.producto?.nombre ?? "—";
+    const variante = varianteItem(item);
+    return variante ? `${producto} - ${variante}` : producto;
+}
+function varianteItem(item) {
+    return item.variante?.nombre_variante || item.variante?.sku || null;
+}
+function codigoProductoSku(item) {
+    const codigo = item.producto?.codigo || "—";
+    const sku = skuVariante(item);
+    return sku ? `${codigo} · SKU: ${sku}` : codigo;
 }
 function skuVariante(item) {
     return item.variante?.sku ?? null;
 }
+function varianteExhibida(item) {
+    return (
+        item.variante_exhibida?.nombre_variante ||
+        item.variante_exhibida?.sku ||
+        null
+    );
+}
 function skuExhibida(item) {
     return item.variante_exhibida?.sku ?? null;
+}
+function nombreVarianteModal(variante) {
+    return variante.nombre_variante || variante.sku || "Variante";
+}
+function coberturaExhibicion(variante) {
+    if (variante.grupo_exhibicion === "color" && variante.grupo_label) {
+        return `Cubre color: ${variante.grupo_label}`;
+    }
+
+    return "Cubre todas las tallas";
+}
+function metaVarianteModal(variante) {
+    return [variante.sku ? `SKU: ${variante.sku}` : null, coberturaExhibicion(variante)]
+        .filter(Boolean)
+        .join(" · ");
 }
 
 const tarjetas = computed(() => [

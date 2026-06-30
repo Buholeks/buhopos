@@ -23,6 +23,7 @@ use App\Models\CorteCaja;
 use App\Models\Serie;
 use App\Support\ProductVariantSearch;
 use App\Support\TerminalResolver;
+use App\Support\VariantImageResolver;
 
 class VentaController extends Controller
 {
@@ -393,10 +394,31 @@ class VentaController extends Controller
                     'motivo_precio' => $det['motivo_precio'] ?? null,
                 ]);
 
-                $inv->descontarVenta(
-                    $cantidad,
-                    (bool) ($det['era_exhibido'] ?? false)
-                );
+                $exhibicionVendida = null;
+
+                if ((bool) ($det['era_exhibido'] ?? false)) {
+                    $exhibicionVendida = $this->exhibicionActivaParaVenta(
+                        $empresaId,
+                        $sucursalId,
+                        $productoId,
+                        $varianteId,
+                        true
+                    );
+
+                    if (! $exhibicionVendida) {
+                        DB::rollBack();
+                        return response()->json([
+                            'message' => 'La variante seleccionada no corresponde al producto exhibido.',
+                            'campo'   => 'era_exhibido',
+                        ], 422);
+                    }
+                }
+
+                $inv->descontarVenta($cantidad, false);
+
+                if ($exhibicionVendida) {
+                    $exhibicionVendida->quitarExhibicion();
+                }
 
                 if ($serieObj) {
                     $serieObj->marcarVendido($venta->id, $detalle->id);
@@ -641,7 +663,12 @@ class VentaController extends Controller
         $serie = Serie::where('empresa_id', $empresaId)
             ->where('imei', $q)
             ->where('estado', 'disponible')
-            ->with('producto:id,nombre,codigo,precio_costo,precio_venta,precio1,precio2,precio3,precio4,precio5,imagen,tiene_variantes,tiene_series')
+            ->with([
+                'producto:id,nombre,codigo,precio_costo,precio_venta,precio1,precio2,precio3,precio4,precio5,imagen,tiene_variantes,tiene_series',
+                'variante:id,producto_id,empresa_id,sku,imagen',
+                'variante.atributos.tipoAtributo:id,nombre',
+                'variante.atributos.atributo:id,valor',
+            ])
             ->first();
 
         if ($serie) {
@@ -655,6 +682,12 @@ class VentaController extends Controller
             $precioVenta = ($serie->precio_venta && (float)$serie->precio_venta > 0)
                 ? (float)$serie->precio_venta
                 : (float)($serie->producto->precio_venta ?? 0);
+            $serieImagenUrl = $serie->producto->imagen_url;
+
+            if ($serie->variante) {
+                $varianteSerie = VariantImageResolver::applyResolvedImagesWithSiblingImages(collect([$serie->variante]), $empresaId)->first();
+                $serieImagenUrl = $varianteSerie?->imagen_url_resuelta ?? $varianteSerie?->imagen_url ?? $serieImagenUrl;
+            }
 
             $resultados->push([
                 'id'              => $serie->variante_id, // null si sin variante
@@ -664,10 +697,11 @@ class VentaController extends Controller
                 'sku'             => null,
                 'codigo_barras'   => $serie->imei,
                 'nombre_variante' => null,
-                'imagen_url'      => $serie->producto->imagen_url,
+                'imagen_url'      => $serieImagenUrl,
+                'imagen_url_resuelta' => $serieImagenUrl,
                 'stock'           => $stock,
                 'sin_stock'       => $stock <= 0,
-                'exhibido'        => false,
+                'exhibido'        => (bool) $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $serie->producto_id, $serie->variante_id),
                 'tiene_series'    => true,
                 'serie_id'        => $serie->id,   // ← para venta directa por IMEI
                 'imei'            => $serie->imei,
@@ -725,7 +759,7 @@ class VentaController extends Controller
         $productos = $productos->map(function ($p) use ($empresaId, $sucursalId, $getStock, $stockComprometidoP) {
                 $inv      = $getStock($empresaId, $sucursalId, $p->id, null);
                 $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoP($p->id, null));
-                $exhibido = (bool)  ($inv?->exhibido ?? false);
+                $exhibido = (bool) $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $p->id, null);
 
                 return [
                     'id'              => null,        // sin variante_id
@@ -779,7 +813,8 @@ class VentaController extends Controller
                 'precio2',
                 'precio3',
                 'precio4',
-                'precio5'
+                'precio5',
+                'imagen'
             ])
             ->where(
                 fn($q2) => ProductVariantSearch::applyVarianteTokens($q2, $tokens)
@@ -795,6 +830,8 @@ class VentaController extends Controller
             ->take(15)
             ->values();
 
+        $variantes = VariantImageResolver::applyResolvedImagesWithSiblingImages($variantes, $empresaId);
+
         // ── Bulk stock comprometido para variantes ────────────────────────────
         $paresVariantes = $variantes->map(fn($v) => ['producto_id' => $v->producto_id, 'variante_id' => $v->id])->all();
         $stockComprometidoV = count($paresVariantes) > 0
@@ -804,7 +841,7 @@ class VentaController extends Controller
         $variantes = $variantes->map(function ($v) use ($empresaId, $sucursalId, $getStock, $resolverPrecio, $stockComprometidoV) {
                 $inv      = $getStock($empresaId, $sucursalId, $v->producto_id, $v->id);
                 $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoV($v->producto_id, $v->id));
-                $exhibido = (bool)  ($inv?->exhibido ?? false);
+                $exhibido = (bool) $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $v->producto_id, $v->id);
 
                 return [
                     'id'              => $v->id,
@@ -814,7 +851,8 @@ class VentaController extends Controller
                     'sku'             => $v->sku,
                     'codigo_barras'   => $v->codigo_barras,
                     'nombre_variante' => $v->nombreVariante(),
-                    'imagen_url'      => $v->imagen_url,
+                    'imagen_url'      => $v->imagen_url_resuelta ?? $v->imagen_url,
+                    'imagen_url_resuelta' => $v->imagen_url_resuelta ?? $v->imagen_url,
                     'stock'           => $stock,
                     'sin_stock'       => $stock <= 0,
                     'exhibido'        => $exhibido,
@@ -926,5 +964,31 @@ class VentaController extends Controller
             ],
             'sucursales' => $items,
         ]);
+    }
+
+    private function exhibicionActivaParaVenta(
+        int $empresaId,
+        int $sucursalId,
+        int $productoId,
+        ?int $varianteId,
+        bool $lock = false
+    ): ?Inventario {
+        $query = Inventario::where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->where('producto_id', $productoId)
+            ->where('exhibido', true);
+
+        if ($varianteId) {
+            $query->where('variante_exhibida_id', $varianteId);
+        } else {
+            $query->whereNull('variante_id')
+                ->whereNull('variante_exhibida_id');
+        }
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->first();
     }
 }

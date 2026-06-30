@@ -43,6 +43,19 @@
                             :alt="p.nombre"
                             class="h-full w-full object-contain"
                         />
+                        <div
+                            v-else-if="previewImagenes(p).length"
+                            class="grid h-full w-full grid-cols-2 grid-rows-2 gap-0.5 p-0.5"
+                        >
+                            <img
+                                v-for="img in previewImagenes(p)"
+                                :key="img.url"
+                                :src="img.url"
+                                :alt="img.grupo || p.nombre"
+                                class="h-full w-full rounded object-cover"
+                                :title="img.grupo || p.nombre"
+                            />
+                        </div>
                         <Image v-else class="h-5 w-5 text-slate-400" />
                     </div>
                 </td>
@@ -192,5 +205,9 @@ function pendientes(p) {
 
 function categoriaNombre(p) {
     return props.categoriaNombre(p);
+}
+
+function previewImagenes(p) {
+    return Array.isArray(p.preview_imagenes) ? p.preview_imagenes.slice(0, 4) : [];
 }
 </script>

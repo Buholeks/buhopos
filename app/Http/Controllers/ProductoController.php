@@ -8,7 +8,7 @@ use App\Models\Producto;
 use App\Models\ProductoVariante;
 use App\Models\TipoAtributo;
 use App\Models\VarianteAtributo;
-use App\Support\PublicImageStorage;
+use App\Support\VariantImageResolver;
 use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -92,6 +92,13 @@ class ProductoController extends Controller
         }
 
         $productos = $query->paginate($request->integer('por_pagina', 20));
+        $previewImagenes = VariantImageResolver::previewsForProducts($productos->getCollection(), $this->empresaId());
+
+        $productos->getCollection()->transform(function ($producto) use ($previewImagenes) {
+            $producto->setAttribute('preview_imagenes', $previewImagenes[$producto->id] ?? []);
+
+            return $producto;
+        });
 
         return response()->json($productos);
     }
@@ -286,12 +293,15 @@ class ProductoController extends Controller
         $producto = Producto::deEmpresa($this->empresaId())->findOrFail($id);
 
         $variantes = $producto->variantes()
-            ->with(['atributos.tipoAtributo', 'atributos.atributo'])
-            ->get()
+            ->with(['producto:id,imagen', 'atributos.tipoAtributo', 'atributos.atributo'])
+            ->get();
+
+        $variantes = VariantImageResolver::applyResolvedImages($variantes)
             ->map(fn($v) => array_merge($v->toArray(), [
                 'nombre_variante' => $v->nombreVariante(),
                 'precio_vigente'  => $v->precioVigente(),
                 'imagen_url'      => $v->imagen_url,
+                'imagen_url_resuelta' => $v->imagen_url_resuelta,
             ]));
 
         return response()->json($variantes);

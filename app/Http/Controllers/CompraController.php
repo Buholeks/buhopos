@@ -13,6 +13,7 @@ use App\Models\ProductoVariante;
 use App\Models\Producto;
 use App\Models\ProveedorSaldoMovimiento;
 use App\Support\ProductVariantSearch;
+use App\Support\VariantImageResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -705,6 +706,8 @@ class CompraController extends Controller
             ->first();
 
         if ($varianteExacta) {
+            $varianteExacta = VariantImageResolver::applyResolvedImagesWithSiblingImages(collect([$varianteExacta]), $empresaId)->first();
+
             return response()->json([[
                 'id'              => $varianteExacta->id,
                 'producto_id'     => $varianteExacta->producto_id,
@@ -715,7 +718,8 @@ class CompraController extends Controller
                 'nombre_variante' => $varianteExacta->nombreVariante(),
                 'precio_compra'   => (float) ($varianteExacta->precio_costo ?? $varianteExacta->producto->precio_costo ?? 0),
                 'precio_venta'    => (float) ($varianteExacta->precio_venta ?? $varianteExacta->producto->precio_venta ?? 0),
-                'imagen_url'      => $varianteExacta->imagen_url,
+                'imagen_url'      => $varianteExacta->imagen_url_resuelta ?? $varianteExacta->imagen_url,
+                'imagen_url_resuelta' => $varianteExacta->imagen_url_resuelta ?? $varianteExacta->imagen_url,
                 'tiene_variantes' => true,
                 'tiene_series'    => (bool) $varianteExacta->producto->tiene_series,
                 'pedido_generico' => (bool) $varianteExacta->producto->pedido_generico,
@@ -785,7 +789,9 @@ class CompraController extends Controller
             ->limit(80)
             ->select('id', 'producto_id', 'empresa_id', 'sku', 'codigo_barras', 'imagen', 'precio_costo', 'precio_venta')
             ->get()
-            ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)))
+            ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)));
+
+        $variantes = VariantImageResolver::applyResolvedImagesWithSiblingImages($variantes, $empresaId)
             ->map(function ($v) use ($tokens, $q) {
                 $searchText = ProductVariantSearch::varianteText($v);
 
@@ -799,7 +805,8 @@ class CompraController extends Controller
                     'nombre_variante' => $v->nombreVariante(),
                     'precio_compra'   => (float) ($v->precio_costo ?? $v->producto->precio_costo ?? 0),
                     'precio_venta'    => (float) ($v->precio_venta ?? $v->producto->precio_venta ?? 0),
-                    'imagen_url'      => $v->imagen_url,
+                    'imagen_url'      => $v->imagen_url_resuelta ?? $v->imagen_url,
+                    'imagen_url_resuelta' => $v->imagen_url_resuelta ?? $v->imagen_url,
                     'tiene_variantes' => true,
                     'tiene_series'    => (bool) $v->producto->tiene_series,
                     'pedido_generico' => (bool) $v->producto->pedido_generico,

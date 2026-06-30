@@ -49,9 +49,9 @@ class ConsultaCajaTest extends TestCase
             'tipo' => 'egreso',
             'forma_pago' => 'efectivo',
             'monto' => 99,
-            'concepto' => 'Retiro de ayer UTC',
-            'created_at' => Carbon::parse('2026-06-30 03:00:00'),
-            'updated_at' => Carbon::parse('2026-06-30 03:00:00'),
+            'concepto' => 'Retiro de ayer',
+            'created_at' => Carbon::parse('2026-06-29 23:59:59'),
+            'updated_at' => Carbon::parse('2026-06-29 23:59:59'),
         ]);
 
         $this->getJson('/api/movimientos-caja?desde=2026-06-30&hasta=2026-06-30&origen=movimiento')

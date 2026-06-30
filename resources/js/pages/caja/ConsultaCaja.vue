@@ -556,8 +556,7 @@ function fmt(v) {
 
 function fmtFecha(f) {
     if (!f) return "—";
-    // La BD devuelve timestamps UTC sin zona; añadir 'Z' para que el navegador los interprete como UTC
-    const str = f.includes("T") || f.endsWith("Z") ? f : f.replace(" ", "T") + "Z";
+    const str = f.includes("T") ? f : f.replace(" ", "T");
     return new Date(str).toLocaleString("es-MX", {
         dateStyle: "short",
         timeStyle: "short",

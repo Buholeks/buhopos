@@ -409,7 +409,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             ->select([
                 'm.id',
                 DB::raw("'movimiento' as origen"),
-                'm.created_at as fecha_hora',
+                DB::raw("DATE_FORMAT(m.created_at, '%Y-%m-%dT%H:%i:%S+00:00') as fecha_hora"),
                 'u.name as usuario',
                 'm.tipo',
                 'm.forma_pago',
@@ -438,7 +438,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             ->select([
                 'v.id',
                 DB::raw("'venta' as origen"),
-                'v.created_at as fecha_hora',
+                DB::raw("CONCAT(v.fecha, 'T', DATE_FORMAT(CONVERT_TZ(v.created_at, '+00:00', '-06:00'), '%H:%i:%S'), '-06:00') as fecha_hora"),
                 'u.name as usuario',
                 DB::raw("'ingreso' as tipo"),
                 'v.forma_pago',

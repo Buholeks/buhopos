@@ -388,9 +388,9 @@ public function cerrar(Request $request, int $id): JsonResponse
         $desde = $datos['desde'] ?? $hoy;
         $hasta = $datos['hasta'] ?? $hoy;
 
-        // Carbon respeta config('app.timezone') y convierte a UTC para la comparación en BD
-        $desdeTs = Carbon::parse($desde)->startOfDay();
-        $hastaTs = Carbon::parse($hasta)->endOfDay();
+        $timezone = config('app.timezone', 'UTC');
+        $desdeTs = Carbon::parse($desde, $timezone)->startOfDay()->utc()->format('Y-m-d H:i:s');
+        $hastaTs = Carbon::parse($hasta, $timezone)->endOfDay()->utc()->format('Y-m-d H:i:s');
 
         $origen     = $datos['origen'] ?? '';
         $tipo       = $datos['tipo'] ?? '';

@@ -43,6 +43,17 @@ class ConsultaCajaTest extends TestCase
             'updated_at' => Carbon::parse('2026-06-30 09:00:00'),
         ]);
 
+        MovimientoCaja::create([
+            'corte_id' => $corte->id,
+            'user_id' => $user->id,
+            'tipo' => 'egreso',
+            'forma_pago' => 'efectivo',
+            'monto' => 99,
+            'concepto' => 'Retiro de ayer UTC',
+            'created_at' => Carbon::parse('2026-06-30 03:00:00'),
+            'updated_at' => Carbon::parse('2026-06-30 03:00:00'),
+        ]);
+
         $this->getJson('/api/movimientos-caja?desde=2026-06-30&hasta=2026-06-30&origen=movimiento')
             ->assertOk()
             ->assertJsonPath('total', 1)

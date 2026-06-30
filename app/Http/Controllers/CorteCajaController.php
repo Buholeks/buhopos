@@ -433,8 +433,8 @@ public function cerrar(Request $request, int $id): JsonResponse
             ->where('c.empresa_id', $eid)
             ->where('v.estado', 'confirmada')
             ->whereNotNull('v.corte_id')
-            ->where('v.fecha', '>=', $desde)
-            ->where('v.fecha', '<=', $hasta)
+            ->where('v.created_at', '>=', $desdeTs)
+            ->where('v.created_at', '<=', $hastaTs)
             ->select([
                 'v.id',
                 DB::raw("'venta' as origen"),

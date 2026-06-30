@@ -556,7 +556,8 @@ function fmt(v) {
 
 function fmtFecha(f) {
     if (!f) return "—";
-    const str = f.includes("T") ? f : f.replace(" ", "T");
+    let str = f.includes("T") ? f : f.replace(" ", "T");
+    if (!str.endsWith("Z") && !str.includes("+")) str += "Z";
     return new Date(str).toLocaleString("es-MX", {
         dateStyle: "short",
         timeStyle: "short",

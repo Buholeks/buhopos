@@ -197,7 +197,6 @@
             :cliente="cliente"
             :vendedor-id="cobro.vendedor_id"
             :vendedor="cobro.vendedor"
-            @select-cliente="store.setCliente"
             @select-vendedor="store.setVendedor"
             @cancel="modalDatosVenta = false"
             @confirm="continuarAlCobro"
@@ -1482,10 +1481,30 @@ async function guardarVentaFinal() {
         return;
     }
 
+    const cambioVenta = Number(res.venta.cambio || 0);
+    const hayCambio = res.venta.forma_pago === "efectivo" && cambioVenta > 0;
+    const cambioHtml = hayCambio
+        ? `
+            <div style="margin-top:12px;border-radius:16px;border:1px solid #7dd3fc;background:#e0f2fe;padding:14px;">
+                <p style="font-size:15px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#0369a1;">
+                    Cambio a entregar
+                </p>
+                <p style="margin-top:4px;font-size:64px;font-weight:900;color:#082f49;font-family:monospace;">
+                    ${formatPrecio(cambioVenta)}
+                </p>
+            </div>
+        `
+        : "";
+
+    let impreso = false;
+
     await Swal.fire({
         icon: "success",
         title: "¡Venta registrada!",
-        html: `<p style="font-size:14px;color:#475569;">Stock actualizado correctamente.</p>`,
+        html: `
+            <p style="font-size:14px;color:#475569;">Stock actualizado correctamente.</p>
+            ${cambioHtml}
+        `,
         confirmButtonColor: "#059669",
         showCancelButton: true,
         confirmButtonText: "Imprimir ticket",
@@ -1494,6 +1513,8 @@ async function guardarVentaFinal() {
         showLoaderOnConfirm: true,
         allowOutsideClick: () => !Swal.isLoading(),
         preConfirm: async () => {
+            if (impreso) return true;
+
             try {
                 await imprimirTicketVenta(
                     crearTicketVenta(res.venta),
@@ -1505,7 +1526,13 @@ async function guardarVentaFinal() {
                 );
                 return false;
             }
-            return true;
+
+            impreso = true;
+            Swal.update({
+                confirmButtonText: "Cerrar",
+                showCancelButton: false,
+            });
+            return false;
         },
     });
 

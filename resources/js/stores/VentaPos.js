@@ -7,6 +7,18 @@ function fechaLocal() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function generarIdempotencyKey() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+}
+
 export const useVentaPosStore = defineStore("VentaPos", () => {
     const guardando = ref(false);
     const ultimaVenta = ref(cargarUltimaVenta());
@@ -34,6 +46,12 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
 
     const detalles = ref([]);
     let keyCounter = 0;
+
+    // Se conserva durante los reintentos de un mismo intento de cobro (p. ej. si
+    // se cae el internet justo al confirmar) para que el backend detecte el envío
+    // duplicado y devuelva la venta ya guardada en vez de duplicarla o fallar por
+    // stock insuficiente. Solo se renueva al abrir un cobro nuevo.
+    const idempotencyKey = ref(generarIdempotencyKey());
 
     const subtotal = computed(() =>
         detalles.value.reduce((acc, d) => acc + (Number(d.subtotal) || 0), 0),
@@ -223,6 +241,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
 
     function abrirCobro() {
         detalles.value.forEach(normalizeLinea);
+        idempotencyKey.value = generarIdempotencyKey();
         cobro.visible = true;
     }
 
@@ -242,6 +261,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         });
 
         resetCobro();
+        idempotencyKey.value = generarIdempotencyKey();
     }
 
     async function guardarVenta() {
@@ -265,6 +285,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
                     cobro.forma_pago === "efectivo"
                         ? Number(cambio.value || 0)
                         : 0,
+                idempotency_key: idempotencyKey.value,
                 detalles: detalles.value.map((d) => ({
                     producto_id: d.producto_id,
                     variante_id: d.variante_id,

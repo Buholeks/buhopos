@@ -15,6 +15,7 @@ use App\Models\ProductoVariante;
 use App\Models\Producto;
 use App\Models\Sucursal;
 use App\Services\FolioService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -85,6 +86,7 @@ class VentaController extends Controller
             'notas'                    => ['nullable', 'string'],
             'monto_recibido'           => ['nullable', 'numeric', 'min:0'],
             'cambio'                   => ['nullable', 'numeric', 'min:0'],
+            'idempotency_key'          => ['nullable', 'string', 'max:64'],
 
             'detalles'                 => ['required', 'array', 'min:1'],
             'detalles.*.variante_id'   => ['nullable', 'exists:producto_variantes,id'],
@@ -98,6 +100,16 @@ class VentaController extends Controller
             'detalles.*.pedido_id'     => ['nullable', 'integer', 'exists:pedidos,id'],
             'detalles.*.pedido_detalle_id' => ['nullable', 'integer', 'exists:pedido_detalles,id'],
         ]);
+
+        if (!empty($datos['idempotency_key'])) {
+            $ventaExistente = Venta::where('empresa_id', $empresaId)
+                ->where('idempotency_key', $datos['idempotency_key'])
+                ->first();
+
+            if ($ventaExistente) {
+                return response()->json($this->cargarVentaCompleta($ventaExistente), 200);
+            }
+        }
 
         $corte = CorteCaja::where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
@@ -279,6 +291,7 @@ class VentaController extends Controller
                 'notas'           => $datos['notas'] ?? null,
                 'monto_recibido'  => $datos['forma_pago'] === 'efectivo' ? $montoRecibido : null,
                 'cambio'          => $datos['forma_pago'] === 'efectivo' ? $cambio : 0,
+                'idempotency_key' => $datos['idempotency_key'] ?? null,
                 'estado'          => 'confirmada',
                 'subtotal'        => 0,
                 'total'           => 0,
@@ -451,21 +464,26 @@ class VentaController extends Controller
 
             DB::commit();
 
-            return response()->json(
-                $venta->load([
-                    'detalles.producto',
-                    'detalles.variante',
-                    'detalles.variante.atributos.tipoAtributo:id,nombre',
-                    'detalles.variante.atributos.atributo:id,valor',
-                    'detalles.serie',
-                    'empresa:id,nombre,rfc,direccion,telefono',
-                    'sucursal:id,nombre,direccion,telefono',
-                    'cliente:id,nombre,telefono',
-                    'vendedor:id,name',
-                    'user:id,name',
-                ]),
-                201
-            );
+            return response()->json($this->cargarVentaCompleta($venta), 201);
+        } catch (QueryException $e) {
+            DB::rollBack();
+
+            // Índice único de idempotency_key: dos envíos casi simultáneos del mismo
+            // intento de venta (doble clic, reintento tras timeout) chocan aquí; la
+            // petición perdedora regresa la venta que sí se guardó, en vez de un error.
+            if ($e->getCode() === '23000' && !empty($datos['idempotency_key'])) {
+                $ventaExistente = Venta::where('empresa_id', $empresaId)
+                    ->where('idempotency_key', $datos['idempotency_key'])
+                    ->first();
+
+                if ($ventaExistente) {
+                    return response()->json($this->cargarVentaCompleta($ventaExistente), 200);
+                }
+            }
+
+            return response()->json([
+                'message' => 'Error interno: ' . $e->getMessage()
+            ], 500);
         } catch (\Throwable $e) {
             DB::rollBack();
 
@@ -473,6 +491,22 @@ class VentaController extends Controller
                 'message' => 'Error interno: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    private function cargarVentaCompleta(Venta $venta): Venta
+    {
+        return $venta->load([
+            'detalles.producto',
+            'detalles.variante',
+            'detalles.variante.atributos.tipoAtributo:id,nombre',
+            'detalles.variante.atributos.atributo:id,valor',
+            'detalles.serie',
+            'empresa:id,nombre,rfc,direccion,telefono',
+            'sucursal:id,nombre,direccion,telefono',
+            'cliente:id,nombre,telefono',
+            'vendedor:id,name',
+            'user:id,name',
+        ]);
     }
 
     // ── GET /api/ventas/buscar-variantes ────────────────────────────────────────

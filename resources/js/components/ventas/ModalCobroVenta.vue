@@ -118,7 +118,7 @@
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-slate-500">Cliente</span>
                             <span class="truncate text-right font-medium text-slate-900">
-                                {{ cliente?.nombre || cliente?.name || "Mostrador" }}
+                                {{ cliente?.nombre || cliente?.name || "Publico en General" }}
                             </span>
                         </div>
 

@@ -29,6 +29,7 @@ class Venta extends Model
         'monto_recibido',
         'cambio',
         'notas',
+        'idempotency_key',
         'estado',
         'cancelado_por',
         'cancelado_en',

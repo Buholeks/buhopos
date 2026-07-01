@@ -401,16 +401,18 @@ class ProductosImportacionServicio
             'stock_minimo' => $stockMinimo,
         ]);
 
-        if ($stockAnterior !== $stockNuevo) {
+        $diferencia = $stockNuevo - $stockAnterior;
+
+        if ($diferencia != 0.0) {
             InventarioMovimiento::create([
                 'empresa_id' => $this->empresaId(),
                 'sucursal_id' => $this->sucursalId(),
                 'producto_id' => $producto->id,
                 'variante_id' => null,
                 'user_id' => Auth::id(),
-                'tipo' => 'importacion_productos',
+                'tipo' => $diferencia > 0 ? 'ajuste_positivo' : 'ajuste_negativo',
                 'cantidad_anterior' => $stockAnterior,
-                'cantidad_movimiento' => $stockNuevo - $stockAnterior,
+                'cantidad_movimiento' => abs($diferencia),
                 'cantidad_nueva' => $stockNuevo,
                 'motivo' => 'Importacion de productos',
             ]);

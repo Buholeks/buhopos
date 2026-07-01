@@ -220,12 +220,16 @@ class CompraController extends Controller
             ];
 
             if (empty($datos['folio'])) {
-                $fechaHoy = now()->format('dmy');
+                // Se usa la fecha de la propia compra (elegida por el usuario) en vez de
+                // now(), que corre en UTC y desfasa el folio/conteo respecto al día de
+                // México, generando folios duplicados o con la fecha del día siguiente.
+                $fechaCompra = $compra->fecha;
+                $fechaHoy = $fechaCompra->format('dmy');
                 // lockForUpdate para evitar folio duplicado en compras concurrentes sin folio
                 $countHoy = DB::table('compras')
                     ->where('empresa_id',  $empresaId)
                     ->where('sucursal_id', $sucursalId)
-                    ->whereDate('fecha', now()->toDateString())
+                    ->whereDate('fecha', $fechaCompra->toDateString())
                     ->lockForUpdate()
                     ->count();
 

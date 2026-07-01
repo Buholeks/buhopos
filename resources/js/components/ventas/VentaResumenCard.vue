@@ -8,7 +8,7 @@
                     Cliente
                 </div>
                 <div class="mt-1 truncate text-sm font-semibold text-slate-900">
-                    {{ cliente?.nombre || cliente?.name || "Mostrador" }}
+                    {{ cliente?.nombre || cliente?.name || "Publico en General" }}
                 </div>
             </div>
 

@@ -27,7 +27,7 @@
                     </div>
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Fecha promesa</p>
-                        <p class="font-bold text-slate-900">{{ formatFecha(data.fecha_promesa) }}</p>
+                        <p class="font-bold text-slate-900">{{ formatFechaPura(data.fecha_promesa) }}</p>
                     </div>
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Registrado</p>
@@ -116,6 +116,12 @@ function money(value) {
 function formatFecha(fecha) {
     if (!fecha) return '—'
     return new Date(fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+// fecha_promesa es una fecha pura (sin hora); agregar T12:00:00 evita que
+// new Date() la interprete como medianoche UTC y se corra un día al convertir a hora local.
+function formatFechaPura(fecha) {
+    if (!fecha) return '—'
+    return new Date(`${String(fecha).slice(0, 10)}T12:00:00`).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 function formatFechaHora(fecha) {
     if (!fecha) return '—'

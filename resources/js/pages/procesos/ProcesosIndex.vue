@@ -123,4 +123,5 @@ const procesos = [
         badge: "Próximamente",
     },
 ];
+
 </script>

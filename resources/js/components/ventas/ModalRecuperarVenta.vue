@@ -46,7 +46,7 @@
                             <span>
                                 Cliente:
                                 <strong class="text-slate-700">
-                                    {{ item.cliente?.nombre || item.cliente?.name || "Mostrador" }}
+                                    {{ item.cliente?.nombre || item.cliente?.name || "Publico en General" }}
                                 </strong>
                             </span>
 

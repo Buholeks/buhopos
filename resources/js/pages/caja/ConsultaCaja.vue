@@ -123,7 +123,10 @@
                             :disabled="exportando"
                             class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:opacity-50"
                         >
-                            <Loader2 v-if="exportando === 'excel'" class="h-4 w-4 animate-spin" />
+                            <Loader2
+                                v-if="exportando === 'excel'"
+                                class="h-4 w-4 animate-spin"
+                            />
                             <FileSpreadsheet v-else class="h-4 w-4" />
                             Excel
                         </button>
@@ -133,7 +136,10 @@
                             :disabled="exportando"
                             class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
                         >
-                            <Loader2 v-if="exportando === 'pdf'" class="h-4 w-4 animate-spin" />
+                            <Loader2
+                                v-if="exportando === 'pdf'"
+                                class="h-4 w-4 animate-spin"
+                            />
                             <FileText v-else class="h-4 w-4" />
                             PDF
                         </button>
@@ -159,9 +165,7 @@
                 <div
                     class="rounded-xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm"
                 >
-                    <p class="text-xs font-medium text-emerald-600">
-                        Ingresos
-                    </p>
+                    <p class="text-xs font-medium text-emerald-600">Ingresos</p>
                     <p class="mt-1 text-xl font-bold text-emerald-700">
                         {{ fmt(resumen.ingresos) }}
                     </p>
@@ -169,9 +173,7 @@
                 <div
                     class="rounded-xl border border-rose-100 bg-rose-50 p-4 shadow-sm"
                 >
-                    <p class="text-xs font-medium text-rose-600">
-                        Egresos
-                    </p>
+                    <p class="text-xs font-medium text-rose-600">Egresos</p>
                     <p class="mt-1 text-xl font-bold text-rose-700">
                         {{ fmt(resumen.egresos) }}
                     </p>
@@ -179,9 +181,7 @@
                 <div
                     class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
                 >
-                    <p class="text-xs font-medium text-slate-500">
-                        Saldo neto
-                    </p>
+                    <p class="text-xs font-medium text-slate-500">Saldo neto</p>
                     <p
                         class="mt-1 text-xl font-bold"
                         :class="
@@ -551,10 +551,10 @@ async function exportar(formato) {
             params: { ...filtros.value, formato },
             responseType: "blob",
         });
-        const ext  = formato === "excel" ? "xlsx" : "pdf";
-        const url  = URL.createObjectURL(new Blob([resp.data]));
+        const ext = formato === "excel" ? "xlsx" : "pdf";
+        const url = URL.createObjectURL(new Blob([resp.data]));
         const link = document.createElement("a");
-        link.href  = url;
+        link.href = url;
         link.download = `consulta_caja_${new Date().toISOString().slice(0, 10)}.${ext}`;
         link.click();
         URL.revokeObjectURL(url);

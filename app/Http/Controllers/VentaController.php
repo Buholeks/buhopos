@@ -870,6 +870,13 @@ class VentaController extends Controller
 
         $resultados = $resultados->merge($variantes)->values();
 
+        $filtroStock = $request->input('filtro_stock', 'todos');
+        if ($filtroStock === 'con_existencia') {
+            $resultados = $resultados->filter(fn($r) => !$r['sin_stock'])->values();
+        } elseif ($filtroStock === 'sin_existencia') {
+            $resultados = $resultados->filter(fn($r) => $r['sin_stock'])->values();
+        }
+
         return response()->json($resultados);
     }
 

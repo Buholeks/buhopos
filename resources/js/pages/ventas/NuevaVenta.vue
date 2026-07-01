@@ -9,7 +9,9 @@
             :total="total"
             :showTotal="false"
             :disableAccionesVenta="detalles.length === 0"
-            :disableReimprimirUltima="!ultimaVentaDisponible || imprimiendoUltima"
+            :disableReimprimirUltima="
+                !ultimaVentaDisponible || imprimiendoUltima
+            "
             :imprimiendoUltima="imprimiendoUltima"
             :cliente="cliente"
             @abrirCaja="abrirCaja"
@@ -32,15 +34,17 @@
         />
 
         <ModalRecuperarVenta
-    :open="modalRecuperar"
-    :items="ventasEnEspera"
-    :formatPrecio="formatPrecio"
-    @close="modalRecuperar = false"
-    @recover="recuperarVenta"
-    @delete="eliminarVentaEnEspera"
-/>
+            :open="modalRecuperar"
+            :items="ventasEnEspera"
+            :formatPrecio="formatPrecio"
+            @close="modalRecuperar = false"
+            @recover="recuperarVenta"
+            @delete="eliminarVentaEnEspera"
+        />
 
-        <div class="mx-auto flex max-w-7xl flex-col gap-3 sm:gap-4 px-3 sm:px-6 py-3 sm:py-6">
+        <div
+            class="mx-auto flex max-w-7xl flex-col gap-3 sm:gap-4 px-3 sm:px-6 py-3 sm:py-6"
+        >
             <section
                 v-if="pedidosDisponibles.length > 0"
                 class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
@@ -62,36 +66,81 @@
                         :key="pedido.id"
                         class="rounded-xl border border-emerald-100 bg-white p-3"
                     >
-                        <div class="mb-2 flex items-center justify-between gap-2">
-                            <p class="font-semibold text-slate-900">{{ pedido.folio }}</p>
-                            <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
-                                {{ formatPrecio(pedido.anticipo || 0) }} anticipo
+                        <div
+                            class="mb-2 flex items-center justify-between gap-2"
+                        >
+                            <p class="font-semibold text-slate-900">
+                                {{ pedido.folio }}
+                            </p>
+                            <span
+                                class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700"
+                            >
+                                {{ formatPrecio(pedido.anticipo || 0) }}
+                                anticipo
                             </span>
                         </div>
 
                         <div class="space-y-2">
                             <div
-                                v-for="detallePedido in detallesDisponiblesPedido(pedido)"
+                                v-for="detallePedido in detallesDisponiblesPedido(
+                                    pedido,
+                                )"
                                 :key="detallePedido.id"
                                 class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2"
                             >
                                 <div class="min-w-0">
-                                    <p class="truncate text-sm font-medium text-slate-900">
-                                        {{ detallePedido.cantidad }} x {{ detallePedido.descripcion }}
+                                    <p
+                                        class="truncate text-sm font-medium text-slate-900"
+                                    >
+                                        {{ detallePedido.cantidad }} x
+                                        {{ detallePedido.descripcion }}
                                     </p>
                                     <p class="text-xs text-slate-500">
-                                        {{ formatPrecio(detallePedido.precio_acordado || 0) }}
+                                        {{
+                                            formatPrecio(
+                                                detallePedido.precio_acordado ||
+                                                    0,
+                                            )
+                                        }}
                                     </p>
                                 </div>
 
                                 <button
                                     type="button"
                                     class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                                    :disabled="detallePedido.estado === 'entregado' || detalles.some((d) => Number(d.pedido_detalle_id) === Number(detallePedido.id))"
-                                    :title="detalles.some((d) => Number(d.pedido_detalle_id) === Number(detallePedido.id)) ? 'Ya en la venta' : ''"
-                                    @click="agregarPedidoAlCarrito(pedido, detallePedido)"
+                                    :disabled="
+                                        detallePedido.estado === 'entregado' ||
+                                        detalles.some(
+                                            (d) =>
+                                                Number(d.pedido_detalle_id) ===
+                                                Number(detallePedido.id),
+                                        )
+                                    "
+                                    :title="
+                                        detalles.some(
+                                            (d) =>
+                                                Number(d.pedido_detalle_id) ===
+                                                Number(detallePedido.id),
+                                        )
+                                            ? 'Ya en la venta'
+                                            : ''
+                                    "
+                                    @click="
+                                        agregarPedidoAlCarrito(
+                                            pedido,
+                                            detallePedido,
+                                        )
+                                    "
                                 >
-                                    {{ detalles.some((d) => Number(d.pedido_detalle_id) === Number(detallePedido.id)) ? '✓ Agregado' : 'Agregar' }}
+                                    {{
+                                        detalles.some(
+                                            (d) =>
+                                                Number(d.pedido_detalle_id) ===
+                                                Number(detallePedido.id),
+                                        )
+                                            ? "✓ Agregado"
+                                            : "Agregar"
+                                    }}
                                 </button>
                             </div>
                         </div>
@@ -102,6 +151,7 @@
             <PosSearch
                 ref="searchRef"
                 v-model="busqueda"
+                v-model:filtroStock="filtroStock"
                 :resultados="resultados"
                 :buscando="buscando"
                 :dropdown="dropdown"
@@ -204,7 +254,9 @@
             @click.self="cerrarExistenciasSucursal"
         >
             <div class="w-full max-w-xl rounded-xl bg-white shadow-2xl">
-                <div class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+                <div
+                    class="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4"
+                >
                     <div class="min-w-0">
                         <h2 class="truncate text-base font-bold text-slate-900">
                             Existencias por sucursal
@@ -249,7 +301,9 @@
                         >
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2">
-                                    <p class="truncate text-sm font-semibold text-slate-900">
+                                    <p
+                                        class="truncate text-sm font-semibold text-slate-900"
+                                    >
                                         {{ item.sucursal }}
                                     </p>
                                     <span
@@ -262,7 +316,8 @@
                                 <p class="mt-1 text-xs text-slate-400">
                                     Stock {{ formatoCantidad(item.stock) }}
                                     <span v-if="Number(item.reservado) > 0">
-                                        · Reservado {{ formatoCantidad(item.reservado) }}
+                                        · Reservado
+                                        {{ formatoCantidad(item.reservado) }}
                                     </span>
                                 </p>
                             </div>
@@ -338,33 +393,40 @@ const sucursalId = computed(() => authStore.user?.sucursal_id ?? null);
 const userId = computed(() => authStore.user?.id ?? null);
 
 const sinCajaAbierta = computed(() => !corteActual.value?.id);
-const idsProductosPendientesDisponibles = computed(() =>
-    new Set(
-        pedidosDisponibles.value.flatMap((pedido) =>
-            (pedido.detalles ?? [])
-                .filter((detalle) => ["disponible", "reservado"].includes(detalle.estado))
-                .map((detalle) => Number(detalle.id)),
+const idsProductosPendientesDisponibles = computed(
+    () =>
+        new Set(
+            pedidosDisponibles.value.flatMap((pedido) =>
+                (pedido.detalles ?? [])
+                    .filter((detalle) =>
+                        ["disponible", "reservado"].includes(detalle.estado),
+                    )
+                    .map((detalle) => Number(detalle.id)),
+            ),
         ),
-    ),
 );
-const ventaSoloProductosPendientes = computed(() =>
-    detalles.value.length > 0 &&
-    detalles.value.every((detalle) =>
-        idsProductosPendientesDisponibles.value.has(Number(detalle.pedido_detalle_id)),
-    ),
+const ventaSoloProductosPendientes = computed(
+    () =>
+        detalles.value.length > 0 &&
+        detalles.value.every((detalle) =>
+            idsProductosPendientesDisponibles.value.has(
+                Number(detalle.pedido_detalle_id),
+            ),
+        ),
 );
-const saldoBloqueado = computed(() =>
-    tieneProductosPendientes.value && !ventaSoloProductosPendientes.value,
+const saldoBloqueado = computed(
+    () => tieneProductosPendientes.value && !ventaSoloProductosPendientes.value,
 );
 // Suma del anticipo de los pedidos que están representados en el carrito actual
 const anticipoPedidosEnCarrito = computed(() => {
     if (!ventaSoloProductosPendientes.value) return 0;
-    const pedidoIds = new Set(detalles.value.map((d) => Number(d.pedido_id)).filter(Boolean));
+    const pedidoIds = new Set(
+        detalles.value.map((d) => Number(d.pedido_id)).filter(Boolean),
+    );
     return pedidosDisponibles.value
         .filter((p) => pedidoIds.has(Number(p.id)))
         .reduce((sum, p) => sum + Number(p.anticipo || 0), 0);
 });
-
 
 const modalMov = ref(false);
 const guardandoMov = ref(false);
@@ -401,6 +463,7 @@ const searchRef = ref(null);
 const modalDatosVenta = ref(false);
 
 const busqueda = ref("");
+const filtroStock = ref("con_existencia");
 const resultados = ref([]);
 const buscando = ref(false);
 const dropdown = ref(false);
@@ -423,12 +486,9 @@ watch(
     () => actualizarSaldoAplicado(cobro.value.saldo_aplicado),
 );
 
-watch(
-    saldoBloqueado,
-    (bloqueado) => {
-        if (bloqueado) cobro.value.saldo_aplicado = 0;
-    },
-);
+watch(saldoBloqueado, (bloqueado) => {
+    if (bloqueado) cobro.value.saldo_aplicado = 0;
+});
 
 // Cuando cambian qué pedidos están en el carrito, recalcular saldo sugerido
 watch(anticipoPedidosEnCarrito, () => aplicarSaldoAutomatico());
@@ -507,7 +567,8 @@ async function abrirCaja() {
                 text: "Hay cajas abiertas en esta sucursal. Puedes usar una existente o abrir una nueva.",
                 input: "select",
                 inputOptions,
-                inputValue: localStorage.getItem("terminal") || cajas[0].terminal,
+                inputValue:
+                    localStorage.getItem("terminal") || cajas[0].terminal,
                 showCancelButton: true,
                 showDenyButton: true,
                 confirmButtonText: "Usar caja",
@@ -583,7 +644,7 @@ function cargarVentasEnEspera() {
     ventasEnEspera.value = getVentasEnEspera(
         empresaId.value,
         sucursalId.value,
-        userId.value
+        userId.value,
     );
 }
 
@@ -600,15 +661,13 @@ function buildVentaEnEsperaPayload() {
         created_at: new Date().toISOString(),
         total: Number(total.value || 0),
 
-        cliente: cliente.value ? JSON.parse(JSON.stringify(cliente.value)) : null,
+        cliente: cliente.value
+            ? JSON.parse(JSON.stringify(cliente.value))
+            : null,
 
-        form: JSON.parse(
-            JSON.stringify(form.value ?? form)
-        ),
+        form: JSON.parse(JSON.stringify(form.value ?? form)),
 
-        cobro: JSON.parse(
-            JSON.stringify(cobro.value ?? cobro)
-        ),
+        cobro: JSON.parse(JSON.stringify(cobro.value ?? cobro)),
 
         detalles: JSON.parse(JSON.stringify(detalles.value)),
     };
@@ -627,12 +686,7 @@ function ponerVentaEnEspera() {
 
     const venta = buildVentaEnEsperaPayload();
 
-    saveVentaEnEspera(
-        empresaId.value,
-        sucursalId.value,
-        userId.value,
-        venta
-    );
+    saveVentaEnEspera(empresaId.value, sucursalId.value, userId.value, venta);
 
     cargarVentasEnEspera();
     resetearTodo();
@@ -676,7 +730,7 @@ function recuperarVenta(venta) {
         empresaId.value,
         sucursalId.value,
         userId.value,
-        venta.id
+        venta.id,
     );
 
     cargarVentasEnEspera();
@@ -687,17 +741,11 @@ function recuperarVenta(venta) {
 }
 
 function eliminarVentaEnEspera(id) {
-    removeVentaEnEspera(
-        empresaId.value,
-        sucursalId.value,
-        userId.value,
-        id
-    );
+    removeVentaEnEspera(empresaId.value, sucursalId.value, userId.value, id);
 
     cargarVentasEnEspera();
     toastSuccess("Venta en espera eliminada");
 }
-
 
 async function guardarMovimiento(payload) {
     if (!corteActual.value?.id) {
@@ -766,7 +814,8 @@ async function abrirExistenciasSucursal(item) {
             : [];
     } catch (e) {
         modalExistencias.error =
-            e.response?.data?.message ?? "No se pudieron consultar las existencias.";
+            e.response?.data?.message ??
+            "No se pudieron consultar las existencias.";
     } finally {
         modalExistencias.cargando = false;
     }
@@ -913,7 +962,7 @@ async function buscarProductos() {
         }
 
         const { data } = await http.get("/api/ventas/buscar-variantes", {
-            params: { q },
+            params: { q, filtro_stock: filtroStock.value },
         });
 
         resultados.value = Array.isArray(data) ? data : [];
@@ -1052,12 +1101,19 @@ function seleccionarItem(r) {
 
 // ── Selección con serie ───────────────────────────────────────────────────────
 async function agregarPedidoAlCarrito(pedido, detallePedido) {
-    if (detalles.value.some((d) => Number(d.pedido_detalle_id) === Number(detallePedido.id))) {
+    if (
+        detalles.value.some(
+            (d) => Number(d.pedido_detalle_id) === Number(detallePedido.id),
+        )
+    ) {
         toastWarning("Ese articulo del pedido ya esta en la venta");
         return;
     }
 
-    const q = detallePedido.variante?.sku || detallePedido.producto?.codigo || detallePedido.descripcion;
+    const q =
+        detallePedido.variante?.sku ||
+        detallePedido.producto?.codigo ||
+        detallePedido.descripcion;
     if (!q) {
         toastError("No se pudo localizar el producto del pedido");
         return;
@@ -1072,9 +1128,10 @@ async function agregarPedidoAlCarrito(pedido, detallePedido) {
         });
 
         const items = Array.isArray(data) ? data : [];
-        const item = items.find((r) =>
-            Number(r.producto_id) === Number(detallePedido.producto_id) &&
-            String(r.id ?? "") === String(detallePedido.variante_id ?? "")
+        const item = items.find(
+            (r) =>
+                Number(r.producto_id) === Number(detallePedido.producto_id) &&
+                String(r.id ?? "") === String(detallePedido.variante_id ?? ""),
         );
 
         if (!item || item.sin_stock) {
@@ -1086,16 +1143,22 @@ async function agregarPedidoAlCarrito(pedido, detallePedido) {
             ...item,
             pedido_id: pedido.id,
             pedido_detalle_id: detallePedido.id,
-            precio_venta: Number(detallePedido.precio_acordado || item.precio_venta || 0),
+            precio_venta: Number(
+                detallePedido.precio_acordado || item.precio_venta || 0,
+            ),
         });
         det.cantidad = Number(detallePedido.cantidad || 1);
-        det.precio_venta = Number(detallePedido.precio_acordado || item.precio_venta || 0);
+        det.precio_venta = Number(
+            detallePedido.precio_acordado || item.precio_venta || 0,
+        );
         det.pedido_id = pedido.id;
         det.pedido_detalle_id = detallePedido.id;
         det.cantidad_fija = true;
         store.normalizeLinea(det);
 
-        selectedIdx.value = detalles.value.findIndex((x) => x._key === det._key);
+        selectedIdx.value = detalles.value.findIndex(
+            (x) => x._key === det._key,
+        );
         toastSuccess(`Pedido ${pedido.folio} cargado`);
     } catch {
         toastError("No se pudo cargar el pedido al carrito");
@@ -1210,7 +1273,9 @@ async function abrirModalDescuento() {
             }
 
             if (monto > maximo) {
-                Swal.showValidationMessage("El descuento no puede superar el subtotal");
+                Swal.showValidationMessage(
+                    "El descuento no puede superar el subtotal",
+                );
                 return false;
             }
 
@@ -1246,7 +1311,10 @@ async function reimprimirUltimaVenta() {
 
     imprimiendoUltima.value = true;
     try {
-        await imprimirTicketVenta(crearTicketVenta(ultimaVenta.value), obtenerImpresoraTicket());
+        await imprimirTicketVenta(
+            crearTicketVenta(ultimaVenta.value),
+            obtenerImpresoraTicket(),
+        );
     } catch (e) {
         toastError(e.message ?? "No se pudo reimprimir el ticket");
     } finally {
@@ -1302,7 +1370,9 @@ async function cargarSaldoCliente() {
     if (!cliente.value?.id) return;
 
     try {
-        const { data } = await http.get(`/api/clientes/${cliente.value.id}/pedidos-resumen`);
+        const { data } = await http.get(
+            `/api/clientes/${cliente.value.id}/pedidos-resumen`,
+        );
         cobro.value.saldo_disponible = Number(data?.saldo_favor ?? 0);
         pedidosDisponibles.value = Array.isArray(data?.pedidos_disponibles)
             ? data.pedidos_disponibles
@@ -1326,13 +1396,20 @@ function aplicarSaldoAutomatico() {
     // para no consumir anticipos de otros pedidos del mismo cliente
     const topePorPedido =
         ventaSoloProductosPendientes.value && anticipoPedidosEnCarrito.value > 0
-            ? Math.min(Number(cobro.value.saldo_disponible || 0), anticipoPedidosEnCarrito.value)
+            ? Math.min(
+                  Number(cobro.value.saldo_disponible || 0),
+                  anticipoPedidosEnCarrito.value,
+              )
             : Number(cobro.value.saldo_disponible || 0);
 
-    cobro.value.saldo_aplicado = Math.min(topePorPedido, Number(total.value || 0));
+    cobro.value.saldo_aplicado = Math.min(
+        topePorPedido,
+        Number(total.value || 0),
+    );
 
     if (cobro.value.forma_pago === "efectivo") {
-        cobro.value.monto_recibido = totalACobrar.value > 0 ? totalACobrar.value : 0;
+        cobro.value.monto_recibido =
+            totalACobrar.value > 0 ? totalACobrar.value : 0;
     }
 }
 
@@ -1418,9 +1495,14 @@ async function guardarVentaFinal() {
         allowOutsideClick: () => !Swal.isLoading(),
         preConfirm: async () => {
             try {
-                await imprimirTicketVenta(crearTicketVenta(res.venta), obtenerImpresoraTicket());
+                await imprimirTicketVenta(
+                    crearTicketVenta(res.venta),
+                    obtenerImpresoraTicket(),
+                );
             } catch (e) {
-                Swal.showValidationMessage(e.message ?? "No se pudo imprimir el ticket");
+                Swal.showValidationMessage(
+                    e.message ?? "No se pudo imprimir el ticket",
+                );
                 return false;
             }
             return true;

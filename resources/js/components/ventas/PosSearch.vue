@@ -1,15 +1,34 @@
 <template>
     <div class="rounded-xl border border-black-200 bg-white p-3">
-        <label
-            class="mb-2 block text-[11px] font-semibold uppercase tracking-widest text-slate-400"
-        >
-            Buscar producto
-            <span
-                class="ml-2 normal-case font-normal tracking-normal text-slate-300"
+        <div class="mb-2 flex items-center justify-between gap-2 flex-wrap">
+            <label
+                class="block text-[11px] font-semibold uppercase tracking-widest text-slate-400"
             >
-                Nombre, código, SKU o código de barras
-            </span>
-        </label>
+                Buscar producto
+                <span
+                    class="ml-2 normal-case font-normal tracking-normal text-slate-300"
+                >
+                    Nombre, código, SKU o código de barras
+                </span>
+            </label>
+
+            <div class="flex items-center gap-1">
+                <button
+                    v-for="opt in filtroOpciones"
+                    :key="opt.value"
+                    type="button"
+                    class="rounded-full px-2.5 py-0.5 text-[11px] font-medium transition border"
+                    :class="
+                        filtroStock === opt.value
+                            ? opt.activeClass
+                            : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                    "
+                    @click="$emit('update:filtroStock', opt.value)"
+                >
+                    {{ opt.label }}
+                </button>
+            </div>
+        </div>
 
         <div class="relative">
             <BaseInput
@@ -208,6 +227,7 @@ import { Search, X, Loader2, ImageOff, Cloud } from "lucide-vue-next";
 
 const props = defineProps({
     modelValue: { type: String, default: "" },
+    filtroStock: { type: String, default: "con_existencia" },
     resultados: { type: Array, default: () => [] },
     buscando: { type: Boolean, default: false },
     dropdown: { type: Boolean, default: false },
@@ -216,8 +236,27 @@ const props = defineProps({
     formatPrecio: { type: Function, required: true },
 });
 
+const filtroOpciones = [
+    {
+        value: "todos",
+        label: "Todos",
+        activeClass: "border-slate-400 bg-slate-100 text-slate-700",
+    },
+    {
+        value: "con_existencia",
+        label: "Con existencia",
+        activeClass: "border-emerald-400 bg-emerald-50 text-emerald-700",
+    },
+    {
+        value: "sin_existencia",
+        label: "Sin existencia",
+        activeClass: "border-red-300 bg-red-50 text-red-600",
+    },
+];
+
 const emit = defineEmits([
     "update:modelValue",
+    "update:filtroStock",
     "input",
     "enter",
     "moveCursor",

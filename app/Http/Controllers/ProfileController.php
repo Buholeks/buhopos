@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -75,6 +76,50 @@ class ProfileController extends Controller
         return response()->json($this->profileData($request));
     }
 
+    public function uploadLogo(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->tienePermiso('empresa.editar'), 403, 'Sin permiso para editar la empresa.');
+
+        $request->validate([
+            'logo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
+        ], [
+            'logo.image'   => 'El archivo debe ser una imagen.',
+            'logo.mimes'   => 'Formatos permitidos: JPG, PNG, WebP, SVG.',
+            'logo.max'     => 'El logo no puede superar 2 MB.',
+        ]);
+
+        $empresa = $user->empresa()->firstOrFail();
+
+        if ($empresa->logo && Storage::disk('public')->exists($empresa->logo)) {
+            Storage::disk('public')->delete($empresa->logo);
+        }
+
+        $path = $request->file('logo')->store("logos/{$empresa->id}", 'public');
+        $empresa->update(['logo' => $path]);
+
+        return response()->json([
+            'logo'     => $path,
+            'logo_url' => Storage::disk('public')->url($path),
+        ]);
+    }
+
+    public function deleteLogo(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->tienePermiso('empresa.editar'), 403, 'Sin permiso para editar la empresa.');
+
+        $empresa = $user->empresa()->firstOrFail();
+
+        if ($empresa->logo && Storage::disk('public')->exists($empresa->logo)) {
+            Storage::disk('public')->delete($empresa->logo);
+        }
+
+        $empresa->update(['logo' => null]);
+
+        return response()->json(['ok' => true]);
+    }
+
     public function updateSucursal(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -99,10 +144,12 @@ class ProfileController extends Controller
     private function profileData(Request $request): array
     {
         $user = $request->user()->fresh([
-            'empresa:id,nombre,propietario,direccion,correo,telefono,rfc',
+            'empresa:id,nombre,propietario,direccion,correo,telefono,rfc,logo',
             'sucursal:id,empresa_id,nombre,direccion,correo,telefono',
         ]);
         $rol = $user->rolEnSucursal((int) $user->sucursal_id);
+
+        $empresa = $user->empresa;
 
         return [
             ...$user->toArray(),
@@ -111,6 +158,9 @@ class ProfileController extends Controller
             'puede_editar_empresa' => $user->tienePermiso('empresa.editar'),
             'puede_editar_sucursal'=> $user->tienePermiso('sucursales.editar'),
             'stats'                => $this->statsDelMes($user),
+            'empresa'              => $empresa ? array_merge($empresa->toArray(), [
+                'logo_url' => $empresa->logo ? Storage::disk('public')->url($empresa->logo) : null,
+            ]) : null,
         ];
     }
 

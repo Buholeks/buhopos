@@ -2,6 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Exportaciones\ServicioExportacion;
+use App\Exportaciones\UtilidadesExportacion;
+use App\Models\Empresa;
+use App\Models\Sucursal;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -139,6 +144,124 @@ class ReporteUtilidadesController extends Controller
                 ELSE 0
             END
         ";
+    }
+
+    public function exportar(Request $request, ServicioExportacion $servicio): mixed
+    {
+        abort_unless(Auth::user()->tienePermiso('reportes.utilidades'), 403, 'Sin permiso: reportes.utilidades');
+
+        $data = $request->validate([
+            'fecha_desde'  => ['required', 'date'],
+            'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
+            'user_id'      => ['nullable', 'integer'],
+            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'categoria_id' => ['nullable', 'integer'],
+            'producto'     => ['nullable', 'string', 'max:120'],
+            'formato'      => ['required', 'in:pdf,excel'],
+        ]);
+
+        $user      = Auth::user();
+        $filtros   = array_filter([
+            'fecha_desde'  => $data['fecha_desde'],
+            'fecha_hasta'  => $data['fecha_hasta'],
+            'user_id'      => $data['user_id'] ?? null,
+            'forma_pago'   => $data['forma_pago'] ?? null,
+            'categoria_id' => $data['categoria_id'] ?? null,
+            'producto'     => $data['producto'] ?? null,
+        ]);
+
+        $desde = str_replace('-', '', $data['fecha_desde']);
+        $hasta = str_replace('-', '', $data['fecha_hasta']);
+        $nombre = "utilidades_{$desde}_{$hasta}";
+
+        if ($data['formato'] === 'pdf') {
+            $exportacion = new UtilidadesExportacion($user->empresa_id, $user->sucursal_id, $filtros);
+
+            $ingresoNeto = $this->ingresoNetoSql();
+            $costo       = 'COALESCE(vd.precio_costo, 0) * vd.cantidad';
+            $base        = $this->base($request, $user->empresa_id, $user->sucursal_id);
+
+            $resumenRaw = (clone $base)
+                ->selectRaw("
+                    COUNT(DISTINCT v.id) AS ventas,
+                    COALESCE(SUM(vd.cantidad), 0) AS unidades,
+                    COALESCE(SUM(CASE WHEN vd.precio_costo IS NULL THEN 1 ELSE 0 END), 0) AS partidas_sin_costo,
+                    COALESCE(SUM({$ingresoNeto}), 0) AS ingresos,
+                    COALESCE(SUM({$costo}), 0) AS costo,
+                    COALESCE(SUM({$ingresoNeto} - {$costo}), 0) AS utilidad
+                ")
+                ->first();
+
+            $ingresos = (float) $resumenRaw->ingresos;
+            $utilidad = (float) $resumenRaw->utilidad;
+            $resumen  = [
+                'ventas'             => (int) $resumenRaw->ventas,
+                'unidades'           => (float) $resumenRaw->unidades,
+                'ingresos'           => $ingresos,
+                'costo'              => (float) $resumenRaw->costo,
+                'utilidad'           => $utilidad,
+                'margen'             => $ingresos > 0 ? round(($utilidad / $ingresos) * 100, 2) : 0,
+                'venta_promedio'     => (int) $resumenRaw->ventas > 0 ? round($ingresos / (int) $resumenRaw->ventas, 2) : 0,
+                'partidas_sin_costo' => (int) $resumenRaw->partidas_sin_costo,
+            ];
+
+            $tendencia = (clone $base)
+                ->selectRaw("
+                    DATE(v.fecha) AS fecha,
+                    COUNT(DISTINCT v.id) AS ventas,
+                    COALESCE(SUM({$ingresoNeto}), 0) AS ingresos,
+                    COALESCE(SUM({$costo}), 0) AS costo,
+                    COALESCE(SUM({$ingresoNeto} - {$costo}), 0) AS utilidad
+                ")
+                ->groupByRaw('DATE(v.fecha)')
+                ->orderBy('fecha')
+                ->get()
+                ->map(fn($row) => $this->conMargen($row))
+                ->toArray();
+
+            $productos = $exportacion->datos()
+                ->map(fn($fila) => [
+                    'codigo'   => $fila[0],
+                    'producto' => $fila[1],
+                    'categoria'=> $fila[2],
+                    'ventas'   => $fila[3],
+                    'unidades' => $fila[4],
+                    'ingresos' => $fila[5],
+                    'costo'    => $fila[6],
+                    'utilidad' => $fila[7],
+                    'margen'   => $fila[8],
+                ])
+                ->toArray();
+
+            $empresa  = Empresa::find($user->empresa_id);
+            $sucursal = Sucursal::find($user->sucursal_id);
+
+            $logoB64 = null;
+            if ($empresa?->logo && \Illuminate\Support\Facades\Storage::disk('public')->exists($empresa->logo)) {
+                $contenido = \Illuminate\Support\Facades\Storage::disk('public')->get($empresa->logo);
+                $mime      = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($empresa->logo) ?: 'image/png';
+                $logoB64   = 'data:' . $mime . ';base64,' . base64_encode($contenido);
+            }
+
+            $pdf = Pdf::loadView('pdf.utilidades', [
+                'resumen'           => $resumen,
+                'tendencia'         => $tendencia,
+                'productos'         => $productos,
+                'titulo'            => 'Reporte de Utilidades',
+                'filtrosAplicados'  => $exportacion->filtrosAplicados(),
+                'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
+                'empresaLogoB64'    => $logoB64,
+                'empresaDireccion'  => $empresa?->direccion,
+                'sucursalNombre'    => $sucursal?->nombre,
+                'sucursalDireccion' => $sucursal?->direccion,
+                'fecha'             => now('America/Mexico_City')->format('d/m/Y H:i'),
+            ])->setPaper('letter', 'landscape');
+
+            return $pdf->download("{$nombre}.pdf");
+        }
+
+        $exportacion = new UtilidadesExportacion($user->empresa_id, $user->sucursal_id, $filtros);
+        return $servicio->exportar($exportacion, 'excel', $nombre);
     }
 
     private function conMargen(object $row): array

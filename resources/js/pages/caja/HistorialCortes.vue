@@ -24,6 +24,19 @@
                         </p>
                     </div>
                 </div>
+
+                <div class="ml-auto flex items-center gap-2">
+                    <button
+                        type="button"
+                        :disabled="exportandoLista"
+                        @click="exportarLista"
+                        class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:opacity-50"
+                    >
+                        <Loader2 v-if="exportandoLista" class="h-4 w-4 animate-spin" />
+                        <FileSpreadsheet v-else class="h-4 w-4" />
+                        Excel
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -154,17 +167,27 @@
                             </td>
 
                             <td class="px-4 py-3 text-right">
-                                <button
-                                    type="button"
-                                    @click="verDetalle(c.id)"
-                                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100"
-                                >
-                                    <Eye class="h-3.5 w-3.5" />
-                                    Ver detalle
-                                    <ChevronRight
-                                        class="h-3.5 w-3.5 opacity-60"
-                                    />
-                                </button>
+                                <div class="flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        :disabled="exportandoPdf === c.id"
+                                        @click="exportarPdf(c)"
+                                        class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                                    >
+                                        <Loader2 v-if="exportandoPdf === c.id" class="h-3.5 w-3.5 animate-spin" />
+                                        <FileText v-else class="h-3.5 w-3.5" />
+                                        PDF
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="verDetalle(c.id)"
+                                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100"
+                                    >
+                                        <Eye class="h-3.5 w-3.5" />
+                                        Ver detalle
+                                        <ChevronRight class="h-3.5 w-3.5 opacity-60" />
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
@@ -212,17 +235,21 @@ import { ref, onMounted } from "vue";
 import http from "@/lib/http";
 import { toastError } from "@/lib/alert";
 import {
-    History,
-    Eye,
-    Loader2,
     ChevronLeft,
     ChevronRight,
+    Eye,
+    FileSpreadsheet,
+    FileText,
+    History,
+    Loader2,
 } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
 const cargando = ref(true);
 const cortes = ref([]);
+const exportandoLista = ref(false);
+const exportandoPdf = ref(null);
 
 const filtroEstado = ref("");
 const pagina = ref(1);
@@ -290,4 +317,43 @@ const formatFecha = (f) =>
               timeStyle: "short",
           })
         : "—";
+
+async function exportarLista() {
+    exportandoLista.value = true;
+    try {
+        const resp = await http.get("/api/cortes-caja/exportar", {
+            params: { estado: filtroEstado.value || undefined },
+            responseType: "blob",
+        });
+        const url = URL.createObjectURL(new Blob([resp.data]));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `historial_cortes.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch {
+        toastError("No se pudo exportar el historial.");
+    } finally {
+        exportandoLista.value = false;
+    }
+}
+
+async function exportarPdf(corte) {
+    exportandoPdf.value = corte.id;
+    try {
+        const resp = await http.get(`/api/cortes-caja/${corte.id}/exportar-pdf`, {
+            responseType: "blob",
+        });
+        const url = URL.createObjectURL(new Blob([resp.data], { type: "application/pdf" }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `corte_${corte.id}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch {
+        toastError("No se pudo generar el PDF.");
+    } finally {
+        exportandoPdf.value = null;
+    }
+}
 </script>

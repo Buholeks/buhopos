@@ -23,9 +23,22 @@
                     </p>
                 </div>
 
+                <div class="ml-auto flex items-center gap-2">
+                <button
+                    v-if="corte"
+                    type="button"
+                    :disabled="exportando"
+                    @click="exportarPdf"
+                    class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                >
+                    <Loader2 v-if="exportando" class="h-4 w-4 animate-spin" />
+                    <FileText v-else class="h-4 w-4" />
+                    PDF
+                </button>
+
                 <span
                     v-if="corte"
-                    class="ml-auto inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1"
+                    class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1"
                     :class="
                         corte.estado === 'abierto'
                             ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
@@ -34,6 +47,7 @@
                 >
                     {{ corte.estado === "abierto" ? "Abierto" : "Cerrado" }}
                 </span>
+                </div>
             </div>
         </div>
 
@@ -411,6 +425,7 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    FileText,
 } from "lucide-vue-next";
 
 // ✅ router para back (en <script setup> NO existe $router)
@@ -423,6 +438,7 @@ const corteId = Number(route.params.id);
 
 const cargando = ref(true);
 const cargandoVentas = ref(true);
+const exportando = ref(false);
 const corte = ref(null);
 
 const ventas = ref([]);
@@ -499,6 +515,23 @@ function nextVentas() {
     if (metaVentas.value.current_page === metaVentas.value.last_page) return;
     paginaVentas.value++;
     cargarVentas();
+}
+
+async function exportarPdf() {
+    exportando.value = true;
+    try {
+        const resp = await axios.get(`/api/cortes-caja/${corteId}/exportar-pdf`, {
+            responseType: 'blob',
+        });
+        const url = URL.createObjectURL(new Blob([resp.data], { type: 'application/pdf' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `corte_${corteId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } finally {
+        exportando.value = false;
+    }
 }
 
 function toggleVenta(id) {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Empresa;
 use App\Models\Inventario;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
@@ -9,11 +10,13 @@ use App\Models\Serie;
 use App\Models\Sucursal;
 use App\Models\Traspaso;
 use App\Models\TraspasoDetalle;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class TraspasoController extends Controller
 {
@@ -105,6 +108,48 @@ class TraspasoController extends Controller
             ->findOrFail($id);
 
         return response()->json($traspaso);
+    }
+
+    public function exportarDetalle(Request $request, int $id): mixed
+    {
+        abort_unless(Auth::user()->tienePermiso('inventario.ver'), 403, 'Sin permiso: inventario.ver');
+
+        $user     = $request->user();
+        $traspaso = Traspaso::where('empresa_id', (int) $user->empresa_id)
+            ->with([
+                'origen:id,nombre',
+                'destino:id,nombre',
+                'user:id,name',
+                'cancelador:id,name',
+                'receptor:id,name',
+                'rechazador:id,name',
+                'detalles',
+            ])
+            ->findOrFail($id);
+
+        $empresa  = Empresa::find($user->empresa_id);
+        $sucursal = Sucursal::find($user->sucursal_id);
+
+        $logoB64 = null;
+        if ($empresa?->logo && Storage::disk('public')->exists($empresa->logo)) {
+            $contenido = Storage::disk('public')->get($empresa->logo);
+            $mime      = Storage::disk('public')->mimeType($empresa->logo) ?: 'image/png';
+            $logoB64   = 'data:' . $mime . ';base64,' . base64_encode($contenido);
+        }
+
+        $pdf = Pdf::loadView('pdf.traspaso-detalle', [
+            'traspaso'          => $traspaso,
+            'titulo'            => 'Traspaso ' . $traspaso->folio,
+            'filtrosAplicados'  => [],
+            'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
+            'empresaLogoB64'    => $logoB64,
+            'empresaDireccion'  => $empresa?->direccion,
+            'sucursalNombre'    => $sucursal?->nombre,
+            'sucursalDireccion' => $sucursal?->direccion,
+            'fecha'             => now('America/Mexico_City')->format('d/m/Y H:i'),
+        ])->setPaper('letter', 'landscape');
+
+        return $pdf->download('traspaso_' . $traspaso->folio . '.pdf');
     }
 
     public function sucursales(Request $request): JsonResponse

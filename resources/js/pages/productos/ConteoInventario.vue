@@ -95,6 +95,16 @@
                 <Ban class="h-4 w-4" />
                 Cancelar
               </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                :disabled="exportando"
+                @click="exportarPdf"
+              >
+                <Loader2 v-if="exportando" class="h-4 w-4 animate-spin" />
+                <FileText v-else class="h-4 w-4" />
+                PDF
+              </button>
             </div>
           </div>
 
@@ -294,6 +304,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
+  FileText,
   Loader2,
   LockKeyhole,
   Plus,
@@ -306,6 +317,7 @@ import {
 const auth = useAuthStore();
 const conteo = ref(null);
 const creando = ref(false);
+const exportando = ref(false);
 const buscando = ref(false);
 const busqueda = ref("");
 const resultados = ref([]);
@@ -368,6 +380,24 @@ async function abrirConteo(id) {
 async function refrescarActual() {
   if (conteo.value?.id) await abrirConteo(conteo.value.id);
   await cargarConteos();
+}
+
+async function exportarPdf() {
+  if (!conteo.value) return;
+  exportando.value = true;
+  try {
+    const resp = await http.get(`/api/inventario-conteos/${conteo.value.id}/exportar-pdf`, { responseType: "blob" });
+    const url = URL.createObjectURL(new Blob([resp.data]));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `conteo_${conteo.value.folio}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    toastError("No se pudo generar el PDF.");
+  } finally {
+    exportando.value = false;
+  }
 }
 
 async function nuevoConteo() {

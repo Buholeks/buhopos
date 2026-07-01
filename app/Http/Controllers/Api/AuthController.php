@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AuthController extends Controller
 {
@@ -33,14 +34,19 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $user->load(['empresa:id,nombre', 'sucursal:id,nombre']);
+        $user->load(['empresa:id,nombre,logo', 'sucursal:id,nombre']);
 
         $rol = $user->rolEnSucursal((int) $user->sucursal_id);
+
+        $empresa = $user->empresa;
 
         return response()->json([
             ...$user->toArray(),
             'rol'      => $rol?->nombre,
             'permisos' => $user->permisosActivos(),
+            'empresa'  => $empresa ? array_merge($empresa->toArray(), [
+                'logo_url' => $empresa->logo ? Storage::disk('public')->url($empresa->logo) : null,
+            ]) : null,
         ]);
     }
 
@@ -151,13 +157,18 @@ class AuthController extends Controller
             $request->session()->regenerate();
         }
 
-        $user->load(['empresa:id,nombre', 'sucursal:id,nombre']);
+        $user->load(['empresa:id,nombre,logo', 'sucursal:id,nombre']);
         $rol = $user->rolEnSucursal((int) $user->sucursal_id);
+
+        $empresa = $user->empresa;
 
         return response()->json([
             ...$user->toArray(),
             'rol'      => $rol?->nombre,
             'permisos' => $user->permisosActivos(),
+            'empresa'  => $empresa ? array_merge($empresa->toArray(), [
+                'logo_url' => $empresa->logo ? Storage::disk('public')->url($empresa->logo) : null,
+            ]) : null,
         ]);
     }
 

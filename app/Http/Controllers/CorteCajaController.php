@@ -2,6 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Exportaciones\CajaExportacion;
+use App\Exportaciones\ConsultaCajaExportacion;
+use App\Exportaciones\ServicioExportacion;
+use App\Models\Empresa;
+use App\Models\Sucursal;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;
 use App\Models\CorteCaja;
 use App\Models\CorteDesgloseEfectivo;
 use App\Models\MovimientoCaja;
@@ -317,6 +324,34 @@ public function cerrar(Request $request, int $id): JsonResponse
         return response()->json($ventas);
     }
 
+    public function exportarConsulta(Request $request, ServicioExportacion $servicio)
+    {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+
+        $datos = $request->validate([
+            'desde'      => ['nullable', 'date'],
+            'hasta'      => ['nullable', 'date', 'after_or_equal:desde'],
+            'origen'     => ['nullable', Rule::in(['', 'venta', 'movimiento'])],
+            'tipo'       => ['nullable', Rule::in(['', 'ingreso', 'egreso'])],
+            'forma_pago' => ['nullable', Rule::in(['', 'efectivo', 'tarjeta', 'transferencia', 'credito'])],
+            'user_id'    => ['nullable', 'integer'],
+            'concepto'   => ['nullable', 'string', 'max:120'],
+            'formato'    => ['required', 'in:excel,pdf'],
+        ]);
+
+        $user = Auth::user();
+
+        $exportacion = new ConsultaCajaExportacion(
+            empresaId:  (int) $user->empresa_id,
+            sucursalId: (int) $user->sucursal_id,
+            filtros:    $datos,
+        );
+
+        $nombre = 'consulta_caja_' . now()->format('Ymd_His');
+
+        return $servicio->exportar($exportacion, $datos['formato'], $nombre);
+    }
+
     public function usuariosConsulta(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
@@ -485,6 +520,76 @@ public function cerrar(Request $request, int $id): JsonResponse
                 'neto' => round((float) ($resumen->neto ?? 0), 2),
             ],
         ]));
+    }
+
+    public function exportarHistorial(Request $request, ServicioExportacion $servicio)
+    {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+
+        $datos = $request->validate([
+            'fecha_desde' => ['nullable', 'date'],
+            'fecha_hasta' => ['nullable', 'date'],
+            'estado'      => ['nullable', 'in:abierto,cerrado'],
+            'user_id'     => ['nullable', 'integer'],
+        ]);
+
+        $user = Auth::user();
+
+        $exportacion = new CajaExportacion(
+            empresaId:  (int) $user->empresa_id,
+            sucursalId: (int) $user->sucursal_id,
+            filtros:    $datos,
+        );
+
+        return $servicio->exportar($exportacion, 'excel', 'historial_cortes_' . now()->format('Ymd_His'));
+    }
+
+    public function exportarDetalle(int $id)
+    {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+        $user = Auth::user();
+
+        $corte = CorteCaja::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->with(['user:id,name', 'movimientos.user:id,name'])
+            ->findOrFail($id);
+
+        $ventas = Venta::where('corte_id', $corte->id)
+            ->where('estado', 'confirmada')
+            ->with(['detalles.producto:id,nombre', 'user:id,name'])
+            ->orderBy('fecha')
+            ->get();
+
+        $empresa  = Empresa::find($user->empresa_id);
+        $sucursal = Sucursal::find($user->sucursal_id);
+
+        $logoB64 = null;
+        if ($empresa?->logo && Storage::disk('public')->exists($empresa->logo)) {
+            $contenido = Storage::disk('public')->get($empresa->logo);
+            $mime      = Storage::disk('public')->mimeType($empresa->logo) ?: 'image/png';
+            $logoB64   = 'data:' . $mime . ';base64,' . base64_encode($contenido);
+        }
+
+        $fmt = fn($v) => '$' . number_format((float) ($v ?? 0), 2);
+
+        $pdf = Pdf::loadView('pdf.corte-detalle', [
+            'titulo'            => 'Corte de Caja #' . $id,
+            'corte'             => $corte,
+            'movimientos'       => $corte->movimientos,
+            'ventas'            => $ventas,
+            'fmt'               => $fmt,
+            'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
+            'empresaLogoB64'    => $logoB64,
+            'empresaDireccion'  => $empresa?->direccion,
+            'sucursalNombre'    => $sucursal?->nombre,
+            'sucursalDireccion' => $sucursal?->direccion,
+            'filtrosAplicados'  => [],
+            'fecha'             => now('America/Mexico_City')->format('d/m/Y H:i'),
+        ])->setPaper('letter', 'portrait');
+
+        $nombre = 'corte_' . $id . '_' . now()->format('Ymd_His');
+
+        return $pdf->download("{$nombre}.pdf");
     }
 
    public function guardarDesgloseEnVivo(Request $request, int $id): JsonResponse

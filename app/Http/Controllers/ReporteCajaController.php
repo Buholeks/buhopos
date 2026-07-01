@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exportaciones\CajaExportacion;
+use App\Exportaciones\ServicioExportacion;
 use App\Models\CorteCaja;
 use App\Models\MovimientoCaja;
 use App\Models\Venta;
@@ -106,7 +108,35 @@ class ReporteCajaController extends Controller
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 2. DETALLE DE UN CORTE  GET /api/reportes/caja/{id}
+    // 2. EXPORTAR LISTADO  GET /api/reportes/caja/exportar
+    // ─────────────────────────────────────────────────────────────
+    public function exportar(Request $request, ServicioExportacion $servicio)
+    {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
+
+        $data = $request->validate([
+            'fecha_desde' => ['nullable', 'date'],
+            'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
+            'user_id'     => ['nullable', 'integer'],
+            'estado'      => ['nullable', 'in:abierto,cerrado,anulado'],
+            'formato'     => ['required', 'in:excel,pdf'],
+        ]);
+
+        $user = Auth::user();
+
+        $exportacion = new CajaExportacion(
+            empresaId:  $user->empresa_id,
+            sucursalId: $user->sucursal_id,
+            filtros:    $data,
+        );
+
+        $nombre = 'caja_cortes_' . now()->format('Ymd_His');
+
+        return $servicio->exportar($exportacion, $data['formato'], $nombre);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 3. DETALLE DE UN CORTE  GET /api/reportes/caja/{id}
     // ─────────────────────────────────────────────────────────────
     public function show(int $id): JsonResponse
     {

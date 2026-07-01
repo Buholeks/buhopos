@@ -304,6 +304,28 @@
                         >
                             Total: {{ fmt(totalPrincipal) }}
                         </span>
+
+                        <button
+                            type="button"
+                            :disabled="exportando"
+                            @click="exportar('excel')"
+                            class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:opacity-50"
+                        >
+                            <Loader2 v-if="exportando === 'excel'" class="h-4 w-4 animate-spin" />
+                            <FileSpreadsheet v-else class="h-4 w-4" />
+                            Excel
+                        </button>
+
+                        <button
+                            type="button"
+                            :disabled="exportando"
+                            @click="exportar('pdf')"
+                            class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                        >
+                            <Loader2 v-if="exportando === 'pdf'" class="h-4 w-4 animate-spin" />
+                            <FileText v-else class="h-4 w-4" />
+                            PDF
+                        </button>
                         <span
                             v-if="tabActual.tieneMargen"
                             class="rounded-full px-3 py-1 text-xs font-semibold"
@@ -740,6 +762,8 @@ import {
     BarChart3,
     ChevronLeft,
     ChevronRight,
+    FileSpreadsheet,
+    FileText,
     Filter,
     Inbox,
     ListTree,
@@ -867,6 +891,7 @@ const props = defineProps({
 // ── Estado ────────────────────────────────────────────────────────────────
 const tabActiva = ref("clientes");
 const cargando = ref(false);
+const exportando = ref(null);
 const filas = ref([]);
 const pag = ref({ current_page: 1, last_page: 1, total: 0 });
 const ejecutado = ref(false);
@@ -1023,6 +1048,40 @@ async function cargar() {
 function cambiarPag(p) {
     estado.value.pagina = p;
     cargar();
+}
+
+async function exportar(formato) {
+    exportando.value = formato;
+    const e = estado.value;
+    try {
+        const resp = await axios.get(`${props.apiBase}/exportar`, {
+            params: {
+                tab: tabActiva.value,
+                fecha_desde: e.fecha_desde,
+                fecha_hasta: e.fecha_hasta,
+                forma_pago: e.forma_pago || undefined,
+                estado: e.estado || undefined,
+                entidad_id: tabActual.value.usaAutocomplete ? (e.entidadSeleccionada?.id || undefined) : undefined,
+                producto: !tabActual.value.usaAutocomplete ? (e.q || undefined) : undefined,
+                formato,
+            },
+            responseType: 'blob',
+        });
+        const ext  = formato === 'excel' ? 'xlsx' : 'pdf';
+        const mime = formato === 'excel'
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : 'application/pdf';
+        const url = URL.createObjectURL(new Blob([resp.data], { type: mime }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ventas_${tabActiva.value}_${e.fecha_desde}_${e.fecha_hasta}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error('exportar agrupado', err);
+    } finally {
+        exportando.value = null;
+    }
 }
 
 function limpiarFiltrosTab() {

@@ -71,6 +71,16 @@
                                 <h2 class="text-lg font-semibold text-slate-900">
                                     Ticket {{ venta.folio }}
                                 </h2>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                                    :disabled="exportando"
+                                    @click="exportarPdf"
+                                >
+                                    <Loader2 v-if="exportando" class="h-4 w-4 animate-spin" />
+                                    <FileText v-else class="h-4 w-4" />
+                                    PDF
+                                </button>
                                 <span
                                     class="rounded-full px-2.5 py-1 text-xs font-semibold capitalize"
                                     :class="
@@ -358,6 +368,7 @@ import Swal from "sweetalert2";
 import http from "@/lib/http";
 import {
     Ban,
+    FileText,
     Hash,
     Loader2,
     RotateCcw,
@@ -368,6 +379,7 @@ import {
 const folio = ref("");
 const venta = ref(null);
 const buscando = ref(false);
+const exportando = ref(false);
 const procesandoAccion = ref("");
 const mensaje = ref("");
 const mensajeTipo = ref("ok");
@@ -399,6 +411,27 @@ const totalDevolucion = computed(() => {
         return acc + cantidadValida * Number(detalle.precio_venta || 0);
     }, 0);
 });
+
+async function exportarPdf() {
+    if (!venta.value) return;
+    exportando.value = true;
+    try {
+        const resp = await http.get("/api/cancelaciones-devoluciones/exportar-pdf", {
+            params: { folio: venta.value.folio },
+            responseType: "blob",
+        });
+        const url = URL.createObjectURL(new Blob([resp.data]));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `cancelacion_${venta.value.folio}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch {
+        mostrarError("No se pudo generar el PDF.");
+    } finally {
+        exportando.value = false;
+    }
+}
 
 async function buscarVenta() {
     if (!folio.value) return;

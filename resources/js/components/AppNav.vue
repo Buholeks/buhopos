@@ -18,15 +18,23 @@
         <!-- Header -->
         <div class="shrink-0 border-b border-slate-800 px-4 py-4">
             <div class="flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                    <h1
-                        class="truncate text-lg font-bold tracking-tight text-white"
-                    >
-                        BuhoPOS
-                    </h1>
-                    <p class="mt-0.5 truncate text-xs text-slate-500">
-                        Punto de venta
-                    </p>
+                <div class="min-w-0 flex items-center gap-3">
+                    <img
+                        v-if="auth.empresaLogoUrl"
+                        :src="auth.empresaLogoUrl"
+                        alt="Logo"
+                        class="h-9 w-auto max-w-[120px] shrink-0 rounded object-contain"
+                    />
+                    <div v-else class="min-w-0">
+                        <h1
+                            class="truncate text-lg font-bold tracking-tight text-white"
+                        >
+                            BuhoPOS
+                        </h1>
+                        <p class="mt-0.5 truncate text-xs text-slate-500">
+                            Punto de venta
+                        </p>
+                    </div>
                 </div>
 
                 <button

@@ -169,10 +169,12 @@
         :seleccion="seleccionRecepcion"
         :seleccionados="detalleIdsSeleccionados"
         :operando="operando === detalleAbierto?.id"
+        :exportando-pdf="exportandoPdf"
         @cerrar="cerrarDetalle"
         @seleccionar-pendientes="seleccionarPendientes"
         @recibir-seleccionados="recibirSeleccionados"
         @toggle-seleccion="toggleSeleccion"
+        @exportar-pdf="exportarDetallePdf"
       />
     </section>
   </main>
@@ -207,6 +209,7 @@ const detalleAbierto = ref(null);
 const seleccionRecepcion = reactive({});
 const pendientesPorRecibir = ref(0);
 const operando = ref(null);
+const exportandoPdf = ref(false);
 const buscadorRef = ref(null);
 const modalItem = ref(null);
 const seriesPorItem = reactive({});
@@ -502,6 +505,23 @@ async function rechazarTraspaso(traspaso) {
     await cargarTraspasos();
   } catch (e) {
     toastError(e?.response?.data?.message || "No se pudo rechazar el traspaso.");
+  }
+}
+
+async function exportarDetallePdf(traspaso) {
+  exportandoPdf.value = true;
+  try {
+    const resp = await http.get(`/api/traspasos/${traspaso.id}/exportar-pdf`, { responseType: "blob" });
+    const url = URL.createObjectURL(new Blob([resp.data]));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `traspaso_${traspaso.folio}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    toastError("No se pudo generar el PDF.");
+  } finally {
+    exportandoPdf.value = false;
   }
 }
 

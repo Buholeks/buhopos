@@ -154,16 +154,47 @@
                         </div>
                     </div>
 
-                    <div class="flex items-end">
+                    <div class="flex items-end gap-2">
                         <button
                             type="button"
                             @click="limpiarFiltros"
                             class="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                         >
                             <RotateCcw class="h-4 w-4" />
-                            Limpiar filtros
+                            Limpiar
                         </button>
                     </div>
+                </div>
+
+                <div
+                    class="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-4"
+                >
+                    <button
+                        type="button"
+                        @click="exportar('excel')"
+                        :disabled="exportando"
+                        class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:opacity-50"
+                    >
+                        <Loader2
+                            v-if="exportando === 'excel'"
+                            class="h-4 w-4 animate-spin"
+                        />
+                        <FileSpreadsheet v-else class="h-4 w-4" />
+                        Excel
+                    </button>
+                    <button
+                        type="button"
+                        @click="exportar('pdf')"
+                        :disabled="exportando"
+                        class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                    >
+                        <Loader2
+                            v-if="exportando === 'pdf'"
+                            class="h-4 w-4 animate-spin"
+                        />
+                        <FileText v-else class="h-4 w-4" />
+                        PDF
+                    </button>
                 </div>
             </section>
 
@@ -1223,6 +1254,8 @@ import {
     ClipboardList,
     Coins,
     Eye,
+    FileSpreadsheet,
+    FileText,
     Inbox,
     LayoutDashboard,
     Loader2,
@@ -1261,6 +1294,7 @@ const ventasPaginacion = ref(null);
 const ventasCargando = ref(false);
 const ventasFiltroFP = ref("");
 const ventasPagina = ref(1);
+const exportando = ref(null);
 
 const filtros = reactive({
     fecha_desde: hoy(),
@@ -1413,6 +1447,34 @@ function limpiarFiltros() {
     filtros.por_dia = false;
     filtros.pagina = 1;
     cargarCortes();
+}
+
+async function exportar(formato) {
+    exportando.value = formato;
+    try {
+        const resp = await axios.get(`${props.apiBase}/exportar`, {
+            params: {
+                fecha_desde: filtros.fecha_desde,
+                fecha_hasta: filtros.fecha_hasta,
+                user_id: filtros.user_id,
+                estado: filtros.estado,
+                formato,
+            },
+            responseType: "blob",
+        });
+        const ext = formato === "excel" ? "xlsx" : "pdf";
+        const url = URL.createObjectURL(new Blob([resp.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `reporte_caja_${new Date().toISOString().slice(0, 10)}.${ext}`;
+        link.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error(e);
+        alert("No se pudo generar el archivo.");
+    } finally {
+        exportando.value = null;
+    }
 }
 
 // ── Computed ───────────────────────────────────────────────────────────────

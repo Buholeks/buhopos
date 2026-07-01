@@ -18,6 +18,7 @@ export const useAuthStore = defineStore("auth", {
     empresaId:       (s) => s.user?.empresa_id ?? null,
     sucursalId:      (s) => s.user?.sucursal_id ?? null,
     empresaNombre:   (s) => s.user?.empresa?.nombre ?? "",
+    empresaLogoUrl:  (s) => s.user?.empresa?.logo_url ?? null,
     sucursalNombre:  (s) => s.user?.sucursal?.nombre ?? "",
     sucursalActivaId:(s) => s.user?.sucursal_id ?? null,
     esSuperAdmin:    (s) => !!s.user?.es_super_admin,

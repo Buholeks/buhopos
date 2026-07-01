@@ -154,6 +154,44 @@
                                 </div>
                                 <BaseInput v-model="empresa.direccion" label="Dirección" :disabled="!puedeEditarEmpresa" :error="errorEmpresa('direccion')" />
 
+                                <!-- Logo -->
+                                <div>
+                                    <p class="mb-2 text-xs font-semibold text-slate-700">Logo de la empresa</p>
+                                    <div class="flex items-center gap-4">
+                                        <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                                            <img v-if="logoUrl" :src="logoUrl" alt="Logo" class="h-full w-full object-contain p-1" />
+                                            <Building2 v-else class="h-8 w-8 text-slate-300" />
+                                        </div>
+                                        <div v-if="puedeEditarEmpresa" class="flex flex-col gap-2">
+                                            <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50">
+                                                <Loader2 v-if="subiendoLogo" class="h-3.5 w-3.5 animate-spin" />
+                                                <ImagePlus v-else class="h-3.5 w-3.5" />
+                                                {{ logoUrl ? 'Cambiar logo' : 'Subir logo' }}
+                                                <input
+                                                    ref="logoInput"
+                                                    type="file"
+                                                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                                                    class="hidden"
+                                                    :disabled="subiendoLogo"
+                                                    @change="subirLogo"
+                                                />
+                                            </label>
+                                            <button
+                                                v-if="logoUrl"
+                                                type="button"
+                                                :disabled="eliminandoLogo"
+                                                @click="eliminarLogo"
+                                                class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+                                            >
+                                                <Loader2 v-if="eliminandoLogo" class="h-3.5 w-3.5 animate-spin" />
+                                                <Trash2 v-else class="h-3.5 w-3.5" />
+                                                Eliminar logo
+                                            </button>
+                                        </div>
+                                        <p v-if="puedeEditarEmpresa" class="text-[11px] text-slate-400">PNG, JPG, WebP o SVG · máx. 2 MB.<br>Se usa en PDFs y tickets.</p>
+                                    </div>
+                                </div>
+
                                 <button v-if="puedeEditarEmpresa"
                                     type="submit"
                                     :disabled="guardandoEmpresa"
@@ -227,9 +265,9 @@ import http from "@/lib/http";
 import { toastError, toastSuccess } from "@/lib/alert";
 import { useAuthStore } from "@/stores/auth";
 import {
-    Building2, ChevronDown, DollarSign, Loader2, LockKeyhole,
+    Building2, ChevronDown, DollarSign, ImagePlus, Loader2, LockKeyhole,
     Mail, MapPin, Package, Save, ShieldAlert, ShieldCheck,
-    ShoppingCart, UserRound, Users,
+    ShoppingCart, Trash2, UserRound, Users,
 } from "lucide-vue-next";
 
 const auth = useAuthStore();
@@ -256,6 +294,10 @@ const stats = ref({
 const usuario = reactive({ name: "", email: "", current_password: "", password: "", password_confirmation: "" });
 const empresa = reactive({ nombre: "", propietario: "", rfc: "", correo: "", telefono: "", direccion: "" });
 const sucursal= reactive({ nombre: "", correo: "", telefono: "", direccion: "" });
+const logoUrl        = ref(null);
+const subiendoLogo   = ref(false);
+const eliminandoLogo = ref(false);
+const logoInput      = ref(null);
 
 // ── Computed ───────────────────────────────────────────────────────────────────
 const iniciales = computed(() => {
@@ -302,8 +344,44 @@ function aplicarPerfil(data) {
     Object.assign(sucursal, normalizar(data.sucursal, sucursal));
     puedeEditarEmpresa.value  = !!data.puede_editar_empresa;
     puedeEditarSucursal.value = !!data.puede_editar_sucursal;
+    logoUrl.value = data.empresa?.logo_url ?? null;
     if (data.stats) Object.assign(stats.value, data.stats);
     auth._setUser(data);
+}
+
+async function subirLogo(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    subiendoLogo.value = true;
+    try {
+        const fd = new FormData();
+        fd.append("logo", file);
+        const { data } = await http.post("/api/perfil/empresa/logo", fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+        logoUrl.value = data.logo_url;
+        if (auth.user?.empresa) auth.user.empresa.logo_url = data.logo_url;
+        toastSuccess("Logo actualizado.");
+    } catch (err) {
+        toastError(err?.response?.data?.message || "No se pudo subir el logo.");
+    } finally {
+        subiendoLogo.value = false;
+        if (logoInput.value) logoInput.value.value = "";
+    }
+}
+
+async function eliminarLogo() {
+    eliminandoLogo.value = true;
+    try {
+        await http.delete("/api/perfil/empresa/logo");
+        logoUrl.value = null;
+        if (auth.user?.empresa) auth.user.empresa.logo_url = null;
+        toastSuccess("Logo eliminado.");
+    } catch {
+        toastError("No se pudo eliminar el logo.");
+    } finally {
+        eliminandoLogo.value = false;
+    }
 }
 
 // ── Guardar usuario ────────────────────────────────────────────────────────────

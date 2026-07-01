@@ -11,6 +11,26 @@
                 <div class="flex items-center gap-2 text-xs text-slate-500">
                     <Loader2 v-if="cargando" class="h-4 w-4 animate-spin text-emerald-600" />
                     {{ agrupacionActual }}
+                    <button
+                        type="button"
+                        :disabled="exportando"
+                        @click="exportar('excel')"
+                        class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:opacity-50"
+                    >
+                        <Loader2 v-if="exportando === 'excel'" class="h-4 w-4 animate-spin" />
+                        <FileSpreadsheet v-else class="h-4 w-4" />
+                        Excel
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="exportando"
+                        @click="exportar('pdf')"
+                        class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                    >
+                        <Loader2 v-if="exportando === 'pdf'" class="h-4 w-4 animate-spin" />
+                        <FileText v-else class="h-4 w-4" />
+                        PDF
+                    </button>
                 </div>
             </div>
         </header>
@@ -149,7 +169,7 @@ import { computed, defineComponent, h, onMounted, reactive, ref } from "vue";
 import axios from "axios";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
-import { Loader2, TriangleAlert } from "lucide-vue-next";
+import { FileSpreadsheet, FileText, Loader2, TriangleAlert } from "lucide-vue-next";
 
 const EstadoVacio = defineComponent({
     props: { texto: String },
@@ -191,6 +211,7 @@ const resumen = ref({
 });
 const items = ref([]);
 const cargando = ref(false);
+const exportando = ref(null);
 const pag = ref({ current_page: 1, last_page: 1 });
 let timer;
 
@@ -254,6 +275,27 @@ async function cargar() {
 function cambiarPagina(page) {
     f.page = page;
     cargar();
+}
+
+async function exportar(formato) {
+    exportando.value = formato;
+    try {
+        const resp = await axios.get("/api/reportes/inventario/exportar", {
+            params: { ...f, formato },
+            responseType: "blob",
+        });
+        const ext = formato === "pdf" ? "pdf" : "xlsx";
+        const url = URL.createObjectURL(new Blob([resp.data]));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `inventario_${f.agrupar}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error("exportarInventario", e);
+    } finally {
+        exportando.value = null;
+    }
 }
 
 function itemKey(item) {

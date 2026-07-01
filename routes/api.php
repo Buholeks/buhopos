@@ -66,6 +66,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/perfil', [ProfileController::class, 'show']);
     Route::put('/perfil/usuario', [ProfileController::class, 'updateUser']);
     Route::put('/perfil/empresa', [ProfileController::class, 'updateEmpresa']);
+    Route::post('/perfil/empresa/logo', [ProfileController::class, 'uploadLogo']);
+    Route::delete('/perfil/empresa/logo', [ProfileController::class, 'deleteLogo']);
     Route::put('/perfil/sucursal', [ProfileController::class, 'updateSucursal']);
     Route::get('/ticket-config', [ProfileController::class, 'getTicketConfig']);
     Route::put('/ticket-config', [ProfileController::class, 'saveTicketConfig']);
@@ -257,6 +259,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('cancelaciones-devoluciones')->group(function () {
         Route::get('/buscar', [CancelacionDevolucionController::class, 'buscar']);
+        Route::get('/exportar-pdf', [CancelacionDevolucionController::class, 'exportarPdf']);
         Route::post('/cancelar', [CancelacionDevolucionController::class, 'cancelar']);
         Route::post('/devolver', [CancelacionDevolucionController::class, 'devolver']);
     });
@@ -272,6 +275,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/abiertas', [CorteCajaController::class, 'abiertas']);
         Route::get('/actual', [CorteCajaController::class, 'actual']);
         Route::post('/abrir', [CorteCajaController::class, 'abrir']);
+        Route::get('/exportar', [CorteCajaController::class, 'exportarHistorial']);
 
         Route::get('/{id}', [CorteCajaController::class, 'show']);
         Route::post('/{id}/cerrar', [CorteCajaController::class, 'cerrar']);
@@ -280,10 +284,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}/movimiento/{movId}', [CorteCajaController::class, 'eliminarMovimiento']);
 
         Route::get('/{id}/ventas', [CorteCajaController::class, 'ventas']);
+        Route::get('/{id}/exportar-pdf', [CorteCajaController::class, 'exportarDetalle']);
         Route::post('/{id}/desglose', [CorteCajaController::class, 'guardarDesgloseEnVivo']);
     });
 
     Route::get('/movimientos-caja/usuarios', [CorteCajaController::class, 'usuariosConsulta']);
+    Route::get('/movimientos-caja/exportar', [CorteCajaController::class, 'exportarConsulta']);
     Route::get('/movimientos-caja', [CorteCajaController::class, 'consultaMovimientos']);
 
     /*
@@ -303,6 +309,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [InventarioConteoController::class, 'index']);
         Route::post('/', [InventarioConteoController::class, 'store']);
         Route::get('/alcances', [InventarioConteoController::class, 'alcances']);
+        Route::get('/{id}/exportar-pdf', [InventarioConteoController::class, 'exportarPdf']);
         Route::get('/{id}', [InventarioConteoController::class, 'show']);
         Route::get('/{id}/escanear', [InventarioConteoController::class, 'escanear']);
         Route::get('/{id}/buscar', [InventarioConteoController::class, 'buscar']);
@@ -328,6 +335,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/resumen-pendientes', [TraspasoController::class, 'resumenPendientes']);
         Route::get('/inventario', [TraspasoController::class, 'inventario']);
         Route::get('/series-disponibles', [TraspasoController::class, 'seriesDisponibles']);
+        Route::get('/{id}/exportar-pdf', [TraspasoController::class, 'exportarDetalle']);
         Route::get('/{id}', [TraspasoController::class, 'show']);
         Route::post('/{id}/recibir', [TraspasoController::class, 'recibir']);
         Route::post('/{id}/rechazar', [TraspasoController::class, 'rechazar']);
@@ -362,6 +370,7 @@ Route::middleware('auth:sanctum')->group(function () {
         */
         Route::prefix('caja')->group(function () {
             Route::get('/', [ReporteCajaController::class, 'index']);
+            Route::get('/exportar', [ReporteCajaController::class, 'exportar']);
             Route::get('/{id}', [ReporteCajaController::class, 'show']);
             Route::get('/{id}/ventas', [ReporteCajaController::class, 'ventas']);
         });
@@ -371,7 +380,9 @@ Route::middleware('auth:sanctum')->group(function () {
         */
         Route::prefix('compras')->group(function () {
             Route::get('/', [ReporteComprasController::class, 'index']);
+            Route::get('/exportar', [ReporteComprasController::class, 'exportar']);
             Route::get('/cuentas-por-pagar', [ReporteComprasController::class, 'cuentasPorPagar']);
+            Route::get('/{id}/exportar-pdf', [ReporteComprasController::class, 'exportarDetalle']);
             Route::get('/{id}', [ReporteComprasController::class, 'show']);
         });
 
@@ -380,6 +391,7 @@ Route::middleware('auth:sanctum')->group(function () {
         */
         Route::prefix('ventas')->group(function () {
             Route::get('/resumen', [ReporteVentasController::class, 'resumen']);
+            Route::get('/exportar', [ReporteVentasController::class, 'exportar']);
             Route::get('/', [ReporteVentasController::class, 'index']);
 
             // Recomendación: mover esto a VentaController@show
@@ -390,6 +402,7 @@ Route::middleware('auth:sanctum')->group(function () {
         | Ventas agrupadas
         */
         Route::prefix('ventas-agrupado')->group(function () {
+            Route::get('/exportar', [ReporteVentasAgrupadoController::class, 'exportar']);
             Route::get('/buscar/{entidad}', [ReporteVentasAgrupadoController::class, 'buscar']);
 
 
@@ -404,7 +417,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/proveedores', [ReporteVentasAgrupadoController::class, 'porProveedor']);
         });
 
+        Route::get('/utilidades/exportar', [ReporteUtilidadesController::class, 'exportar']);
         Route::get('/utilidades', [ReporteUtilidadesController::class, 'index']);
+        Route::get('/inventario/exportar', [ReporteInventarioController::class, 'exportar']);
         Route::get('/inventario', [ReporteInventarioController::class, 'index']);
     });
 });

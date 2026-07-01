@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Empresa;
 use App\Models\Inventario;
 use App\Models\InventarioConteo;
 use App\Models\InventarioConteoDetalle;
@@ -15,13 +16,16 @@ use App\Models\Marca;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
 use App\Models\Serie;
+use App\Models\Sucursal;
 use App\Models\Traspaso;
 use App\Models\Venta;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class InventarioConteoController extends Controller
 {
@@ -140,6 +144,37 @@ class InventarioConteoController extends Controller
     {
         $this->autorizar('inventario.conteos.ver');
         return response()->json($this->cargarConteo($id));
+    }
+
+    public function exportarPdf(int $id): mixed
+    {
+        $this->autorizar('inventario.conteos.ver');
+
+        $user     = Auth::user();
+        $conteo   = $this->cargarConteo($id);
+        $empresa  = Empresa::find($user->empresa_id);
+        $sucursal = Sucursal::find($user->sucursal_id);
+
+        $logoB64 = null;
+        if ($empresa?->logo && Storage::disk('public')->exists($empresa->logo)) {
+            $contenido = Storage::disk('public')->get($empresa->logo);
+            $mime      = Storage::disk('public')->mimeType($empresa->logo) ?: 'image/png';
+            $logoB64   = 'data:' . $mime . ';base64,' . base64_encode($contenido);
+        }
+
+        $pdf = Pdf::loadView('pdf.conteo-inventario', [
+            'conteo'            => $conteo,
+            'titulo'            => 'Conteo de Inventario ' . $conteo['folio'],
+            'filtrosAplicados'  => [],
+            'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
+            'empresaLogoB64'    => $logoB64,
+            'empresaDireccion'  => $empresa?->direccion,
+            'sucursalNombre'    => $sucursal?->nombre,
+            'sucursalDireccion' => $sucursal?->direccion,
+            'fecha'             => now('America/Mexico_City')->format('d/m/Y H:i'),
+        ])->setPaper('letter', 'landscape');
+
+        return $pdf->download('conteo_' . $conteo['folio'] . '.pdf');
     }
 
     public function escanear(Request $request, int $id): JsonResponse

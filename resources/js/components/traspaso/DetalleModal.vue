@@ -49,6 +49,16 @@
               >
                 Recibir seleccionados
               </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                :disabled="exportandoPdf"
+                @click="emit('exportar-pdf', traspaso)"
+              >
+                <Loader2 v-if="exportandoPdf" class="h-4 w-4 animate-spin" />
+                <FileText v-else class="h-4 w-4" />
+                PDF
+              </button>
               <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100" @click="emit('cerrar')">
                 <X class="h-4 w-4" />
               </button>
@@ -127,7 +137,7 @@
 
 <script setup>
 import { computed } from "vue";
-import { X } from "lucide-vue-next";
+import { FileText, Loader2, X } from "lucide-vue-next";
 
 const props = defineProps({
   traspaso: { type: Object, default: null },
@@ -135,6 +145,7 @@ const props = defineProps({
   seleccion: { type: Object, default: () => ({}) },
   seleccionados: { type: Array, default: () => [] },
   operando: { type: Boolean, default: false },
+  exportandoPdf: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -142,6 +153,7 @@ const emit = defineEmits([
   "seleccionar-pendientes",
   "recibir-seleccionados",
   "toggle-seleccion",
+  "exportar-pdf",
 ]);
 
 const totalDetalleCompra = computed(() =>

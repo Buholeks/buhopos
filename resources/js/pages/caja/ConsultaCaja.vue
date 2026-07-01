@@ -115,6 +115,29 @@
                         <X class="h-4 w-4" />
                         Limpiar
                     </button>
+
+                    <div class="ml-auto flex items-center gap-2">
+                        <button
+                            type="button"
+                            @click="exportar('excel')"
+                            :disabled="exportando"
+                            class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:opacity-50"
+                        >
+                            <Loader2 v-if="exportando === 'excel'" class="h-4 w-4 animate-spin" />
+                            <FileSpreadsheet v-else class="h-4 w-4" />
+                            Excel
+                        </button>
+                        <button
+                            type="button"
+                            @click="exportar('pdf')"
+                            :disabled="exportando"
+                            class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                        >
+                            <Loader2 v-if="exportando === 'pdf'" class="h-4 w-4 animate-spin" />
+                            <FileText v-else class="h-4 w-4" />
+                            PDF
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -421,6 +444,8 @@ import {
     ChevronRight,
     ShoppingCart,
     SlidersHorizontal,
+    FileSpreadsheet,
+    FileText,
 } from "lucide-vue-next";
 
 const hoy = fechaLocal();
@@ -465,6 +490,7 @@ const paginacion = ref({
 });
 const resumen = ref(null);
 const cargando = ref(false);
+const exportando = ref(null);
 const opcionesUsuario = ref([{ id: "", nombre: "Todos" }]);
 
 onMounted(async () => {
@@ -515,6 +541,32 @@ async function buscar(pagina = 1) {
         });
     } finally {
         cargando.value = false;
+    }
+}
+
+async function exportar(formato) {
+    exportando.value = formato;
+    try {
+        const resp = await http.get("/api/movimientos-caja/exportar", {
+            params: { ...filtros.value, formato },
+            responseType: "blob",
+        });
+        const ext  = formato === "excel" ? "xlsx" : "pdf";
+        const url  = URL.createObjectURL(new Blob([resp.data]));
+        const link = document.createElement("a");
+        link.href  = url;
+        link.download = `consulta_caja_${new Date().toISOString().slice(0, 10)}.${ext}`;
+        link.click();
+        URL.revokeObjectURL(url);
+    } catch {
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: "No se pudo generar el archivo.",
+            confirmButtonColor: "#0891b2",
+        });
+    } finally {
+        exportando.value = null;
     }
 }
 

@@ -2,10 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Exportaciones\InventarioExportacion;
+use App\Exportaciones\ServicioExportacion;
+use App\Models\Empresa;
+use App\Models\Sucursal;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ReporteInventarioController extends Controller
@@ -62,6 +68,114 @@ class ReporteInventarioController extends Controller
             'agrupar' => $agrupar,
             'items' => $rows,
         ]);
+    }
+
+    public function exportar(Request $request, ServicioExportacion $servicio): mixed
+    {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
+
+        $data = $request->validate([
+            'q'       => ['nullable', 'string', 'max:120'],
+            'agrupar' => ['nullable', Rule::in(['producto', 'categoria', 'proveedor'])],
+            'filtro'  => ['nullable', Rule::in(['todos', 'con_existencia', 'sin_costo', 'bajo_minimo'])],
+            'formato' => ['required', 'in:pdf,excel'],
+        ]);
+
+        $user    = Auth::user();
+        $agrupar = $data['agrupar'] ?? 'producto';
+        $filtros = [
+            'q'      => $data['q'] ?? null,
+            'filtro' => $data['filtro'] ?? 'todos',
+        ];
+
+        $nombre      = 'inventario_' . $agrupar . '_' . now()->format('Ymd');
+        $exportacion = new InventarioExportacion($user->empresa_id, $user->sucursal_id, $agrupar, $filtros);
+
+        if ($data['formato'] === 'pdf') {
+            $base    = $this->base($request, $user->empresa_id, $user->sucursal_id);
+            $costo       = $this->costoSql();
+            $precioVenta = $this->precioVentaSql();
+
+            $resumenRaw = (clone $base)
+                ->selectRaw("
+                    COUNT(*) AS articulos,
+                    COALESCE(SUM(inv.stock), 0) AS unidades,
+                    COALESCE(SUM(inv.stock * {$costo}), 0) AS invertido,
+                    COALESCE(SUM(inv.stock * {$precioVenta}), 0) AS valor_venta,
+                    COALESCE(SUM(CASE WHEN {$costo} <= 0 THEN 1 ELSE 0 END), 0) AS sin_costo,
+                    COALESCE(SUM(CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN 1 ELSE 0 END), 0) AS bajo_minimo
+                ")
+                ->first();
+
+            $inv       = (float) $resumenRaw->invertido;
+            $vv        = (float) $resumenRaw->valor_venta;
+            $resumen   = [
+                'articulos'        => (int) $resumenRaw->articulos,
+                'unidades'         => (float) $resumenRaw->unidades,
+                'invertido'        => $inv,
+                'valor_venta'      => $vv,
+                'margen_potencial' => $vv > 0 ? round((($vv - $inv) / $vv) * 100, 2) : 0,
+                'sin_costo'        => (int) $resumenRaw->sin_costo,
+                'bajo_minimo'      => (int) $resumenRaw->bajo_minimo,
+            ];
+
+            $rawItems = $exportacion->datos()->toArray();
+
+            $items = match ($agrupar) {
+                'categoria', 'proveedor' => array_map(fn($f) => [
+                    'nombre'      => $f[0],
+                    'articulos'   => $f[1],
+                    'unidades'    => $f[2],
+                    'invertido'   => $f[3],
+                    'valor_venta' => $f[4],
+                    'margen'      => $f[5],
+                    'sin_costo'   => $f[6],
+                    'bajo_minimo' => $f[7],
+                ], $rawItems),
+                default => array_map(fn($f) => [
+                    'codigo'      => $f[0],
+                    'producto'    => $f[1],
+                    'categoria'   => $f[2],
+                    'proveedor'   => $f[3],
+                    'stock'       => $f[4],
+                    'variantes'   => $f[5],
+                    'costo'       => $f[6],
+                    'invertido'   => $f[7],
+                    'valor_venta' => $f[8],
+                    'margen'      => $f[9],
+                    'sin_costo'   => str_contains($f[10], 'Sin costo'),
+                    'bajo_minimo' => str_contains($f[10], 'Bajo mínimo'),
+                ], $rawItems),
+            };
+
+            $empresa  = Empresa::find($user->empresa_id);
+            $sucursal = Sucursal::find($user->sucursal_id);
+
+            $logoB64 = null;
+            if ($empresa?->logo && Storage::disk('public')->exists($empresa->logo)) {
+                $contenido = Storage::disk('public')->get($empresa->logo);
+                $mime      = Storage::disk('public')->mimeType($empresa->logo) ?: 'image/png';
+                $logoB64   = 'data:' . $mime . ';base64,' . base64_encode($contenido);
+            }
+
+            $pdf = Pdf::loadView('pdf.inventario', [
+                'resumen'           => $resumen,
+                'items'             => $items,
+                'agrupar'           => $agrupar,
+                'titulo'            => 'Inventario — ' . ucfirst($agrupar),
+                'filtrosAplicados'  => $exportacion->filtrosAplicados(),
+                'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
+                'empresaLogoB64'    => $logoB64,
+                'empresaDireccion'  => $empresa?->direccion,
+                'sucursalNombre'    => $sucursal?->nombre,
+                'sucursalDireccion' => $sucursal?->direccion,
+                'fecha'             => now('America/Mexico_City')->format('d/m/Y H:i'),
+            ])->setPaper('letter', 'landscape');
+
+            return $pdf->download("{$nombre}.pdf");
+        }
+
+        return $servicio->exportar($exportacion, 'excel', $nombre);
     }
 
     private function base(Request $request, int $empresaId, int $sucursalId)

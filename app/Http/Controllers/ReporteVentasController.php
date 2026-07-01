@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exportaciones\ServicioExportacion;
+use App\Exportaciones\VentasExportacion;
 use App\Models\Venta;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -146,6 +148,40 @@ class ReporteVentasController extends Controller
         });
 
         return response()->json($venta);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // GET /api/reportes/ventas/exportar
+    // ─────────────────────────────────────────────────────────────
+    public function exportar(Request $request, ServicioExportacion $servicio)
+    {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
+
+        $datos = $request->validate([
+            'fecha_desde' => ['nullable', 'date'],
+            'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
+            'user_id'     => ['nullable', 'integer'],
+            'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'estado'      => ['nullable', 'in:confirmada,cancelada'],
+            'folio'       => ['nullable', 'string', 'max:60'],
+            'producto'    => ['nullable', 'string', 'max:120'],
+            'por_dia'     => ['nullable', 'boolean'],
+            'formato'     => ['required', 'in:excel,pdf'],
+        ]);
+
+        $user   = Auth::user();
+        $porDia = filter_var($datos['por_dia'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        $exportacion = new VentasExportacion(
+            empresaId:  (int) $user->empresa_id,
+            sucursalId: (int) $user->sucursal_id,
+            filtros:    $datos,
+            porDia:     $porDia,
+        );
+
+        $nombre = ($porDia ? 'ventas_por_dia_' : 'ventas_') . now()->format('Ymd_His');
+
+        return $servicio->exportar($exportacion, $datos['formato'], $nombre);
     }
 
     // ─────────────────────────────────────────────────────────────

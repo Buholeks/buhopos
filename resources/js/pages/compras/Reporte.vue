@@ -205,6 +205,29 @@
                                 Doble clic sobre una fila para ver el detalle.
                             </p>
                         </div>
+
+                        <div class="flex gap-2">
+                            <button
+                                type="button"
+                                :disabled="exportandoLista"
+                                @click="exportarLista('excel')"
+                                class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:opacity-50"
+                            >
+                                <Loader2 v-if="exportandoLista === 'excel'" class="h-4 w-4 animate-spin" />
+                                <FileSpreadsheet v-else class="h-4 w-4" />
+                                Excel
+                            </button>
+                            <button
+                                type="button"
+                                :disabled="exportandoLista"
+                                @click="exportarLista('pdf')"
+                                class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                            >
+                                <Loader2 v-if="exportandoLista === 'pdf'" class="h-4 w-4 animate-spin" />
+                                <FileText v-else class="h-4 w-4" />
+                                PDF
+                            </button>
+                        </div>
                     </div>
 
                     <div class="overflow-x-auto">
@@ -721,6 +744,17 @@
                     </div>
 
                     <div class="flex items-center gap-2">
+                        <button
+                            v-if="detalle?.compra?.id"
+                            type="button"
+                            :disabled="exportandoDetalle"
+                            @click="exportarDetalleCompra"
+                            class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                        >
+                            <Loader2 v-if="exportandoDetalle" class="h-4 w-4 animate-spin" />
+                            <FileText v-else class="h-4 w-4" />
+                            PDF
+                        </button>
                         <RouterLink
                             v-if="detalle?.compra?.id"
                             :to="{ name: 'compra-etiquetas', params: { compraId: detalle.compra.id } }"
@@ -1255,6 +1289,8 @@ import {
     CheckCircle2,
     Clock3,
     Eye,
+    FileSpreadsheet,
+    FileText,
     Loader2,
     PackageSearch,
     ShoppingCart,
@@ -1331,6 +1367,8 @@ const subtituloPagina = computed(() =>
 
 const cargando = ref(false);
 const cargandoCuentas = ref(false);
+const exportandoLista = ref(null);
+const exportandoDetalle = ref(false);
 const cargandoDetalle = ref(false);
 const cargandoPagos = ref(false);
 const guardandoPago = ref(false);
@@ -1659,6 +1697,52 @@ async function verDetalle(compra) {
 function cerrarModal() {
     modalAbierto.value = false;
     detalle.value = null;
+}
+
+async function exportarLista(formato) {
+    exportandoLista.value = formato;
+    try {
+        const resp = await axios.get('/api/reportes/compras/exportar', {
+            params: { ...filtros.value, formato },
+            responseType: 'blob',
+        });
+        const ext  = formato === 'excel' ? 'xlsx' : 'pdf';
+        const mime = formato === 'excel'
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : 'application/pdf';
+        const url = URL.createObjectURL(new Blob([resp.data], { type: mime }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `compras_${filtros.value.fecha_inicio}_${filtros.value.fecha_fin}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('exportarLista', e);
+        toastError('Error al exportar');
+    } finally {
+        exportandoLista.value = null;
+    }
+}
+
+async function exportarDetalleCompra() {
+    if (!detalle.value?.compra?.id) return;
+    exportandoDetalle.value = true;
+    try {
+        const resp = await axios.get(`/api/reportes/compras/${detalle.value.compra.id}/exportar-pdf`, {
+            responseType: 'blob',
+        });
+        const url = URL.createObjectURL(new Blob([resp.data], { type: 'application/pdf' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `compra_${detalle.value.compra.folio ?? detalle.value.compra.id}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('exportarDetalle', e);
+        toastError('Error al exportar el detalle');
+    } finally {
+        exportandoDetalle.value = false;
+    }
 }
 
 async function cargarProveedores() {

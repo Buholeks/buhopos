@@ -2,10 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Exportaciones\ComprasExportacion;
+use App\Exportaciones\ServicioExportacion;
+use App\Models\Empresa;
+use App\Models\Sucursal;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ReporteComprasController extends Controller
@@ -258,6 +264,102 @@ class ReporteComprasController extends Controller
             'totales' => $totales,
             'cuentas' => $cuentas,
         ]);
+    }
+
+    public function exportar(Request $request, ServicioExportacion $servicio)
+    {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
+
+        $data = $request->validate([
+            'fecha_inicio' => ['nullable', 'date'],
+            'fecha_fin'    => ['nullable', 'date'],
+            'proveedor_id' => ['nullable', 'integer'],
+            'estado'       => ['nullable', 'string'],
+            'forma_pago'   => ['nullable', 'string'],
+            'formato'      => ['required', 'in:excel,pdf'],
+        ]);
+
+        $user = $request->user();
+
+        $exportacion = new ComprasExportacion(
+            empresaId:  $user->empresa_id,
+            sucursalId: $user->sucursal_id,
+            filtros:    $data,
+        );
+
+        $nombre = 'compras_' . now()->format('Ymd_His');
+
+        return $servicio->exportar($exportacion, $data['formato'], $nombre);
+    }
+
+    public function exportarDetalle(Request $request, int $id)
+    {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
+        $user = $request->user();
+
+        $compra = DB::table('compras')
+            ->leftJoin('proveedores', 'compras.proveedor_id', '=', 'proveedores.id')
+            ->leftJoin('users', 'compras.user_id', '=', 'users.id')
+            ->where('compras.empresa_id', $user->empresa_id)
+            ->where('compras.sucursal_id', $user->sucursal_id)
+            ->where('compras.id', $id)
+            ->select(
+                'compras.*',
+                'proveedores.nombre_comercial as proveedor_nombre',
+                'proveedores.rfc as proveedor_rfc',
+                'users.name as usuario_nombre'
+            )
+            ->first();
+
+        abort_if(! $compra, 404, 'Compra no encontrada.');
+
+        $compra->estatus_pago = $this->getEstatus($compra);
+
+        $detalles = DB::table('compra_detalles as cd')
+            ->join('productos as p', 'cd.producto_id', '=', 'p.id')
+            ->leftJoin('producto_variantes as v', 'cd.variante_id', '=', 'v.id')
+            ->where('cd.compra_id', $id)
+            ->select('p.nombre as producto', 'v.sku', 'cd.cantidad', 'cd.precio_compra', 'cd.precio_venta', 'cd.subtotal')
+            ->orderBy('cd.id')
+            ->get();
+
+        $pagos = DB::table('pagos_proveedor as pp')
+            ->leftJoin('users', 'pp.user_id', '=', 'users.id')
+            ->where('pp.compra_id', $id)
+            ->select('pp.monto', 'pp.fecha_pago', 'pp.forma_pago', 'pp.referencia', 'pp.notas', 'users.name as usuario_nombre')
+            ->orderByDesc('pp.fecha_pago')
+            ->get();
+
+        $empresa  = Empresa::find($user->empresa_id);
+        $sucursal = Sucursal::find($user->sucursal_id);
+
+        $logoB64 = null;
+        if ($empresa?->logo && Storage::disk('public')->exists($empresa->logo)) {
+            $contenido = Storage::disk('public')->get($empresa->logo);
+            $mime      = Storage::disk('public')->mimeType($empresa->logo) ?: 'image/png';
+            $logoB64   = 'data:' . $mime . ';base64,' . base64_encode($contenido);
+        }
+
+        $fmt = fn($v) => '$' . number_format((float) ($v ?? 0), 2);
+
+        $pdf = Pdf::loadView('pdf.compra-detalle', [
+            'titulo'            => 'Compra ' . ($compra->folio ?? "#{$id}"),
+            'compra'            => $compra,
+            'detalles'          => $detalles,
+            'pagos'             => $pagos,
+            'fmt'               => $fmt,
+            'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
+            'empresaLogoB64'    => $logoB64,
+            'empresaDireccion'  => $empresa?->direccion,
+            'sucursalNombre'    => $sucursal?->nombre,
+            'sucursalDireccion' => $sucursal?->direccion,
+            'filtrosAplicados'  => [],
+            'fecha'             => now('America/Mexico_City')->format('d/m/Y H:i'),
+        ])->setPaper('letter', 'portrait');
+
+        $nombre = 'compra_' . ($compra->folio ?? $id) . '_' . now()->format('Ymd_His');
+
+        return $pdf->download("{$nombre}.pdf");
     }
 
     private function mapCompraRow(object $c): object

@@ -5,19 +5,23 @@ namespace App\Http\Controllers;
 use App\Models\CorteCaja;
 use App\Models\ClienteSaldoMovimiento;
 use App\Models\Devolucion;
+use App\Models\Empresa;
 use App\Models\Inventario;
 use App\Models\InventarioReserva;
 use App\Models\MovimientoCaja;
 use App\Models\PedidoDetalle;
 use App\Models\Serie;
+use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
 use App\Services\FolioService;
 use App\Support\TerminalResolver;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class CancelacionDevolucionController extends Controller
 {
@@ -38,6 +42,40 @@ class CancelacionDevolucionController extends Controller
         }
 
         return response()->json($this->ventaParaProceso($venta));
+    }
+
+    public function exportarPdf(Request $request): mixed
+    {
+        abort_unless(Auth::user()->tienePermiso('ventas.cancelar'), 403, 'Sin permiso: ventas.cancelar');
+        $data = $request->validate(['folio' => ['required', 'string', 'max:100']]);
+
+        $user   = $request->user();
+        $venta  = $this->buscarVentaPorFolio($data['folio'], (int) $user->empresa_id, (int) $user->sucursal_id);
+        abort_if(! $venta, 404, 'Ticket no encontrado.');
+
+        $empresa  = Empresa::find($user->empresa_id);
+        $sucursal = Sucursal::find($user->sucursal_id);
+
+        $logoB64 = null;
+        if ($empresa?->logo && Storage::disk('public')->exists($empresa->logo)) {
+            $contenido = Storage::disk('public')->get($empresa->logo);
+            $mime      = Storage::disk('public')->mimeType($empresa->logo) ?: 'image/png';
+            $logoB64   = 'data:' . $mime . ';base64,' . base64_encode($contenido);
+        }
+
+        $pdf = Pdf::loadView('pdf.venta-cancelacion', [
+            'venta'             => $this->ventaParaProceso($venta),
+            'titulo'            => 'Cancelación / Devolución ' . $venta->folio,
+            'filtrosAplicados'  => [],
+            'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
+            'empresaLogoB64'    => $logoB64,
+            'empresaDireccion'  => $empresa?->direccion,
+            'sucursalNombre'    => $sucursal?->nombre,
+            'sucursalDireccion' => $sucursal?->direccion,
+            'fecha'             => now('America/Mexico_City')->format('d/m/Y H:i'),
+        ])->setPaper('letter', 'portrait');
+
+        return $pdf->download('cancelacion_' . $venta->folio . '.pdf');
     }
 
     public function cancelar(Request $request): JsonResponse

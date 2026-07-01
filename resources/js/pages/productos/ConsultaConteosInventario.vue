@@ -134,6 +134,17 @@
                 <p class="mt-0.5 text-xs font-medium text-slate-500">{{ alcanceLabel(detalle) }}</p>
                 <p v-if="detalle.notas" class="mt-0.5 text-xs text-slate-500 italic">{{ detalle.notas }}</p>
               </div>
+
+              <button
+                type="button"
+                :disabled="exportando"
+                @click="exportarPdf"
+                class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+              >
+                <Loader2 v-if="exportando" class="h-4 w-4 animate-spin" />
+                <FileText v-else class="h-4 w-4" />
+                PDF
+              </button>
             </div>
 
             <div
@@ -222,12 +233,15 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileSearch,
+  FileText,
+  Loader2,
   Search,
 } from "lucide-vue-next";
 
 const conteos = ref([]);
 const detalle = ref(null);
 const cargando = ref(false);
+const exportando = ref(false);
 const filtros = reactive({ q: "", estado: "", desde: "", hasta: "" });
 
 onMounted(cargarConteos);
@@ -251,6 +265,26 @@ async function abrirConteo(id) {
     detalle.value = data;
   } catch (e) {
     toastError(e?.response?.data?.message || "No se pudo abrir el conteo.");
+  }
+}
+
+async function exportarPdf() {
+  if (!detalle.value) return;
+  exportando.value = true;
+  try {
+    const resp = await http.get(`/api/inventario-conteos/${detalle.value.id}/exportar-pdf`, {
+      responseType: "blob",
+    });
+    const url = URL.createObjectURL(new Blob([resp.data]));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `conteo_${detalle.value.folio}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    toastError("No se pudo generar el PDF.");
+  } finally {
+    exportando.value = false;
   }
 }
 

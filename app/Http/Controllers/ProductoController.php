@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Importaciones\ProductosPlantillaExportacion;
 use App\Models\Inventario;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
 use App\Models\TipoAtributo;
 use App\Models\VarianteAtributo;
+use App\Servicios\ProductosImportacionServicio;
 use App\Support\VariantImageResolver;
 use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +18,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProductoController extends Controller
 {
@@ -284,6 +288,42 @@ class ProductoController extends Controller
             ->get();
 
         return response()->json($tipos);
+    }
+
+    // ── Importacion de productos ─────────────────────────────────────────────
+    public function plantillaImportacion(): BinaryFileResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+
+        return Excel::download(new ProductosPlantillaExportacion(), 'plantilla_importacion_productos.xlsx');
+    }
+
+    public function previsualizarImportacion(Request $request, ProductosImportacionServicio $servicio): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+
+        $datos = $request->validate([
+            'archivo' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ]);
+
+        return response()->json($servicio->previsualizar($datos['archivo']));
+    }
+
+    public function importar(Request $request, ProductosImportacionServicio $servicio): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+
+        $datos = $request->validate([
+            'archivo' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:10240'],
+        ]);
+
+        $resultado = $servicio->previsualizar($datos['archivo']);
+
+        if (! $resultado['valido']) {
+            return response()->json($resultado, 422);
+        }
+
+        return response()->json($servicio->importar($datos['archivo']));
     }
 
     // ── GET /api/productos/{id}/variantes ─────────────────────────────────────

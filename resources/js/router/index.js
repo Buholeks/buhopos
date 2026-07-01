@@ -11,6 +11,7 @@ import Dashboard from "../pages/Dashboard.vue";
 import ProcesosIndex from "../pages/procesos/ProcesosIndex.vue";
 import CatalogosIndex from "../pages/catalogos/CatalogosIndex.vue";
 import ConsultasReportes from "@/pages/procesos/ConsultasReportes.vue";
+import ImportarProductos from "@/pages/procesos/ImportarProductos.vue";
 
 import ClientesIndex from "../pages/clientes/ClientesIndex.vue";
 import ProveedoresIndex from "../pages/proveedores/ProveedoresIndex.vue";
@@ -76,6 +77,7 @@ const routes = [
 
       { path: "procesos",         name: "procesos",         component: ProcesosIndex,    meta: { title: "Procesos" } },
       { path: "consultasreportes",name: "consultasreportes",component: ConsultasReportes,meta: { title: "Consultas y reportes", permiso: "reportes.ver" } },
+      { path: "procesos/importar-productos", name: "importar-productos", component: ImportarProductos, meta: { title: "Importar productos", permiso: "productos.editar" } },
 
       { path: "catalogos",  name: "catalogos",  component: CatalogosIndex,  meta: { title: "Catalogos" } },
       { path: "clientes",   name: "clientes",   component: ClientesIndex,   meta: { title: "Clientes",   permiso: "clientes.ver" } },

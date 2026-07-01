@@ -161,6 +161,9 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::get('/productos/atributos-empresa', [ProductoController::class, 'atributosEmpresa']);
     Route::get('/productos/catalogo-precios', [CatalogoPreciosController::class, 'index']);
+    Route::get('/productos/importacion/plantilla', [ProductoController::class, 'plantillaImportacion']);
+    Route::post('/productos/importacion/previsualizar', [ProductoController::class, 'previsualizarImportacion']);
+    Route::post('/productos/importacion', [ProductoController::class, 'importar']);
     Route::post('/productos/{id}/restore', [ProductoController::class, 'restore']);
     Route::apiResource('productos', ProductoController::class);
 

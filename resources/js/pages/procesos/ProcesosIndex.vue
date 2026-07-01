@@ -22,6 +22,7 @@ import {
     PackageCheck,
     Repeat2,
     Undo2,
+    Upload,
 } from "lucide-vue-next";
 
 const procesos = [
@@ -101,6 +102,13 @@ const procesos = [
         to: { name: "devoluciones-proveedor" },
         badge: "Disponible",
         permiso: "compras.crear",
+    },
+    {
+        label: "Importar productos",
+        icon: Upload,
+        to: { name: "importar-productos" },
+        badge: "Disponible",
+        permiso: "productos.editar",
     },
     {
         label: "Cotizaciones",

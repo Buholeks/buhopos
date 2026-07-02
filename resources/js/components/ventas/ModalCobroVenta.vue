@@ -1,14 +1,14 @@
 <template>
-    <div class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-4">
-        <div class="w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div class="border-b border-slate-200 px-6 py-4">
+    <div class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 sm:p-4">
+        <div class="flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-3xl">
+            <div class="shrink-0 border-b border-slate-200 px-6 py-4">
                 <h2 class="text-lg font-semibold text-slate-900">Cobrar venta</h2>
                 <p class="mt-1 text-sm text-slate-500">
                     Captura el cobro y confirma la operación.
                 </p>
             </div>
 
-            <div class="grid gap-6 px-6 py-5 lg:grid-cols-[1.15fr_0.85fr]">
+            <div class="grid flex-1 gap-6 overflow-y-auto px-6 py-5 lg:grid-cols-[1.15fr_0.85fr]">
                 <div class="space-y-4">
                     <div
                         v-if="cliente?.id && saldoDisponible > 0"
@@ -135,6 +135,7 @@
                                 Monto recibido
                             </label>
                             <input
+                                :ref="(el) => setMontoRecibidoRef(i, el)"
                                 :value="linea.monto_recibido"
                                 type="number"
                                 min="0"
@@ -260,7 +261,7 @@
                 </div>
             </div>
 
-            <div class="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+            <div class="flex shrink-0 items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
                 <button
                     type="button"
                     class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
@@ -283,7 +284,14 @@
 </template>
 
 <script setup>
+import { nextTick, onMounted } from "vue";
 import { X } from "lucide-vue-next";
+
+const montoRecibidoRefs = {};
+
+function setMontoRecibidoRef(i, el) {
+    montoRecibidoRefs[i] = el;
+}
 
 defineProps({
     vendedorId: { type: [String, Number, null], default: null },
@@ -317,4 +325,8 @@ defineEmits([
     "cancel",
     "confirm",
 ]);
+
+onMounted(() => {
+    nextTick(() => montoRecibidoRefs[0]?.focus());
+});
 </script>

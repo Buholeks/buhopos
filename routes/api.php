@@ -425,6 +425,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/utilidades', [ReporteUtilidadesController::class, 'index']);
         Route::get('/articulo/buscar-productos', [ReporteArticuloController::class, 'buscarProductos']);
         Route::get('/articulo/historial', [ReporteArticuloController::class, 'historial']);
+        Route::get('/articulo/exportar', [ReporteArticuloController::class, 'exportar']);
         Route::get('/inventario/exportar', [ReporteInventarioController::class, 'exportar']);
         Route::get('/inventario', [ReporteInventarioController::class, 'index']);
     });

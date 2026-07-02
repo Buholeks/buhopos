@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exportaciones\ArticuloExportacion;
+use App\Exportaciones\ServicioExportacion;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -102,12 +104,26 @@ class ReporteArticuloController extends Controller
             ->map(fn($p) => $this->mapResultadoBusqueda($p));
 
         return response()->json(
-            $variantes
-                ->concat($productos)
-                ->unique('selector_id')
-                ->take(20)
-                ->values()
+            $this->intercalarResultados($productos, $variantes, 20)
         );
+    }
+
+    private function intercalarResultados(Collection $productos, Collection $variantes, int $limite): Collection
+    {
+        $resultados = collect();
+        $i = 0;
+
+        while ($resultados->count() < $limite && ($productos->has($i) || $variantes->has($i))) {
+            if ($productos->has($i)) {
+                $resultados->push($productos[$i]);
+            }
+            if ($variantes->has($i)) {
+                $resultados->push($variantes[$i]);
+            }
+            $i++;
+        }
+
+        return $resultados->unique('selector_id')->take($limite)->values();
     }
 
     public function historial(Request $request): JsonResponse
@@ -133,17 +149,30 @@ class ReporteArticuloController extends Controller
         $producto = $this->producto($user->empresa_id, $productoId, $varianteId);
         abort_if(! $producto, 404, 'Producto no encontrado.');
 
+        $usaSaldoDirecto = $varianteId !== null || ! ($producto['tiene_variantes'] ?? false);
+
+        $saldoInicial = 0.0;
+        if ($fechaInicio && ! $usaSaldoDirecto) {
+            $saldoInicial = $this->saldoAntesDe(
+                (int) $user->empresa_id,
+                (int) $user->sucursal_id,
+                $productoId,
+                $varianteId,
+                $fechaInicio
+            );
+        }
+
         $eventos = $this->eventosKardex(
             (int) $user->empresa_id,
             (int) $user->sucursal_id,
             $productoId,
             $varianteId,
+            $fechaInicio,
             $fechaHasta
         );
 
-        $saldo = 0.0;
-        $usaSaldoDirecto = $varianteId !== null || ! ($producto['tiene_variantes'] ?? false);
-        $eventos = $eventos->map(function (array $evento) use (&$saldo, $fechaInicio, $fechaHasta, $tipo, $timezone, $usaSaldoDirecto) {
+        $saldo = $saldoInicial;
+        $eventos = $eventos->map(function (array $evento) use (&$saldo, $tipo, $usaSaldoDirecto) {
             $entrada = (float) ($evento['entrada'] ?? 0);
             $salida = (float) ($evento['salida'] ?? 0);
             $antes = $usaSaldoDirecto ? (float) $evento['stock_antes'] : $saldo;
@@ -153,10 +182,7 @@ class ReporteArticuloController extends Controller
             $evento['antes'] = round($antes, 3);
             $evento['despues'] = round($despues, 3);
             $evento['saldo'] = round($saldo, 3);
-            $fechaEvento = Carbon::parse($evento['fecha'], $timezone);
-            $evento['visible'] = (! $fechaInicio || $fechaEvento->gte($fechaInicio))
-                && $fechaEvento->lte($fechaHasta)
-                && (! $tipo || $evento['tipo'] === $tipo);
+            $evento['visible'] = ! $tipo || $evento['tipo'] === $tipo;
 
             unset($evento['stock_antes'], $evento['stock_despues']);
 
@@ -204,13 +230,52 @@ class ReporteArticuloController extends Controller
         ]);
     }
 
-    private function eventosKardex(int $empresaId, int $sucursalId, int $productoId, ?int $varianteId, Carbon $hasta): Collection
+    public function exportar(Request $request, ServicioExportacion $servicio)
+    {
+        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
+
+        $data = $request->validate([
+            'producto_id' => ['required', 'integer', 'exists:productos,id'],
+            'variante_id' => ['nullable', 'integer', 'exists:producto_variantes,id'],
+            'fecha_inicio' => ['nullable', 'date'],
+            'fecha_hasta' => ['nullable', 'date'],
+            'tipo' => ['nullable', 'string', 'max:40'],
+            'formato' => ['required', 'in:excel,pdf'],
+        ]);
+
+        $user = $request->user();
+        $productoId = (int) $data['producto_id'];
+        $varianteId = isset($data['variante_id']) ? (int) $data['variante_id'] : null;
+
+        $producto = $this->producto($user->empresa_id, $productoId, $varianteId);
+        abort_if(! $producto, 404, 'Producto no encontrado.');
+
+        $usaSaldoDirecto = $varianteId !== null || ! ($producto['tiene_variantes'] ?? false);
+
+        $exportacion = new ArticuloExportacion(
+            empresaId: (int) $user->empresa_id,
+            sucursalId: (int) $user->sucursal_id,
+            productoId: $productoId,
+            varianteId: $varianteId,
+            productoNombre: $producto['nombre'],
+            productoCodigo: $varianteId ? $producto['sku'] : $producto['codigo'],
+            usaSaldoDirecto: $usaSaldoDirecto,
+            filtros: $data,
+        );
+
+        $nombre = 'historial_articulo_' . now()->format('Ymd_His');
+
+        return $servicio->exportar($exportacion, $data['formato'], $nombre);
+    }
+
+    private function eventosKardex(int $empresaId, int $sucursalId, int $productoId, ?int $varianteId, ?Carbon $desde, Carbon $hasta): Collection
     {
         $query = DB::table('kardex_movimientos as k')
             ->leftJoin('users as u', 'u.id', '=', 'k.user_id')
             ->where('k.empresa_id', $empresaId)
             ->where('k.sucursal_id', $sucursalId)
             ->where('k.producto_id', $productoId)
+            ->when($desde, fn($q) => $q->where('k.fecha', '>=', $desde->format('Y-m-d H:i:s')))
             ->where('k.fecha', '<=', $hasta->format('Y-m-d H:i:s'))
             ->when($varianteId, fn($q) => $q->where('k.variante_id', $varianteId))
             ->orderBy('k.fecha')
@@ -261,6 +326,20 @@ class ReporteArticuloController extends Controller
                 'nota' => $this->notaKardex($r),
             ];
         });
+    }
+
+    private function saldoAntesDe(int $empresaId, int $sucursalId, int $productoId, ?int $varianteId, Carbon $antesDe): float
+    {
+        $fila = DB::table('kardex_movimientos as k')
+            ->where('k.empresa_id', $empresaId)
+            ->where('k.sucursal_id', $sucursalId)
+            ->where('k.producto_id', $productoId)
+            ->where('k.fecha', '<', $antesDe->format('Y-m-d H:i:s'))
+            ->when($varianteId, fn($q) => $q->where('k.variante_id', $varianteId))
+            ->selectRaw('COALESCE(SUM(entrada), 0) - COALESCE(SUM(salida), 0) as saldo')
+            ->first();
+
+        return (float) ($fila->saldo ?? 0);
     }
 
     private function mapResultadoBusqueda(object $row): array
@@ -411,7 +490,6 @@ class ReporteArticuloController extends Controller
             ->where('sucursal_id', $sucursalId)
             ->where('producto_id', $productoId)
             ->when($varianteId, fn($q) => $q->where('variante_id', $varianteId))
-            ->when(! $varianteId, fn($q) => $q)
             ->sum('stock');
     }
 

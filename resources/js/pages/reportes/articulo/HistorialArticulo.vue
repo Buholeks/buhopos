@@ -12,16 +12,40 @@
                     </div>
                 </div>
 
-                <button
-                    type="button"
-                    class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-                    :disabled="cargando || !seleccionado"
-                    @click="consultar"
-                >
-                    <Loader2 v-if="cargando" class="h-4 w-4 animate-spin" />
-                    <RefreshCw v-else class="h-4 w-4" />
-                    Recargar
-                </button>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                        :disabled="!producto || exportando"
+                        @click="exportar('excel')"
+                    >
+                        <Loader2 v-if="exportando === 'excel'" class="h-4 w-4 animate-spin" />
+                        <FileSpreadsheet v-else class="h-4 w-4" />
+                        Excel
+                    </button>
+
+                    <button
+                        type="button"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+                        :disabled="!producto || exportando"
+                        @click="exportar('pdf')"
+                    >
+                        <Loader2 v-if="exportando === 'pdf'" class="h-4 w-4 animate-spin" />
+                        <FileText v-else class="h-4 w-4" />
+                        PDF
+                    </button>
+
+                    <button
+                        type="button"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                        :disabled="cargando || !seleccionado"
+                        @click="consultar"
+                    >
+                        <Loader2 v-if="cargando" class="h-4 w-4 animate-spin" />
+                        <RefreshCw v-else class="h-4 w-4" />
+                        Recargar
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -179,6 +203,8 @@ import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import { toastError, toastWarning } from "@/lib/alert";
 import {
+    FileSpreadsheet,
+    FileText,
     History,
     Inbox,
     Loader2,
@@ -208,9 +234,10 @@ const producto = ref(null);
 const resumen = ref(null);
 const movimientos = ref([]);
 const cargando = ref(false);
+const exportando = ref(null);
 
 const filtros = reactive({
-    fecha_inicio: "",
+    fecha_inicio: primerDiaMes(),
     fecha_hasta: hoy(),
     tipo: "",
 });
@@ -276,6 +303,50 @@ async function consultar() {
     }
 }
 
+async function exportar(formato) {
+    if (!seleccionado.value) {
+        toastWarning("Selecciona un articulo.");
+        return;
+    }
+
+    exportando.value = formato;
+    try {
+        // Asegura que el archivo exportado coincida con los filtros vigentes,
+        // aunque el usuario los haya cambiado sin volver a dar clic en "Buscar".
+        await consultar();
+        if (!producto.value) return;
+
+        const resp = await axios.get("/api/reportes/articulo/exportar", {
+            params: {
+                producto_id: seleccionado.value.producto_id,
+                variante_id: seleccionado.value.variante_id || undefined,
+                fecha_inicio: filtros.fecha_inicio || undefined,
+                fecha_hasta: filtros.fecha_hasta || undefined,
+                tipo: filtros.tipo || undefined,
+                formato,
+            },
+            responseType: "blob",
+        });
+
+        const ext = formato === "excel" ? "xlsx" : "pdf";
+        const mime =
+            formato === "excel"
+                ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                : "application/pdf";
+        const url = URL.createObjectURL(new Blob([resp.data], { type: mime }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `historial_articulo_${filtros.fecha_inicio}_${filtros.fecha_hasta}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error("exportar", e);
+        toastError("No se pudo exportar el historial.");
+    } finally {
+        exportando.value = null;
+    }
+}
+
 function fmtCantidad(value) {
     return new Intl.NumberFormat("es-MX", {
         minimumFractionDigits: 3,
@@ -317,6 +388,13 @@ function hoy() {
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
+}
+
+function primerDiaMes() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}-01`;
 }
 
 function toneText(tone) {

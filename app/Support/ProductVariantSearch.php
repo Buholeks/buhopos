@@ -35,6 +35,15 @@ class ProductVariantSearch
             ->all();
     }
 
+    private const ACENTOS = [
+        'á' => 'a', 'à' => 'a', 'ä' => 'a', 'â' => 'a',
+        'é' => 'e', 'è' => 'e', 'ë' => 'e', 'ê' => 'e',
+        'í' => 'i', 'ì' => 'i', 'ï' => 'i', 'î' => 'i',
+        'ó' => 'o', 'ò' => 'o', 'ö' => 'o', 'ô' => 'o',
+        'ú' => 'u', 'ù' => 'u', 'ü' => 'u', 'û' => 'u',
+        'ñ' => 'n', 'ç' => 'c',
+    ];
+
     public static function normalize(?string $text): string
     {
         $text = trim((string) $text);
@@ -42,8 +51,13 @@ class ProductVariantSearch
             return '';
         }
 
+        // No usar iconv('...//TRANSLIT...'): su tabla de transliteración
+        // depende de la libc del servidor y en algunos entornos (glibc en
+        // producción) inserta caracteres como ' o ~ antes de la letra
+        // (á → 'a, ñ → ~n), los cuales el regex siguiente convierte en
+        // espacios y parte la palabra en dos tokens que ya no hacen match.
         $text = mb_strtolower($text, 'UTF-8');
-        $text = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text) ?: $text;
+        $text = strtr($text, self::ACENTOS);
         $text = preg_replace('/[^a-z0-9]+/', ' ', $text) ?? '';
         return trim(preg_replace('/\s+/', ' ', $text) ?? '');
     }

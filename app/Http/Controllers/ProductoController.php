@@ -379,8 +379,16 @@ class ProductoController extends Controller
         $producto = Producto::deEmpresa($empresaId)->findOrFail($id);
 
         $datos = $request->validate([
-            'sku'           => ['nullable', 'string', 'max:100'],
-            'codigo_barras' => ['nullable', 'string', 'max:100'],
+            'sku'           => [
+                'nullable', 'string', 'max:100',
+                Rule::unique('producto_variantes', 'sku')
+                    ->where(fn($q) => $q->where('empresa_id', $empresaId)),
+            ],
+            'codigo_barras' => [
+                'nullable', 'string', 'max:100',
+                Rule::unique('producto_variantes', 'codigo_barras')
+                    ->where(fn($q) => $q->where('empresa_id', $empresaId)),
+            ],
             'precio_costo'  => ['nullable', 'numeric', 'min:0'],
             'precio_venta'  => ['nullable', 'numeric', 'min:0'],
             'precio1'       => ['nullable', 'numeric', 'min:0'],
@@ -554,8 +562,18 @@ class ProductoController extends Controller
             ->findOrFail($varianteId);
 
         $datos = $request->validate([
-            'sku'             => ['nullable', 'string', 'max:100'],
-            'codigo_barras'   => ['nullable', 'string', 'max:100'],
+            'sku'             => [
+                'nullable', 'string', 'max:100',
+                Rule::unique('producto_variantes', 'sku')
+                    ->where(fn($q) => $q->where('empresa_id', $this->empresaId()))
+                    ->ignore($varianteId),
+            ],
+            'codigo_barras'   => [
+                'nullable', 'string', 'max:100',
+                Rule::unique('producto_variantes', 'codigo_barras')
+                    ->where(fn($q) => $q->where('empresa_id', $this->empresaId()))
+                    ->ignore($varianteId),
+            ],
             'precio_costo'    => ['nullable', 'numeric', 'min:0'],
             'precio_venta'    => ['nullable', 'numeric', 'min:0'],
             'precio1'         => ['nullable', 'numeric', 'min:0'],

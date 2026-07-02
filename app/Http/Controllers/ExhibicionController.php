@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Inventario;
+use App\Support\ProductVariantSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -244,8 +245,8 @@ class ExhibicionController extends Controller
 
     private function normalizarAtributo(string $valor): string
     {
-        $valor = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $valor) ?: $valor;
+        $valor = mb_strtolower(trim($valor), 'UTF-8');
 
-        return strtolower(trim($valor));
+        return ProductVariantSearch::quitarAcentos($valor);
     }
 }

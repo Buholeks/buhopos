@@ -44,6 +44,15 @@ class ProductVariantSearch
         'ñ' => 'n', 'ç' => 'c',
     ];
 
+    // No usar iconv('...//TRANSLIT...'): su tabla de transliteración depende
+    // de la libc del servidor y en algunos entornos (glibc en producción)
+    // inserta caracteres como ' o ~ antes de la letra (á → 'a, ñ → ~n), que
+    // luego rompen la palabra en dos tokens que ya no hacen match.
+    public static function quitarAcentos(string $textoMinusculas): string
+    {
+        return strtr($textoMinusculas, self::ACENTOS);
+    }
+
     public static function normalize(?string $text): string
     {
         $text = trim((string) $text);
@@ -51,13 +60,8 @@ class ProductVariantSearch
             return '';
         }
 
-        // No usar iconv('...//TRANSLIT...'): su tabla de transliteración
-        // depende de la libc del servidor y en algunos entornos (glibc en
-        // producción) inserta caracteres como ' o ~ antes de la letra
-        // (á → 'a, ñ → ~n), los cuales el regex siguiente convierte en
-        // espacios y parte la palabra en dos tokens que ya no hacen match.
         $text = mb_strtolower($text, 'UTF-8');
-        $text = strtr($text, self::ACENTOS);
+        $text = self::quitarAcentos($text);
         $text = preg_replace('/[^a-z0-9]+/', ' ', $text) ?? '';
         return trim(preg_replace('/\s+/', ' ', $text) ?? '');
     }

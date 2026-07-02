@@ -540,7 +540,7 @@ class CompraController extends Controller
         }
 
         $texto = mb_strtolower($texto, 'UTF-8');
-        $texto = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $texto) ?: $texto;
+        $texto = ProductVariantSearch::quitarAcentos($texto);
         return preg_replace('/[^a-z0-9]+/', '', $texto) ?? '';
     }
 

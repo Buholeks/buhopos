@@ -18,6 +18,8 @@ use App\Http\Controllers\ModeloController;
 use App\Http\Controllers\TipoAtributoController;
 use App\Http\Controllers\AtributoController;
 use App\Http\Controllers\UnidadMedidaController;
+use App\Http\Controllers\CuentaBancariaController;
+use App\Http\Controllers\TerminalPagoController;
 
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\CompraController;
@@ -137,6 +139,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/unidades-medida/buscar', [UnidadMedidaController::class, 'buscar']);
     Route::post('/unidades-medida/{id}/restore', [UnidadMedidaController::class, 'restore']);
     Route::apiResource('unidades-medida', UnidadMedidaController::class);
+
+    Route::get('/cuentas-bancarias/buscar', [CuentaBancariaController::class, 'buscar']);
+    Route::post('/cuentas-bancarias/{id}/restore', [CuentaBancariaController::class, 'restore']);
+    Route::apiResource('cuentas-bancarias', CuentaBancariaController::class);
+
+    Route::get('/terminales-pago/buscar', [TerminalPagoController::class, 'buscar']);
+    Route::post('/terminales-pago/{id}/restore', [TerminalPagoController::class, 'restore']);
+    Route::apiResource('terminales-pago', TerminalPagoController::class);
 
     /*
     |--------------------------------------------------------------------------

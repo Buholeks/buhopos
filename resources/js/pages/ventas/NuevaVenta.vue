@@ -43,7 +43,7 @@
         />
 
         <div
-            class="mx-auto flex max-w-7xl flex-col gap-3 sm:gap-4 px-3 sm:px-6 py-3 sm:py-6"
+            class="mx-auto flex max-w-7xl flex-col gap-2 px-3 sm:px-6 py-2 sm:py-3"
         >
             <section
                 v-if="pedidosDisponibles.length > 0"
@@ -206,8 +206,11 @@
             v-if="cobro.visible"
             :vendedor-id="cobro.vendedor_id"
             :vendedor="cobro.vendedor"
-            :forma-pago="cobro.forma_pago"
-            :monto-recibido="cobro.monto_recibido"
+            :pagos="cobro.pagos"
+            :monto-asignado="montoAsignado"
+            :restante="restante"
+            :cuentas-bancarias="cuentasBancarias"
+            :terminales-pago="terminalesPago"
             :notas="cobro.notas"
             :subtotal="subtotal"
             :descuento="Number(form.descuento || 0)"
@@ -221,8 +224,9 @@
             :cliente="cliente"
             :disableConfirm="guardando"
             :formatPrecio="formatPrecio"
-            @update:formaPago="(v) => (cobro.forma_pago = v)"
-            @update:montoRecibido="(v) => (cobro.monto_recibido = v)"
+            @update:lineaPago="store.actualizarLineaPago"
+            @agregar-linea="store.agregarLineaPago"
+            @quitar-linea="store.quitarLineaPago"
             @update:saldoAplicado="actualizarSaldoAplicado"
             @update:notas="(v) => (cobro.notas = v)"
             @cancel="store.cerrarCobro"
@@ -439,10 +443,14 @@ const {
     cliente,
     form,
     cobro,
+    cuentasBancarias,
+    terminalesPago,
     detalles,
     subtotal,
     total,
     totalACobrar,
+    montoAsignado,
+    restante,
     cambio,
     pagoInsuficiente,
     hayExcedido,
@@ -982,7 +990,7 @@ async function buscarProductos() {
 
         const firstOk = resultados.value.findIndex((r) => !r.sin_stock);
         cursor.value = firstOk === -1 ? 0 : firstOk;
-        dropdown.value = resultados.value.length > 0;
+        dropdown.value = true;
     } catch {
         toastError("Error en la búsqueda");
     } finally {
@@ -1405,11 +1413,6 @@ function aplicarSaldoAutomatico() {
         topePorPedido,
         Number(total.value || 0),
     );
-
-    if (cobro.value.forma_pago === "efectivo") {
-        cobro.value.monto_recibido =
-            totalACobrar.value > 0 ? totalACobrar.value : 0;
-    }
 }
 
 function actualizarSaldoAplicado(value) {
@@ -1439,9 +1442,31 @@ async function guardarVentaFinal() {
         return;
     }
 
-    if (cobro.value.forma_pago === "efectivo" && pagoInsuficiente.value) {
-        toastError("El monto recibido es menor al total");
+    if (restante.value !== 0) {
+        toastWarning("El monto asignado no coincide con el total a cobrar");
         return;
+    }
+
+    if (pagoInsuficiente.value) {
+        toastError(
+            "El monto recibido es menor al monto de alguna línea de pago",
+        );
+        return;
+    }
+
+    for (const linea of cobro.value.pagos) {
+        if (linea.forma_pago === "transferencia" && !linea.cuenta_bancaria_id) {
+            toastWarning(
+                "Selecciona la cuenta bancaria en todas las líneas de transferencia",
+            );
+            return;
+        }
+        if (linea.forma_pago === "tarjeta" && !linea.terminal_pago_id) {
+            toastWarning(
+                "Selecciona la terminal en todas las líneas de tarjeta",
+            );
+            return;
+        }
     }
 
     const r = await Swal.fire({
@@ -1481,8 +1506,10 @@ async function guardarVentaFinal() {
         return;
     }
 
-    const cambioVenta = Number(res.venta.cambio || 0);
-    const hayCambio = res.venta.forma_pago === "efectivo" && cambioVenta > 0;
+    const cambioVenta = (res.venta.pagos ?? [])
+        .filter((p) => p.forma_pago === "efectivo")
+        .reduce((acc, p) => acc + Number(p.cambio || 0), 0);
+    const hayCambio = cambioVenta > 0;
     const cambioHtml = hayCambio
         ? `
             <div style="margin-top:12px;border-radius:16px;border:1px solid #7dd3fc;background:#e0f2fe;padding:14px;">

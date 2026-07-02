@@ -60,7 +60,7 @@
 
         <div v-else-if="corte" class="mx-auto max-w-7xl space-y-6 px-3 sm:px-6 py-4 sm:py-6">
             <!-- RESUMEN TOTALES -->
-            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <TarjetaResumen
                     label="Efectivo"
                     :valor="corte.ventas_efectivo"
@@ -75,11 +75,6 @@
                     label="Transferencia"
                     :valor="corte.ventas_transferencia"
                     color="violet"
-                />
-                <TarjetaResumen
-                    label="Crédito"
-                    :valor="corte.ventas_credito"
-                    color="orange"
                 />
                 <TarjetaResumen
                     label="Saldo a favor"
@@ -240,9 +235,9 @@
                                 }}</span>
                                 <span
                                     class="rounded px-2 py-0.5 text-xs capitalize"
-                                    :class="formaPagoClase(v.forma_pago)"
+                                    :class="formaPagoClase(formaPagoResumen(v).clave)"
                                 >
-                                    {{ etiquetaFormaPago(v.forma_pago) }}
+                                    {{ formaPagoResumen(v).label }}
                                 </span>
                                 <span
                                     v-if="v.saldo_aplicado > 0"
@@ -351,9 +346,9 @@
                                 <span
                                     v-if="v.saldo_aplicado > 0"
                                     class="font-semibold"
-                                    :class="formaPagoClase(v.forma_pago)"
+                                    :class="formaPagoClase(formaPagoResumen(v).clave)"
                                 >
-                                    {{ etiquetaFormaPago(v.forma_pago) }}:
+                                    {{ formaPagoResumen(v).label }}:
                                     {{ fmt(Math.max(0, v.total - v.saldo_aplicado)) }}
                                 </span>
                             </div>
@@ -558,7 +553,7 @@ const ETIQUETAS_PAGO = {
     efectivo:      "Efectivo",
     tarjeta:       "Tarjeta",
     transferencia: "Transferencia",
-    credito:       "Crédito",
+    mixto:         "Mixto",
     saldo_favor:   "Saldo a favor",
 };
 
@@ -566,10 +561,27 @@ const CLASES_PAGO = {
     efectivo:      "bg-emerald-50 text-emerald-700",
     tarjeta:       "bg-blue-50 text-blue-700",
     transferencia: "bg-violet-50 text-violet-700",
-    credito:       "bg-orange-50 text-orange-700",
+    mixto:         "bg-orange-50 text-orange-700",
     saldo_favor:   "bg-teal-50 text-teal-700",
 };
 
-const etiquetaFormaPago = (fp) => ETIQUETAS_PAGO[fp] ?? fp;
-const formaPagoClase    = (fp) => CLASES_PAGO[fp] ?? "bg-slate-100 text-slate-600";
+const formaPagoClase = (fp) => CLASES_PAGO[fp] ?? "bg-slate-100 text-slate-600";
+
+function formaPagoResumen(venta) {
+    const pagos = Array.isArray(venta?.pagos) ? venta.pagos : [];
+    const metodos = pagos.filter((p) => p.forma_pago !== "saldo_favor");
+
+    if (metodos.length === 0) {
+        return pagos.length
+            ? { clave: "saldo_favor", label: "Saldo a favor" }
+            : { clave: "—", label: "—" };
+    }
+
+    if (metodos.length > 1) {
+        return { clave: "mixto", label: "Mixto" };
+    }
+
+    const fp = metodos[0].forma_pago;
+    return { clave: fp, label: ETIQUETAS_PAGO[fp] ?? fp };
+}
 </script>

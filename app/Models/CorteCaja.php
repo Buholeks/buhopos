@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
+use App\Support\VentaPagosResumen;
 
 class CorteCaja extends Model
 {
@@ -25,7 +26,6 @@ class CorteCaja extends Model
         'ventas_efectivo',
         'ventas_tarjeta',
         'ventas_transferencia',
-        'ventas_credito',
         'ventas_saldo_favor',
         'num_ventas',
 
@@ -59,7 +59,6 @@ class CorteCaja extends Model
         'ventas_efectivo'      => 'decimal:2',
         'ventas_tarjeta'       => 'decimal:2',
         'ventas_transferencia' => 'decimal:2',
-        'ventas_credito'       => 'decimal:2',
         'ventas_saldo_favor'   => 'decimal:2',
 
         // OJO: tus columnas reales
@@ -94,37 +93,40 @@ class CorteCaja extends Model
         return $this->hasOne(CorteDesgloseEfectivo::class, 'corte_id');
     }
 
-    /** Recalcula ventas del turno desde tabla ventas */
+    /** Recalcula ventas del turno desde venta_pagos */
     public function recalcularVentas(): void
     {
-        $ventas = DB::table('ventas')
-            ->where('empresa_id', $this->empresa_id)
+        if ($this->estado !== 'abierto') {
+            // Un corte cerrado ya fue reconciliado (contado/dif quedaron fijos al cierre);
+            // recalcular sus totales despues, por ejemplo al cancelar una venta de un corte
+            // anterior, dejaria esperado_X sin corresponder con dif_X ya guardado.
+            return;
+        }
+
+        $query = Venta::where('empresa_id', $this->empresa_id)
             ->where('sucursal_id', $this->sucursal_id)
             ->where('corte_id', $this->id) // ✅ exacto
-            ->where('estado', 'confirmada')
-            ->selectRaw("
-            SUM(CASE WHEN forma_pago = 'efectivo' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as efectivo,
-            SUM(CASE WHEN forma_pago = 'tarjeta' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as tarjeta,
-            SUM(CASE WHEN forma_pago = 'transferencia' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as transferencia,
-            SUM(CASE WHEN forma_pago = 'credito' THEN GREATEST(total - COALESCE(saldo_aplicado, 0), 0) ELSE 0 END) as credito,
-            SUM(COALESCE(saldo_aplicado, 0)) as saldo_favor,
-            COUNT(*) as num
-        ")
-            ->first();
+            ->where('estado', 'confirmada');
+
+        $totales = VentaPagosResumen::porFormaPago($query);
+        $num = (clone $query)->count();
 
         $this->update([
-            'ventas_efectivo'      => $ventas->efectivo      ?? 0,
-            'ventas_tarjeta'       => $ventas->tarjeta       ?? 0,
-            'ventas_transferencia' => $ventas->transferencia ?? 0,
-            'ventas_credito'       => $ventas->credito       ?? 0,
-            'ventas_saldo_favor'   => $ventas->saldo_favor   ?? 0,
-            'num_ventas'           => $ventas->num           ?? 0,
+            'ventas_efectivo'      => $totales['efectivo'],
+            'ventas_tarjeta'       => $totales['tarjeta'],
+            'ventas_transferencia' => $totales['transferencia'],
+            'ventas_saldo_favor'   => $totales['saldo_favor'],
+            'num_ventas'           => $num,
         ]);
     }
 
     /** Recalcula movimientos extras desde tabla movimientos_caja */
     public function recalcularMovimientos(): void
     {
+        if ($this->estado !== 'abierto') {
+            return;
+        }
+
         $movs = $this->movimientos()
             ->selectRaw("
             forma_pago,
@@ -146,6 +148,10 @@ class CorteCaja extends Model
     /** Recalcula totales esperados */
     public function recalcularEsperados(): void
     {
+        if ($this->estado !== 'abierto') {
+            return;
+        }
+
         $fondo = (float) ($this->fondo_inicial_efectivo ?? 0);
 
         $this->update([

@@ -62,4 +62,37 @@ class Pedido extends Model
     {
         return $this->belongsTo(Venta::class);
     }
+
+    /**
+     * Recalcula el estado de cabecera del pedido a partir del estado de sus renglones.
+     * Un pedido con algunos renglones ya entregados y el resto cancelado queda 'parcial'
+     * (no 'cancelado'), para no perder el rastro de que parte sí se vendió.
+     */
+    public function actualizarEstadoPorDetalles(): void
+    {
+        $estados = $this->detalles()->pluck('estado')->all();
+        $activos = array_values(array_filter($estados, fn($estado) => $estado !== 'cancelado'));
+
+        if ($activos === []) {
+            $this->update(['estado' => 'cancelado']);
+            return;
+        }
+
+        if (count(array_unique($activos)) === 1 && $activos[0] === 'devuelto') {
+            $this->update(['estado' => 'devuelto']);
+            return;
+        }
+
+        if (in_array('entregado', $activos, true) || in_array('devuelto', $activos, true)) {
+            $this->update(['estado' => 'parcial']);
+            return;
+        }
+
+        if (in_array('disponible', $activos, true) || in_array('reservado', $activos, true)) {
+            $this->update(['estado' => 'disponible']);
+            return;
+        }
+
+        $this->update(['estado' => 'pendiente']);
+    }
 }

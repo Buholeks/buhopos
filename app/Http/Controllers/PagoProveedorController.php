@@ -7,6 +7,7 @@ use App\Models\Compra;
 use App\Models\PagoProveedor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class PagoProveedorController extends Controller
 {
@@ -19,7 +20,7 @@ class PagoProveedorController extends Controller
             ->where('sucursal_id', $sucursalId)
             ->findOrFail($compraId);
 
-        $pagos = PagoProveedor::with('user:id,name')
+        $pagos = PagoProveedor::with(['user:id,name', 'cuentaBancaria:id,nombre,banco'])
             ->where('compra_id', $compraId)
             ->orderByDesc('fecha_pago')
             ->orderByDesc('id')
@@ -57,6 +58,10 @@ class PagoProveedorController extends Controller
             'monto'      => ['required', 'numeric', 'min:0.01', 'max:' . $compra->saldo],
             'fecha_pago' => ['required', 'date'],
             'forma_pago' => ['required', 'in:efectivo,transferencia,cheque,tarjeta'],
+            'cuenta_bancaria_id' => [
+                'required_if:forma_pago,transferencia', 'nullable', 'integer',
+                Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $empresaId)->where('activo', true)),
+            ],
             'referencia' => ['nullable', 'string', 'max:100'],
             'notas'      => ['nullable', 'string'],
         ]);
@@ -70,6 +75,7 @@ class PagoProveedorController extends Controller
                 'monto'       => $data['monto'],
                 'fecha_pago'  => $data['fecha_pago'],
                 'forma_pago'  => $data['forma_pago'],
+                'cuenta_bancaria_id' => $data['cuenta_bancaria_id'] ?? null,
                 'referencia'  => $data['referencia'] ?? null,
                 'notas'       => $data['notas'] ?? null,
             ]);

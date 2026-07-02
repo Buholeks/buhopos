@@ -204,7 +204,7 @@
                             <option value="efectivo">Efectivo</option>
                             <option value="tarjeta">Tarjeta</option>
                             <option value="transferencia">Transferencia</option>
-                            <option value="credito">Crédito</option>
+                            <option value="saldo_favor">Saldo a favor</option>
                         </select>
                     </div>
 
@@ -427,9 +427,6 @@
                                         Tarjeta
                                     </th>
                                     <th class="px-4 py-3 text-right">Trans.</th>
-                                    <th class="px-4 py-3 text-right">
-                                        Crédito
-                                    </th>
                                 </template>
                             </tr>
                         </thead>
@@ -594,15 +591,6 @@
                                                 : "—"
                                         }}
                                     </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono text-slate-600"
-                                    >
-                                        {{
-                                            Number(row.credito) > 0
-                                                ? fmt(row.credito)
-                                                : "—"
-                                        }}
-                                    </td>
                                 </template>
                             </tr>
                         </tbody>
@@ -653,9 +641,6 @@
                                 </td>
                                 <td class="px-4 py-3 text-right font-mono">
                                     {{ fmt(suma("transferencia")) }}
-                                </td>
-                                <td class="px-4 py-3 text-right font-mono">
-                                    {{ fmt(suma("credito")) }}
                                 </td>
                             </tr>
                         </tfoot>

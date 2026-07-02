@@ -230,6 +230,8 @@
                 <span>Total</span><span>{{ fmt(ticket.total) }}</span>
             </div>
             <div
+                v-for="(p, i) in ticket.pagos"
+                :key="i"
                 style="
                     display: flex;
                     justify-content: space-between;
@@ -237,12 +239,10 @@
                     padding-top: 3px;
                 "
             >
-                <span>Forma de pago</span
-                ><span style="font-weight: 700">{{
-                    labelPago(ticket.forma_pago)
-                }}</span>
+                <span>{{ labelPago(p.forma_pago) }}</span
+                ><span style="font-weight: 700">{{ fmt(p.monto) }}</span>
             </div>
-            <template v-if="ticket.forma_pago === 'efectivo'">
+            <template v-if="Number(ticket.cambio ?? 0) > 0">
                 <div style="display: flex; justify-content: space-between">
                     <span>Recibido</span
                     ><span style="font-weight: 700">{{
@@ -319,11 +319,9 @@ const fmtFecha = (v) =>
 const labelPago = (v) =>
     ({
         efectivo: "Efectivo",
-        credito: "Crédito",
         transferencia: "Transferencia",
         tarjeta: "Tarjeta",
-        tarjeta_debito: "T. débito",
-        tarjeta_credito: "T. crédito",
+        saldo_favor: "Saldo a favor",
     })[v] ??
     v ??
     "-";

@@ -36,6 +36,11 @@ export function crearTicketVenta(venta) {
     const saldoAplicado = Number(venta?.saldo_aplicado ?? 0);
     const restantePagado = Math.max(0, total - saldoAplicado);
 
+    const pagos = Array.isArray(venta?.pagos) ? venta.pagos : [];
+    const pagosEfectivo = pagos.filter((p) => p.forma_pago === "efectivo");
+    const montoRecibido = pagosEfectivo.reduce((acc, p) => acc + Number(p.monto_recibido || 0), 0);
+    const cambioTotal = pagosEfectivo.reduce((acc, p) => acc + Number(p.cambio || 0), 0);
+
     return {
         folio: venta?.folio ?? "-",
         reimpresion: Boolean(venta?.reimpresion),
@@ -45,7 +50,7 @@ export function crearTicketVenta(venta) {
         usuario: venta?.user ?? null,
         vendedor: venta?.vendedor ?? null,
         cliente: venta?.cliente ?? null,
-        forma_pago: venta?.forma_pago ?? "-",
+        pagos,
         subtotal: Number(venta?.subtotal ?? 0),
         subtotal_lista: subtotalLista,
         descuento_precios: descuentoPrecios,
@@ -53,8 +58,8 @@ export function crearTicketVenta(venta) {
         total,
         saldo_aplicado: saldoAplicado,
         restante_pagado: restantePagado,
-        monto_recibido: Number(venta?.monto_recibido ?? 0),
-        cambio: Number(venta?.cambio ?? 0),
+        monto_recibido: montoRecibido,
+        cambio: cambioTotal,
         notas: venta?.notas ?? null,
         productos,
     };

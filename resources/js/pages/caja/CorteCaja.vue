@@ -205,8 +205,6 @@
 
             <!-- CAJA ABIERTA -->
             <div v-else-if="corte?.id" class="space-y-6">
-                <ResumenCards :corte="corte" />
-
                 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
                     <!-- MOVIMIENTOS -->
                     <MovimientosList
@@ -284,6 +282,8 @@
         <NuevoMovimientoModal
             v-if="modalMov"
             :open="modalMov"
+            :cuentas-bancarias="cuentasBancarias"
+            :terminales-pago="terminalesPago"
             @close="modalMov = false"
             @submit="guardarMovimiento"
             :loading="guardandoMov"
@@ -308,7 +308,6 @@ import http from "@/lib/http";
 import Swal from "sweetalert2";
 import { toastSuccess } from "@/lib/alert";
 
-import ResumenCards from "@/components/caja/ResumenCards.vue";
 import MovimientosList from "@/components/caja/MovimientosList.vue";
 import DesgloseTable from "@/components/caja/DesgloseTable.vue";
 import NuevoMovimientoModal from "@/components/caja/NuevoMovimientoModal.vue";
@@ -356,9 +355,32 @@ const modalCerrar = ref(false);
 const guardandoMov = ref(false);
 const cerrandoCaja = ref(false);
 
+const cuentasBancarias = ref([]);
+const terminalesPago = ref([]);
+
+async function cargarCuentasBancarias() {
+    try {
+        const { data } = await http.get("/api/cuentas-bancarias", { params: { activo: 1 } });
+        cuentasBancarias.value = data;
+    } catch {
+        cuentasBancarias.value = [];
+    }
+}
+
+async function cargarTerminalesPago() {
+    try {
+        const { data } = await http.get("/api/terminales-pago", { params: { activo: 1 } });
+        terminalesPago.value = data;
+    } catch {
+        terminalesPago.value = [];
+    }
+}
+
 onMounted(async () => {
     await cargarCajasAbiertas();
     await cargarActual(false);
+    cargarCuentasBancarias();
+    cargarTerminalesPago();
 });
 
 function obtenerTerminal() {

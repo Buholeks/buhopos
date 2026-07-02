@@ -135,8 +135,9 @@ class PedidoAsignacionCompraVentaTest extends TestCase
             'fecha' => now()->toDateString(),
             'cliente_id' => $cliente->id,
             'vendedor_id' => $user->id,
-            'forma_pago' => 'efectivo',
-            'monto_recibido' => 50,
+            'pagos' => [
+                ['forma_pago' => 'efectivo', 'monto' => 50, 'monto_recibido' => 50],
+            ],
             'detalles' => [
                 [
                     'producto_id' => $producto->id,

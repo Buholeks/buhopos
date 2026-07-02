@@ -40,4 +40,9 @@ class ClienteSaldoMovimiento extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function movimientoCaja(): BelongsTo
+    {
+        return $this->belongsTo(MovimientoCaja::class);
+    }
 }

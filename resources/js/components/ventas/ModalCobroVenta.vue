@@ -10,23 +10,6 @@
 
             <div class="grid gap-6 px-6 py-5 lg:grid-cols-[1.15fr_0.85fr]">
                 <div class="space-y-4">
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-slate-700">
-                            Método de pago
-                        </label>
-
-                        <select
-                            :value="formaPago"
-                            class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                            @change="$emit('update:formaPago', $event.target.value)"
-                        >
-                            <option value="efectivo">Efectivo</option>
-                            <option value="tarjeta">Tarjeta</option>
-                            <option value="transferencia">Transferencia</option>
-                            <option value="credito">Crédito</option>
-                        </select>
-                    </div>
-
                     <div
                         v-if="cliente?.id && saldoDisponible > 0"
                         class="rounded-2xl border p-3"
@@ -68,31 +51,113 @@
                         />
                     </div>
 
-                    <div v-if="formaPago === 'efectivo'">
-                        <label class="mb-1 block text-sm font-medium text-slate-700">
-                            Monto recibido
+                    <div class="flex items-center justify-between">
+                        <label class="block text-sm font-medium text-slate-700">
+                            Métodos de pago
                         </label>
 
-                        <input
-                            ref="montoRecibidoRef"
-                            :value="montoRecibido"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            class="w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition"
-                            :class="
-                                pagoInsuficiente
-                                    ? 'border-red-300 ring-4 ring-red-100'
-                                    : 'border-slate-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100'
-                            "
-                            placeholder="0.00"
-                            @input="$emit('update:montoRecibido', $event.target.value)"
-                        />
-
-                        <p v-if="pagoInsuficiente" class="mt-1 text-xs text-red-600">
-                            El monto recibido es menor al total.
-                        </p>
+                        <button
+                            v-if="pagos.length < 3"
+                            type="button"
+                            class="text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                            @click="$emit('agregar-linea')"
+                        >
+                            + Agregar otro método
+                        </button>
                     </div>
+
+                    <div
+                        v-for="(linea, i) in pagos"
+                        :key="i"
+                        class="space-y-3 rounded-2xl border border-slate-200 p-3"
+                    >
+                        <div class="flex items-center gap-2">
+                            <select
+                                :value="linea.forma_pago"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                @change="$emit('update:lineaPago', i, 'forma_pago', $event.target.value)"
+                            >
+                                <option value="efectivo">Efectivo</option>
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="transferencia">Transferencia</option>
+                            </select>
+
+                            <input
+                                v-if="pagos.length > 1 && linea.forma_pago !== 'efectivo'"
+                                :value="linea.monto"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Monto"
+                                class="w-32 shrink-0 rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                @input="$emit('update:lineaPago', i, 'monto', $event.target.value)"
+                            />
+
+                            <button
+                                v-if="pagos.length > 1"
+                                type="button"
+                                class="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                                title="Quitar método"
+                                @click="$emit('quitar-linea', i)"
+                            >
+                                <X class="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <div v-if="linea.forma_pago === 'transferencia'">
+                            <select
+                                :value="linea.cuenta_bancaria_id"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                @change="$emit('update:lineaPago', i, 'cuenta_bancaria_id', $event.target.value)"
+                            >
+                                <option value="" disabled>Selecciona una cuenta…</option>
+                                <option v-for="c in cuentasBancarias" :key="c.id" :value="c.id">
+                                    {{ c.nombre }}<template v-if="c.banco"> ({{ c.banco }})</template>
+                                </option>
+                            </select>
+                        </div>
+
+                        <div v-if="linea.forma_pago === 'tarjeta'">
+                            <select
+                                :value="linea.terminal_pago_id"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                @change="$emit('update:lineaPago', i, 'terminal_pago_id', $event.target.value)"
+                            >
+                                <option value="" disabled>Selecciona una terminal…</option>
+                                <option v-for="t in terminalesPago" :key="t.id" :value="t.id">
+                                    {{ t.nombre }}<template v-if="t.banco"> ({{ t.banco }})</template>
+                                </option>
+                            </select>
+                        </div>
+
+                        <div v-if="linea.forma_pago === 'efectivo'">
+                            <label class="mb-1 block text-xs font-medium text-slate-500">
+                                Monto recibido
+                            </label>
+                            <input
+                                :value="linea.monto_recibido"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                @input="$emit('update:lineaPago', i, 'monto_recibido', $event.target.value)"
+                            />
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="pagos.length > 1"
+                        class="flex items-center justify-between rounded-xl px-3 py-2 text-sm"
+                        :class="restante !== 0 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'"
+                    >
+                        <span>Asignado: {{ formatPrecio(montoAsignado) }}</span>
+                        <span class="font-semibold">Restante: {{ formatPrecio(restante) }}</span>
+                    </div>
+
+                    <p v-if="pagoInsuficiente" class="text-xs text-red-600">
+                        El monto recibido es menor al monto de esa línea.
+                    </p>
 
                     <div>
                         <label class="mb-1 block text-sm font-medium text-slate-700">
@@ -181,22 +246,13 @@
                         </div>
 
                         <div
-                            v-if="formaPago === 'efectivo'"
-                            class="rounded-2xl border px-4 py-4 text-center shadow-sm"
-                            :class="cambio > 0
-                                ? 'border-sky-300 bg-sky-100 ring-4 ring-sky-50'
-                                : 'border-slate-200 bg-white'"
+                            v-if="cambio > 0"
+                            class="rounded-2xl border px-4 py-4 text-center shadow-sm border-sky-300 bg-sky-100 ring-4 ring-sky-50"
                         >
-                            <p
-                                class="text-xs font-black uppercase tracking-[0.18em]"
-                                :class="cambio > 0 ? 'text-sky-700' : 'text-slate-500'"
-                            >
+                            <p class="text-xs font-black uppercase tracking-[0.18em] text-sky-700">
                                 Cambio a entregar
                             </p>
-                            <p
-                                class="mt-1 font-mono text-4xl font-black tabular-nums sm:text-5xl"
-                                :class="cambio > 0 ? 'text-sky-950' : 'text-slate-700'"
-                            >
+                            <p class="mt-1 font-mono text-4xl font-black tabular-nums sm:text-5xl text-sky-950">
                                 {{ formatPrecio(cambio) }}
                             </p>
                         </div>
@@ -227,13 +283,16 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref } from "vue";
+import { X } from "lucide-vue-next";
 
 defineProps({
     vendedorId: { type: [String, Number, null], default: null },
     vendedor: { type: Object, default: null },
-    formaPago: { type: String, default: "efectivo" },
-    montoRecibido: { type: [String, Number, null], default: "" },
+    pagos: { type: Array, default: () => [] },
+    montoAsignado: { type: Number, default: 0 },
+    restante: { type: Number, default: 0 },
+    cuentasBancarias: { type: Array, default: () => [] },
+    terminalesPago: { type: Array, default: () => [] },
     notas: { type: String, default: "" },
     subtotal: { type: Number, default: 0 },
     descuento: { type: Number, default: 0 },
@@ -250,20 +309,12 @@ defineProps({
 });
 
 defineEmits([
-    "update:formaPago",
-    "update:montoRecibido",
+    "update:lineaPago",
+    "agregar-linea",
+    "quitar-linea",
     "update:saldoAplicado",
     "update:notas",
     "cancel",
     "confirm",
 ]);
-
-const montoRecibidoRef = ref(null);
-
-onMounted(() =>
-    nextTick(() => {
-        montoRecibidoRef.value?.focus();
-        montoRecibidoRef.value?.select();
-    }),
-);
 </script>

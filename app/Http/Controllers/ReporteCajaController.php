@@ -68,12 +68,10 @@ class ReporteCajaController extends Controller
                         'ventas_efectivo'      => round((float) $grupo->sum('ventas_efectivo'), 2),
                         'ventas_tarjeta'       => round((float) $grupo->sum('ventas_tarjeta'), 2),
                         'ventas_transferencia' => round((float) $grupo->sum('ventas_transferencia'), 2),
-                        'ventas_credito'       => round((float) $grupo->sum('ventas_credito'), 2),
                         'total_ventas'         => round(
                             (float) $grupo->sum('ventas_efectivo') +
                             (float) $grupo->sum('ventas_tarjeta') +
-                            (float) $grupo->sum('ventas_transferencia') +
-                            (float) $grupo->sum('ventas_credito'),
+                            (float) $grupo->sum('ventas_transferencia'),
                             2
                         ),
                         'movs_efectivo'        => round((float) $grupo->sum('movs_efectivo'), 2),
@@ -150,6 +148,8 @@ class ReporteCajaController extends Controller
                 'user:id,name',
                 'desglose',
                 'movimientos.user:id,name',
+                'movimientos.cuentaBancaria:id,nombre,banco',
+                'movimientos.terminalPago:id,nombre,banco',
             ])
             ->findOrFail($id);
 
@@ -185,7 +185,7 @@ class ReporteCajaController extends Controller
         abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $request->validate([
             'tipo'       => ['nullable', 'in:ingreso,egreso'],
-            'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia'],
             'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -198,7 +198,7 @@ class ReporteCajaController extends Controller
 
         $movimientos = MovimientoCaja::query()
             ->where('corte_id', $corte->id)
-            ->with(['user:id,name'])
+            ->with(['user:id,name', 'cuentaBancaria:id,nombre,banco', 'terminalPago:id,nombre,banco'])
             ->when(
                 $request->filled('tipo'),
                 fn ($q) => $q->where('tipo', $request->tipo)
@@ -220,7 +220,7 @@ class ReporteCajaController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $request->validate([
-            'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia'],
             'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -236,10 +236,12 @@ class ReporteCajaController extends Controller
             ->where('estado', 'confirmada')
             ->when(
                 $request->filled('forma_pago'),
-                fn ($q) => $q->where('forma_pago', $request->forma_pago)
+                fn ($q) => $q->whereHas('pagos', fn ($pq) => $pq->where('forma_pago', $request->forma_pago))
             )
             ->with([
                 'user:id,name',
+                'pagos.cuentaBancaria:id,nombre,banco',
+                'pagos.terminalPago:id,nombre,banco',
                 'detalles.producto:id,nombre',
                 'detalles.variante:id,sku',
             ])
@@ -260,12 +262,10 @@ class ReporteCajaController extends Controller
             'ventas_efectivo'      => round((float) $cortes->sum('ventas_efectivo'), 2),
             'ventas_tarjeta'       => round((float) $cortes->sum('ventas_tarjeta'), 2),
             'ventas_transferencia' => round((float) $cortes->sum('ventas_transferencia'), 2),
-            'ventas_credito'       => round((float) $cortes->sum('ventas_credito'), 2),
             'total_ventas'         => round(
                 (float) $cortes->sum('ventas_efectivo') +
                 (float) $cortes->sum('ventas_tarjeta') +
-                (float) $cortes->sum('ventas_transferencia') +
-                (float) $cortes->sum('ventas_credito'),
+                (float) $cortes->sum('ventas_transferencia'),
                 2
             ),
             'movs_efectivo'        => round((float) $cortes->sum('movs_efectivo'), 2),
@@ -280,8 +280,7 @@ class ReporteCajaController extends Controller
         return round(
             (float) $corte->ventas_efectivo +
             (float) $corte->ventas_tarjeta +
-            (float) $corte->ventas_transferencia +
-            (float) $corte->ventas_credito,
+            (float) $corte->ventas_transferencia,
             2
         );
     }

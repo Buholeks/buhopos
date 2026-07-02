@@ -110,7 +110,7 @@
                                 {{ formatoDinero(venta.total) }}
                             </p>
                             <p class="text-xs capitalize text-slate-500">
-                                {{ venta.forma_pago }}
+                                {{ labelFormaPago(venta.forma_pago) }}
                             </p>
                         </div>
                     </div>
@@ -219,7 +219,7 @@
                                     <option value="efectivo">Reembolso efectivo</option>
                                     <option value="tarjeta">Reverso tarjeta</option>
                                     <option value="transferencia">Reverso transferencia</option>
-                                    <option v-if="ventaTieneCliente" value="credito">Saldo a favor</option>
+                                    <option v-if="ventaTieneCliente" value="saldo_favor">Saldo a favor</option>
                                 </select>
                             </label>
                         </div>
@@ -269,7 +269,7 @@
                                     <option value="efectivo">Efectivo</option>
                                     <option value="tarjeta">Tarjeta</option>
                                     <option value="transferencia">Transferencia</option>
-                                    <option v-if="ventaTieneCliente" value="credito">Saldo a favor</option>
+                                    <option v-if="ventaTieneCliente" value="saldo_favor">Saldo a favor</option>
                                 </select>
                             </label>
                         </div>
@@ -390,6 +390,14 @@ const tipoProcesoCancelacion = ref("anulacion");
 const formaCancelacion = ref("efectivo");
 const modo = ref(null);
 const cantidades = reactive({});
+
+function labelFormaPago(v) {
+    return (
+        { efectivo: "Efectivo", tarjeta: "Tarjeta", transferencia: "Transferencia", mixto: "Mixto", saldo_favor: "Saldo a favor" }[v] ??
+        v ??
+        "-"
+    );
+}
 
 const procesando = computed(() => Boolean(procesandoAccion.value));
 const puedeDevolucionParcial = computed(() => {

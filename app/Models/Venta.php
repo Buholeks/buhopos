@@ -20,14 +20,11 @@ class Venta extends Model
         'corte_id',
         'folio',
         'fecha',
-        'forma_pago',
         'metodo_cobro_detalle',
         'subtotal',
         'descuento',
         'saldo_aplicado',
         'total',
-        'monto_recibido',
-        'cambio',
         'notas',
         'idempotency_key',
         'estado',
@@ -42,8 +39,6 @@ class Venta extends Model
         'descuento' => 'decimal:2',
         'saldo_aplicado' => 'decimal:2',
         'total'     => 'decimal:2',
-        'monto_recibido' => 'decimal:2',
-        'cambio'         => 'decimal:2',
         'cancelado_en'   => 'datetime',
     ];
 
@@ -88,6 +83,11 @@ class Venta extends Model
     public function corte(): BelongsTo
     {
         return $this->belongsTo(CorteCaja::class, 'corte_id');
+    }
+
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(VentaPago::class);
     }
 
     public function cancelador(): BelongsTo

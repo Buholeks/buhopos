@@ -10,6 +10,7 @@ use App\Models\Rol;
 use App\Models\Sucursal;
 use App\Models\User;
 use App\Models\Venta;
+use App\Models\VentaPago;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Laravel\Sanctum\Sanctum;
@@ -114,19 +115,24 @@ class ConsultaCajaTest extends TestCase
         [$user, $corte] = $this->crearContextoCaja();
         Sanctum::actingAs($user);
 
-        Venta::create([
+        $venta = Venta::create([
             'empresa_id' => $user->empresa_id,
             'sucursal_id' => $user->sucursal_id,
             'user_id' => $user->id,
             'corte_id' => $corte->id,
             'folio' => 'VTA-SALDO',
             'fecha' => '2026-06-30',
-            'forma_pago' => 'efectivo',
             'subtotal' => 100,
             'descuento' => 0,
             'saldo_aplicado' => 25,
             'total' => 100,
             'estado' => 'confirmada',
+        ]);
+
+        VentaPago::create([
+            'venta_id' => $venta->id,
+            'forma_pago' => 'efectivo',
+            'monto' => 75,
         ]);
 
         $this->getJson('/api/movimientos-caja?desde=2026-06-30&hasta=2026-06-30&origen=venta')

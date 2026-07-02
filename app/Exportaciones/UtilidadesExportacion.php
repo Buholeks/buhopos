@@ -80,7 +80,12 @@ class UtilidadesExportacion extends ExportacionBase
             ->whereDate('v.fecha', '>=', $this->filtros['fecha_desde'])
             ->whereDate('v.fecha', '<=', $this->filtros['fecha_hasta'])
             ->when(!empty($this->filtros['user_id']), fn($q) => $q->where('v.user_id', $this->filtros['user_id']))
-            ->when(!empty($this->filtros['forma_pago']), fn($q) => $q->where('v.forma_pago', $this->filtros['forma_pago']))
+            ->when(!empty($this->filtros['forma_pago']), fn($q) => $q->whereExists(
+                fn($sub) => $sub->select(DB::raw(1))
+                    ->from('venta_pagos')
+                    ->whereColumn('venta_pagos.venta_id', 'v.id')
+                    ->where('venta_pagos.forma_pago', $this->filtros['forma_pago'])
+            ))
             ->when(!empty($this->filtros['categoria_id']), fn($q) => $q->where('p.categoria_id', $this->filtros['categoria_id']))
             ->when(!empty($this->filtros['producto']), function ($q) {
                 $texto = trim((string) $this->filtros['producto']);

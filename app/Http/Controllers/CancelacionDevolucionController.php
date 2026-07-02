@@ -87,7 +87,7 @@ class CancelacionDevolucionController extends Controller
             'motivo' => ['required', 'string', 'max:255'],
             'tipo_proceso' => ['nullable', 'in:anulacion,devolucion'],
             'destino_pedido' => ['nullable', 'in:disponible,devuelto'],
-            'forma_devolucion' => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_devolucion' => ['nullable', 'in:efectivo,tarjeta,transferencia,saldo_favor'],
         ]);
 
         $user = $request->user();
@@ -115,7 +115,10 @@ class CancelacionDevolucionController extends Controller
             $tipoProceso = ($data['tipo_proceso'] ?? '') ?: 'anulacion';
             $destinoPedido = ($data['destino_pedido'] ?? '') ?: ($tipoProceso === 'devolucion' ? 'devuelto' : 'disponible');
             $formaDevolucion = $data['forma_devolucion'] ?? 'efectivo';
-            $desglose = $this->desgloseCancelacion($venta, $formaDevolucion);
+
+            $corteDevolucion = $this->corteAbiertoPorTerminal((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
+            $desglose = $this->desgloseCancelacion($venta, $formaDevolucion, $corteDevolucion?->id);
+            $movimientoTotal = (float) $desglose['ingreso_lineas']->sum('monto') + (float) $desglose['egreso_monto'];
 
             if ($desglose['saldo'] > 0 && ! $venta->cliente_id) {
                 return response()->json([
@@ -123,8 +126,7 @@ class CancelacionDevolucionController extends Controller
                 ], 422);
             }
 
-            $corteDevolucion = $this->corteAbiertoPorTerminal((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
-            if ($desglose['movimiento'] > 0 && ! $corteDevolucion) {
+            if ($movimientoTotal > 0 && ! $corteDevolucion) {
                 return response()->json([
                     'message' => 'No hay caja abierta para registrar el movimiento de dinero.',
                 ], 422);
@@ -148,18 +150,37 @@ class CancelacionDevolucionController extends Controller
                 }
             }
 
-            if ($corteDevolucion && $desglose['movimiento'] > 0) {
+            $corteTocado = false;
+
+            if ($corteDevolucion && $desglose['ingreso_lineas']->isNotEmpty()) {
+                foreach ($desglose['ingreso_lineas'] as $linea) {
+                    MovimientoCaja::create([
+                        'corte_id' => $corteDevolucion->id,
+                        'user_id' => $user->id,
+                        'tipo' => 'ingreso',
+                        'forma_pago' => $linea->forma_pago,
+                        'cuenta_bancaria_id' => $linea->cuenta_bancaria_id,
+                        'terminal_pago_id' => $linea->terminal_pago_id,
+                        'monto' => $linea->monto,
+                        'concepto' => "Saldo a favor por cancelacion {$venta->folio}",
+                    ]);
+                }
+                $corteTocado = true;
+            }
+
+            if ($corteDevolucion && $desglose['egreso_monto'] > 0) {
                 MovimientoCaja::create([
                     'corte_id' => $corteDevolucion->id,
                     'user_id' => $user->id,
-                    'tipo' => $desglose['movimiento_tipo'],
-                    'forma_pago' => $desglose['movimiento_forma'],
-                    'monto' => $desglose['movimiento'],
-                    'concepto' => $formaDevolucion === 'credito'
-                        ? "Saldo a favor por cancelacion {$venta->folio}"
-                        : "Cancelacion venta {$venta->folio}",
+                    'tipo' => 'egreso',
+                    'forma_pago' => $desglose['egreso_forma_pago'],
+                    'monto' => $desglose['egreso_monto'],
+                    'concepto' => "Reembolso por cancelacion {$venta->folio} (venta de corte anterior)",
                 ]);
+                $corteTocado = true;
+            }
 
+            if ($corteTocado) {
                 $corteDevolucion->recalcularMovimientos();
             }
 
@@ -167,7 +188,7 @@ class CancelacionDevolucionController extends Controller
                 $this->registrarMovimientoSaldo(
                     $venta,
                     $desglose['saldo'],
-                    $formaDevolucion === 'credito' ? 'devolucion' : 'ajuste',
+                    $formaDevolucion === 'saldo_favor' ? 'devolucion' : 'ajuste',
                     'saldo_favor',
                     "Devolucion de saldo por cancelacion {$venta->folio}",
                     $corteDevolucion?->id ?? $venta->corte_id
@@ -197,7 +218,7 @@ class CancelacionDevolucionController extends Controller
         $data = $request->validate([
             'folio' => ['required', 'string', 'max:100'],
             'motivo' => ['required', 'string', 'max:255'],
-            'forma_devolucion' => ['required', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_devolucion' => ['required', 'in:efectivo,tarjeta,transferencia,saldo_favor'],
             'detalles' => ['required', 'array', 'min:1'],
             'detalles.*.venta_detalle_id' => ['required', 'integer', 'exists:venta_detalles,id'],
             'detalles.*.cantidad' => ['required', 'numeric', 'min:0.001'],
@@ -294,7 +315,7 @@ class CancelacionDevolucionController extends Controller
                 $detalle = $detallesVenta[$linea['venta_detalle_id']];
                 $importe = round($linea['cantidad'] * (float) $detalle->precio_venta, 2);
 
-                $devolucion->detalles()->create([
+                $detalleDev = $devolucion->detalles()->create([
                     'venta_detalle_id' => $detalle->id,
                     'producto_id' => $detalle->producto_id,
                     'variante_id' => $detalle->variante_id,
@@ -389,14 +410,22 @@ class CancelacionDevolucionController extends Controller
             'detalles.variante.atributos.tipoAtributo:id,nombre',
             'detalles.variante.atributos.atributo:id,valor',
             'detalles.serie',
+            'pagos.cuentaBancaria:id,nombre,banco',
+            'pagos.terminalPago:id,nombre,banco',
         ]);
+
+        $metodos = $venta->pagos->where('forma_pago', '!=', 'saldo_favor')->pluck('forma_pago');
+        $formaPago = $metodos->isEmpty()
+            ? ($venta->pagos->isNotEmpty() ? 'saldo_favor' : null)
+            : ($metodos->count() > 1 ? 'mixto' : $metodos->first());
 
         return [
             'id' => $venta->id,
             'folio' => $venta->folio,
             'fecha' => $venta->fecha,
             'estado' => $venta->estado,
-            'forma_pago' => $venta->forma_pago,
+            'forma_pago' => $formaPago,
+            'pagos' => $venta->pagos,
             'subtotal' => (float) $venta->subtotal,
             'descuento' => (float) $venta->descuento,
             'saldo_aplicado' => (float) ($venta->saldo_aplicado ?? 0),
@@ -526,12 +555,8 @@ class CancelacionDevolucionController extends Controller
         );
 
         $pedido = $detalle->pedido;
-        $entregados = $pedido->detalles()
-            ->where('estado', 'entregado')
-            ->exists();
-
+        $pedido->actualizarEstadoPorDetalles();
         $pedido->update([
-            'estado' => $entregados ? 'parcial' : 'disponible',
             'estado_pago' => $this->estadoPagoPedido((float) $pedido->subtotal, (float) $pedido->anticipo),
             'saldo_pendiente' => max(0, (float) $pedido->subtotal - (float) $pedido->anticipo),
         ]);
@@ -554,45 +579,14 @@ class CancelacionDevolucionController extends Controller
             ->where('estado', 'activa')
             ->update(['estado' => 'liberada']);
 
-        $this->actualizarEstadoPedidoPorDetalles($detalle->pedido);
-    }
-
-    private function actualizarEstadoPedidoPorDetalles($pedido): void
-    {
-        $estados = $pedido->detalles()
-            ->pluck('estado')
-            ->all();
-
-        $activos = array_values(array_filter($estados, fn($estado) => $estado !== 'cancelado'));
-
-        if ($activos === []) {
-            $pedido->update(['estado' => 'cancelado']);
-            return;
-        }
-
-        if (count(array_unique($activos)) === 1 && $activos[0] === 'devuelto') {
-            $pedido->update(['estado' => 'devuelto']);
-            return;
-        }
-
-        if (in_array('entregado', $activos, true) || in_array('devuelto', $activos, true)) {
-            $pedido->update(['estado' => 'parcial']);
-            return;
-        }
-
-        if (in_array('disponible', $activos, true) || in_array('reservado', $activos, true)) {
-            $pedido->update(['estado' => 'disponible']);
-            return;
-        }
-
-        $pedido->update(['estado' => 'pendiente']);
+        $detalle->pedido->actualizarEstadoPorDetalles();
     }
 
     private function desgloseDevolucion(Venta $venta, float $total, string $formaDevolucion): array
     {
         $total = round(max(0, $total), 2);
 
-        if ($formaDevolucion === 'credito') {
+        if ($formaDevolucion === 'saldo_favor') {
             return ['caja' => 0.0, 'saldo' => $total];
         }
 
@@ -600,7 +594,7 @@ class CancelacionDevolucionController extends Controller
         $cajaDevueltaPrevia = min(
             (float) $venta->devoluciones()
                 ->where('estado', 'confirmada')
-                ->where('forma_devolucion', '!=', 'credito')
+                ->where('forma_devolucion', '!=', 'saldo_favor')
                 ->sum('total_devuelto'),
             $pagadoEnCaja
         );
@@ -613,43 +607,49 @@ class CancelacionDevolucionController extends Controller
         ];
     }
 
-    private function desgloseCancelacion(Venta $venta, string $formaDevolucion): array
+    private function desgloseCancelacion(Venta $venta, string $formaDevolucion, ?int $corteActualId): array
     {
         $total = round(max(0, (float) $venta->total), 2);
         $saldoAplicado = round(max(0, (float) ($venta->saldo_aplicado ?? 0)), 2);
-        $pagadoEnCaja = $this->montoCobradoEnFormaPago($venta);
+        $mismoCorte = $corteActualId !== null && (int) $venta->corte_id === $corteActualId;
 
-        if ($formaDevolucion === 'credito') {
+        if ($formaDevolucion === 'saldo_favor') {
+            // recalcularVentas() resta esta venta de ventas_efectivo/tarjeta/transferencia
+            // en su corte original. Si ese corte es el que sigue abierto ahora mismo, hay que
+            // compensar esa resta ahi con un ingreso por cada linea original (el dinero se
+            // queda en la caja, no se le entrega al cliente). Si la venta es de un corte
+            // distinto (ya cerrado), la resta solo afecta al historico de ese corte y no debe
+            // tocarse la caja de hoy, porque hoy no entro ni salio dinero.
+            $lineas = $mismoCorte
+                ? $venta->pagos()->whereIn('forma_pago', ['efectivo', 'tarjeta', 'transferencia'])->get()
+                : collect();
+
             return [
-                'movimiento' => $pagadoEnCaja,
-                'movimiento_tipo' => 'ingreso',
-                'movimiento_forma' => $this->formaMovimientoVenta($venta),
+                'ingreso_lineas' => $lineas,
+                'egreso_monto' => 0.0,
+                'egreso_forma_pago' => null,
                 'saldo' => $total,
             ];
         }
 
+        // Se le entrega dinero al cliente (efectivo/tarjeta/transferencia). Si la venta es
+        // del mismo corte que sigue abierto, la resta automatica de ventas_X en ese mismo
+        // corte ya refleja esa salida y no hace falta otro movimiento (se duplicaria el
+        // efecto). Si la venta es de un corte distinto (ya cerrado), ese dinero sale
+        // fisicamente de la caja de HOY y hay que registrar el egreso en el corte actual.
+        $pagadoEnCaja = $this->montoCobradoEnFormaPago($venta);
+
         return [
-            'movimiento' => 0.0,
-            'movimiento_tipo' => null,
-            'movimiento_forma' => null,
+            'ingreso_lineas' => collect(),
+            'egreso_monto' => $mismoCorte ? 0.0 : $pagadoEnCaja,
+            'egreso_forma_pago' => $formaDevolucion,
             'saldo' => $saldoAplicado,
         ];
     }
 
     private function montoCobradoEnFormaPago(Venta $venta): float
     {
-        if (! in_array($venta->forma_pago, ['efectivo', 'tarjeta', 'transferencia'], true)) {
-            return 0.0;
-        }
-
-        return round(max(0, (float) $venta->total - (float) ($venta->saldo_aplicado ?? 0)), 2);
-    }
-
-    private function formaMovimientoVenta(Venta $venta): ?string
-    {
-        return in_array($venta->forma_pago, ['efectivo', 'tarjeta', 'transferencia'], true)
-            ? $venta->forma_pago
-            : null;
+        return round((float) $venta->pagos()->whereIn('forma_pago', ['efectivo', 'tarjeta', 'transferencia'])->sum('monto'), 2);
     }
 
     private function registrarMovimientoSaldo(

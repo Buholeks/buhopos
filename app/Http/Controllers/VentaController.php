@@ -20,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use App\Models\CorteCaja;
 use App\Models\Serie;
 use App\Servicios\KardexServicio;
@@ -36,7 +37,7 @@ class VentaController extends Controller
         $empresaId = Auth::user()->empresa_id;
 
         $ventas = Venta::where('empresa_id', $empresaId)
-            ->with(['user:id,name'])
+            ->with(['user:id,name', 'pagos.cuentaBancaria:id,nombre,banco', 'pagos.terminalPago:id,nombre,banco'])
             ->when(
                 $request->buscar,
                 fn($q, $b) =>
@@ -59,6 +60,8 @@ class VentaController extends Controller
         $venta = Venta::where('empresa_id', $empresaId)
             ->with([
                 'user:id,name',
+                'pagos.cuentaBancaria:id,nombre,banco',
+                'pagos.terminalPago:id,nombre,banco',
                 'detalles.producto:id,nombre,codigo',
                 'detalles.variante:id,sku,codigo_barras',
                 'detalles.variante.atributos.tipoAtributo:id,nombre',
@@ -81,12 +84,21 @@ class VentaController extends Controller
             'fecha'                    => ['required', 'date'],
             'cliente_id'               => ['nullable', 'exists:clientes,id'],
             'vendedor_id'              => ['required', 'exists:users,id'],
-            'forma_pago'               => ['required', 'in:efectivo,credito,transferencia,tarjeta'],
+            'pagos'                    => ['nullable', 'array'],
+            'pagos.*.forma_pago'       => ['required', 'in:efectivo,tarjeta,transferencia'],
+            'pagos.*.monto'            => ['required', 'numeric', 'min:0.01'],
+            'pagos.*.cuenta_bancaria_id' => [
+                'required_if:pagos.*.forma_pago,transferencia', 'nullable', 'integer',
+                Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $empresaId)->where('activo', true)),
+            ],
+            'pagos.*.terminal_pago_id' => [
+                'required_if:pagos.*.forma_pago,tarjeta', 'nullable', 'integer',
+                Rule::exists('terminales_pago', 'id')->where(fn($q) => $q->where('empresa_id', $empresaId)->where('activo', true)),
+            ],
+            'pagos.*.monto_recibido'   => ['nullable', 'numeric', 'min:0'],
             'descuento'                => ['nullable', 'numeric', 'min:0'],
             'saldo_aplicado'           => ['nullable', 'numeric', 'min:0'],
             'notas'                    => ['nullable', 'string'],
-            'monto_recibido'           => ['nullable', 'numeric', 'min:0'],
-            'cambio'                   => ['nullable', 'numeric', 'min:0'],
             'idempotency_key'          => ['nullable', 'string', 'max:64'],
 
             'detalles'                 => ['required', 'array', 'min:1'],
@@ -198,9 +210,8 @@ class VentaController extends Controller
         $descuento = (float) ($datos['descuento'] ?? 0);
         $totalCalculado = max(0, $subtotalCalculado - $descuento);
         $saldoAplicado = round((float) ($datos['saldo_aplicado'] ?? 0), 2);
-        $montoRecibido = (float) ($datos['monto_recibido'] ?? 0);
-        $cambio = (float) ($datos['cambio'] ?? 0);
         $totalACobrar = max(0, $totalCalculado - $saldoAplicado);
+        $pagos = $datos['pagos'] ?? [];
 
         if ($saldoAplicado > 0 && empty($datos['cliente_id'])) {
             return response()->json([
@@ -251,11 +262,29 @@ class VentaController extends Controller
             }
         }
 
-        if ($datos['forma_pago'] === 'efectivo' && $montoRecibido < $totalACobrar) {
+        if ($totalACobrar > 0 && empty($pagos)) {
             return response()->json([
-                'message' => 'El monto recibido no puede ser menor al total de la venta.',
-                'campo'   => 'monto_recibido',
+                'message' => 'Selecciona al menos un método de pago.',
+                'campo'   => 'pagos',
             ], 422);
+        }
+
+        $sumaPagos = round(collect($pagos)->sum(fn($p) => (float) $p['monto']), 2);
+
+        if (abs($sumaPagos - $totalACobrar) > 0.01) {
+            return response()->json([
+                'message' => 'La suma de los pagos no coincide con el total a cobrar.',
+                'campo'   => 'pagos',
+            ], 422);
+        }
+
+        foreach ($pagos as $i => $p) {
+            if ($p['forma_pago'] === 'efectivo' && isset($p['monto_recibido']) && (float) $p['monto_recibido'] < (float) $p['monto']) {
+                return response()->json([
+                    'message' => 'El monto recibido no puede ser menor al monto de esa línea de pago.',
+                    'campo'   => "pagos.{$i}.monto_recibido",
+                ], 422);
+            }
         }
 
         $productoIds = collect($datos['detalles'])->pluck('producto_id')->unique()->values();
@@ -286,17 +315,16 @@ class VentaController extends Controller
                 'corte_id'        => $corte->id,
                 'folio'           => $folio,
                 'fecha'           => $datos['fecha'],
-                'forma_pago'      => $datos['forma_pago'],
                 'descuento'       => $descuento,
                 'saldo_aplicado'  => $saldoAplicado,
                 'notas'           => $datos['notas'] ?? null,
-                'monto_recibido'  => $datos['forma_pago'] === 'efectivo' ? $montoRecibido : null,
-                'cambio'          => $datos['forma_pago'] === 'efectivo' ? $cambio : 0,
                 'idempotency_key' => $datos['idempotency_key'] ?? null,
                 'estado'          => 'confirmada',
                 'subtotal'        => 0,
                 'total'           => 0,
             ]);
+
+            $this->guardarPagosVenta($venta, $pagos, $saldoAplicado);
 
             foreach ($datos['detalles'] as $det) {
                 $productoId  = (int) $det['producto_id'];
@@ -538,7 +566,35 @@ class VentaController extends Controller
             'cliente:id,nombre,telefono',
             'vendedor:id,name',
             'user:id,name',
+            'pagos.cuentaBancaria:id,nombre,banco',
+            'pagos.terminalPago:id,nombre,banco',
         ]);
+    }
+
+    // Crea las líneas de venta_pagos: una por cada método que envió el cajero,
+    // más una de saldo_favor si se aplicó saldo del cliente.
+    private function guardarPagosVenta(Venta $venta, array $pagos, float $saldoAplicado): void
+    {
+        foreach ($pagos as $p) {
+            $monto = round((float) $p['monto'], 2);
+            $montoRecibido = $p['forma_pago'] === 'efectivo' ? (float) ($p['monto_recibido'] ?? $monto) : null;
+
+            $venta->pagos()->create([
+                'forma_pago'         => $p['forma_pago'],
+                'monto'              => $monto,
+                'cuenta_bancaria_id' => $p['forma_pago'] === 'transferencia' ? ($p['cuenta_bancaria_id'] ?? null) : null,
+                'terminal_pago_id'   => $p['forma_pago'] === 'tarjeta' ? ($p['terminal_pago_id'] ?? null) : null,
+                'monto_recibido'     => $montoRecibido,
+                'cambio'             => $montoRecibido !== null ? round($montoRecibido - $monto, 2) : null,
+            ]);
+        }
+
+        if ($saldoAplicado > 0) {
+            $venta->pagos()->create([
+                'forma_pago' => 'saldo_favor',
+                'monto'      => $saldoAplicado,
+            ]);
+        }
     }
 
     // ── GET /api/ventas/buscar-variantes ────────────────────────────────────────

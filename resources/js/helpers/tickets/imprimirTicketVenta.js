@@ -121,8 +121,8 @@ function crearHtmlTicketCanvas(ticket, cfg) {
         ${Number(ticket.descuento ?? 0) > 0 ? `<div class="fila"><span>Desc. general</span><span>${fmt(ticket.descuento)}</span></div>` : ""}
         <div class="total"><span>Total</span><span>${fmt(ticket.total)}</span></div>
         ${Number(ticket.saldo_aplicado ?? 0) > 0 ? `<div class="fila"><span>Saldo a favor aplicado</span><span>-${fmt(ticket.saldo_aplicado)}</span></div><div class="fila"><span>Restante pagado</span><span>${fmt(ticket.restante_pagado)}</span></div>` : ""}
-        ${resCfg.mostrar_forma_pago !== false ? `<div class="fila pago"><span>Forma de pago</span><span>${escapeHtml(labelPago(ticket.forma_pago))}</span></div>` : ""}
-        ${ticket.forma_pago === "efectivo" && resCfg.mostrar_cambio !== false ? `<div class="fila"><span>Recibido</span><span>${fmt(ticket.monto_recibido)}</span></div><div class="fila"><span>Cambio</span><span>${fmt(ticket.cambio)}</span></div>` : ""}
+        ${resCfg.mostrar_forma_pago !== false ? renderPagosHtml(ticket) : ""}
+        ${tienePagoEfectivo(ticket) && resCfg.mostrar_cambio !== false ? `<div class="fila"><span>Recibido</span><span>${fmt(ticket.monto_recibido)}</span></div><div class="fila"><span>Cambio</span><span>${fmt(ticket.cambio)}</span></div>` : ""}
     </div>
     <div class="sep"></div>
     ${renderCanvasHtml(pieEls, ticket, pieAlto, interior)}
@@ -270,8 +270,8 @@ function crearHtmlTicketLegacy(ticket, cfg) {
         ${Number(ticket.descuento ?? 0) > 0 ? `<div class="fila"><span>Desc. general</span><span>${fmt(ticket.descuento)}</span></div>` : ""}
         <div class="fila total"><span>Total</span><span>${fmt(ticket.total)}</span></div>
         ${Number(ticket.saldo_aplicado ?? 0) > 0 ? `<div class="fila"><span>Saldo a favor aplicado</span><span>-${fmt(ticket.saldo_aplicado)}</span></div><div class="fila"><span>Restante pagado</span><span>${fmt(ticket.restante_pagado)}</span></div>` : ""}
-        <div class="fila pago"><span>Forma de pago</span><span>${escapeHtml(labelPago(ticket.forma_pago))}</span></div>
-        ${ticket.forma_pago === "efectivo" ? `<div class="fila"><span>Recibido</span><span>${fmt(ticket.monto_recibido)}</span></div><div class="fila"><span>Cambio</span><span>${fmt(ticket.cambio)}</span></div>` : ""}
+        ${renderPagosHtml(ticket)}
+        ${tienePagoEfectivo(ticket) ? `<div class="fila"><span>Recibido</span><span>${fmt(ticket.monto_recibido)}</span></div><div class="fila"><span>Cambio</span><span>${fmt(ticket.cambio)}</span></div>` : ""}
     </section>
     <section class="pie">
         ${pieMensaje ? `<div class="gracias">${escapeHtml(pieMensaje)}</div>` : ""}
@@ -296,7 +296,16 @@ function fmtFecha(v) {
     return new Date(v).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 function labelPago(v) {
-    return { efectivo: "Efectivo", credito: "Credito", transferencia: "Transferencia", tarjeta: "Tarjeta", tarjeta_debito: "Tarjeta débito", tarjeta_credito: "Tarjeta crédito" }[v] ?? v ?? "-";
+    return { efectivo: "Efectivo", transferencia: "Transferencia", tarjeta: "Tarjeta", saldo_favor: "Saldo a favor" }[v] ?? v ?? "-";
+}
+function renderPagosHtml(ticket) {
+    const pagos = Array.isArray(ticket.pagos) ? ticket.pagos : [];
+    return pagos
+        .map((p) => `<div class="fila pago"><span>${escapeHtml(labelPago(p.forma_pago))}</span><span>${fmt(p.monto)}</span></div>`)
+        .join("");
+}
+function tienePagoEfectivo(ticket) {
+    return Array.isArray(ticket.pagos) && ticket.pagos.some((p) => p.forma_pago === "efectivo");
 }
 function escapeHtml(value) {
     return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");

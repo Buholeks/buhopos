@@ -6,6 +6,7 @@ use App\Exportaciones\ServicioExportacion;
 use App\Exportaciones\VentasExportacion;
 use App\Models\Venta;
 use App\Models\User;
+use App\Support\VentaPagosResumen;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +23,7 @@ class ReporteVentasController extends Controller
             'fecha_desde' => ['nullable', 'date'],
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
             'user_id'     => ['nullable', 'integer'],
-            'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia,saldo_favor'],
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'folio'       => ['nullable', 'string', 'max:60'],
             'producto'    => ['nullable', 'string', 'max:120'],
@@ -40,7 +41,8 @@ class ReporteVentasController extends Controller
                 ->when($request->filled('fecha_hasta'), fn($q) =>
                     $q->whereDate('fecha', '<=', $request->fecha_hasta))
                 ->when($request->filled('user_id'),    fn($q) => $q->where('user_id', $request->user_id))
-                ->when($request->filled('forma_pago'), fn($q) => $q->where('forma_pago', $request->forma_pago))
+                ->when($request->filled('forma_pago'), fn($q) =>
+                    $q->whereHas('pagos', fn($pq) => $pq->where('forma_pago', $request->forma_pago)))
                 ->when($request->filled('estado'),     fn($q) => $q->where('estado', $request->estado))
                 ->when($request->filled('folio'),      fn($q) =>
                     $q->where('folio', 'like', '%' . $request->folio . '%'))
@@ -70,7 +72,7 @@ class ReporteVentasController extends Controller
         $query = $aplicarFiltros(
             Venta::where('empresa_id', $user->empresa_id)
                  ->where('sucursal_id', $user->sucursal_id)
-                 ->with(['user:id,name'])
+                 ->with(['user:id,name', 'pagos.cuentaBancaria:id,nombre,banco', 'pagos.terminalPago:id,nombre,banco'])
         )->orderByDesc('fecha')->orderByDesc('id');
 
         // ── Modo agrupado por día ─────────────────────────────────
@@ -79,23 +81,26 @@ class ReporteVentasController extends Controller
 
             $agrupado = $ventas
                 ->groupBy(fn($v) => \Carbon\Carbon::parse($v->fecha)->toDateString())
-                ->map(fn($grupo, $fecha) => [
-                    'fecha'         => $fecha,
-                    'num_ventas'    => $grupo->count(),
-                    'canceladas'    => $grupo->where('estado', 'cancelada')->count(),
-                    'subtotal'      => round($grupo->where('estado', 'confirmada')->sum('subtotal'), 2),
-                    'descuentos'    => round($grupo->where('estado', 'confirmada')->sum('descuento'), 2),
-                    'total'         => round($grupo->where('estado', 'confirmada')->sum('total'), 2),
-                    'efectivo'      => round($grupo->where('estado', 'confirmada')->where('forma_pago', 'efectivo')->sum('total'), 2),
-                    'tarjeta'       => round($grupo->where('estado', 'confirmada')->where('forma_pago', 'tarjeta')->sum('total'), 2),
-                    'transferencia' => round($grupo->where('estado', 'confirmada')->where('forma_pago', 'transferencia')->sum('total'), 2),
-                    'credito'       => round($grupo->where('estado', 'confirmada')->where('forma_pago', 'credito')->sum('total'), 2),
-                    'ticket_prom'   => $grupo->where('estado', 'confirmada')->count() > 0
-                        ? round(
-                            $grupo->where('estado', 'confirmada')->sum('total') /
-                            $grupo->where('estado', 'confirmada')->count(), 2)
-                        : 0,
-                ])
+                ->map(function ($grupo, $fecha) {
+                    $confirmadas = $grupo->where('estado', 'confirmada');
+                    $pagosConfirmados = $confirmadas->flatMap(fn($v) => $v->pagos);
+
+                    return [
+                        'fecha'         => $fecha,
+                        'num_ventas'    => $grupo->count(),
+                        'canceladas'    => $grupo->where('estado', 'cancelada')->count(),
+                        'subtotal'      => round($confirmadas->sum('subtotal'), 2),
+                        'descuentos'    => round($confirmadas->sum('descuento'), 2),
+                        'total'         => round($confirmadas->sum('total'), 2),
+                        'efectivo'      => round($pagosConfirmados->where('forma_pago', 'efectivo')->sum('monto'), 2),
+                        'tarjeta'       => round($pagosConfirmados->where('forma_pago', 'tarjeta')->sum('monto'), 2),
+                        'transferencia' => round($pagosConfirmados->where('forma_pago', 'transferencia')->sum('monto'), 2),
+                        'saldo_favor'   => round($pagosConfirmados->where('forma_pago', 'saldo_favor')->sum('monto'), 2),
+                        'ticket_prom'   => $confirmadas->count() > 0
+                            ? round($confirmadas->sum('total') / $confirmadas->count(), 2)
+                            : 0,
+                    ];
+                })
                 ->sortKeysDesc()
                 ->values();
 
@@ -106,7 +111,6 @@ class ReporteVentasController extends Controller
                 'cajeros'      => $cajeros,
             ]);
         }
-
         // ── Listado paginado ──────────────────────────────────────
         $ventas = $query->paginate($request->por_pagina ?? 30);
 
@@ -129,6 +133,8 @@ class ReporteVentasController extends Controller
             ->where('sucursal_id', $user->sucursal_id)
             ->with([
                 'user:id,name',
+                'pagos.cuentaBancaria:id,nombre,banco',
+                'pagos.terminalPago:id,nombre,banco',
                 'empresa:id,nombre,rfc,direccion,telefono',
                 'sucursal:id,nombre,direccion,telefono',
                 'cliente:id,nombre,telefono',
@@ -161,7 +167,7 @@ class ReporteVentasController extends Controller
             'fecha_desde' => ['nullable', 'date'],
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
             'user_id'     => ['nullable', 'integer'],
-            'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia,saldo_favor'],
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'folio'       => ['nullable', 'string', 'max:60'],
             'producto'    => ['nullable', 'string', 'max:120'],
@@ -191,17 +197,15 @@ class ReporteVentasController extends Controller
     // ─────────────────────────────────────────────────────────────
     private function calcularTotales($query): array
     {
-        $row = $query->selectRaw("
+        $row = (clone $query)->selectRaw("
             COUNT(*)                                                              AS num_ventas,
             COALESCE(SUM(CASE WHEN estado='confirmada' THEN 1 ELSE 0 END), 0)    AS confirmadas,
             COALESCE(SUM(CASE WHEN estado='cancelada'  THEN 1 ELSE 0 END), 0)    AS canceladas,
             COALESCE(SUM(CASE WHEN estado='confirmada' THEN total ELSE 0 END), 0) AS total,
-            COALESCE(SUM(CASE WHEN estado='confirmada' THEN descuento ELSE 0 END), 0) AS descuentos,
-            COALESCE(SUM(CASE WHEN forma_pago='efectivo'      AND estado='confirmada' THEN total ELSE 0 END),0) AS efectivo,
-            COALESCE(SUM(CASE WHEN forma_pago='tarjeta'       AND estado='confirmada' THEN total ELSE 0 END),0) AS tarjeta,
-            COALESCE(SUM(CASE WHEN forma_pago='transferencia' AND estado='confirmada' THEN total ELSE 0 END),0) AS transferencia,
-            COALESCE(SUM(CASE WHEN forma_pago='credito'       AND estado='confirmada' THEN total ELSE 0 END),0) AS credito
+            COALESCE(SUM(CASE WHEN estado='confirmada' THEN descuento ELSE 0 END), 0) AS descuentos
         ")->first();
+
+        $porFormaPago = VentaPagosResumen::porFormaPago((clone $query)->where('estado', 'confirmada'));
 
         $confirmadas = (int) $row->confirmadas;
 
@@ -211,10 +215,10 @@ class ReporteVentasController extends Controller
             'canceladas'    => (int)   $row->canceladas,
             'total'         => (float) $row->total,
             'descuentos'    => (float) $row->descuentos,
-            'efectivo'      => (float) $row->efectivo,
-            'tarjeta'       => (float) $row->tarjeta,
-            'transferencia' => (float) $row->transferencia,
-            'credito'       => (float) $row->credito,
+            'efectivo'      => $porFormaPago['efectivo'],
+            'tarjeta'       => $porFormaPago['tarjeta'],
+            'transferencia' => $porFormaPago['transferencia'],
+            'saldo_favor'   => $porFormaPago['saldo_favor'],
             'ticket_prom'   => $confirmadas > 0
                 ? round($row->total / $confirmadas, 2)
                 : 0,

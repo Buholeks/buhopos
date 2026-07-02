@@ -21,7 +21,7 @@ class ReporteUtilidadesController extends Controller
             'fecha_desde'  => ['required', 'date'],
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
             'user_id'      => ['nullable', 'integer'],
-            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia'],
             'categoria_id' => ['nullable', 'integer'],
             'producto'     => ['nullable', 'string', 'max:120'],
             'por_pagina'   => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -125,7 +125,12 @@ class ReporteUtilidadesController extends Controller
             ->whereDate('v.fecha', '>=', $request->fecha_desde)
             ->whereDate('v.fecha', '<=', $request->fecha_hasta)
             ->when($request->filled('user_id'), fn($q) => $q->where('v.user_id', $request->user_id))
-            ->when($request->filled('forma_pago'), fn($q) => $q->where('v.forma_pago', $request->forma_pago))
+            ->when($request->filled('forma_pago'), fn($q) => $q->whereExists(
+                fn($sub) => $sub->select(DB::raw(1))
+                    ->from('venta_pagos')
+                    ->whereColumn('venta_pagos.venta_id', 'v.id')
+                    ->where('venta_pagos.forma_pago', $request->forma_pago)
+            ))
             ->when($request->filled('categoria_id'), fn($q) => $q->where('p.categoria_id', $request->categoria_id))
             ->when($request->filled('producto'), function ($q) use ($request) {
                 $texto = trim((string) $request->producto);
@@ -154,7 +159,7 @@ class ReporteUtilidadesController extends Controller
             'fecha_desde'  => ['required', 'date'],
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
             'user_id'      => ['nullable', 'integer'],
-            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia'],
             'categoria_id' => ['nullable', 'integer'],
             'producto'     => ['nullable', 'string', 'max:120'],
             'formato'      => ['required', 'in:pdf,excel'],

@@ -55,7 +55,7 @@ class VentasExportacion extends ExportacionBase
     public function cabeceras(): array
     {
         if ($this->porDia) {
-            return ['Fecha', 'Ventas', 'Canceladas', 'Efectivo', 'Tarjeta', 'Transferencia', 'Crédito', 'Descuentos', 'Total', 'Ticket prom.'];
+            return ['Fecha', 'Ventas', 'Canceladas', 'Efectivo', 'Tarjeta', 'Transferencia', 'Descuentos', 'Total', 'Ticket prom.'];
         }
         return ['Folio', 'Fecha', 'Hora', 'Cajero', 'Forma pago', 'Estado', 'Subtotal', 'Descuento', 'Total'];
     }
@@ -72,24 +72,28 @@ class VentasExportacion extends ExportacionBase
         $query = $this->baseQuery();
 
         if ($this->porDia) {
-            $ventas = $query->get();
+            $ventas = $query->with('pagos')->get();
 
             $agrupado = $ventas
                 ->groupBy(fn($v) => Carbon::parse($v->fecha)->toDateString())
-                ->map(fn($g, $fecha) => [
-                    'fecha'         => $fecha,
-                    'num_ventas'    => $g->count(),
-                    'canceladas'    => $g->where('estado', 'cancelada')->count(),
-                    'efectivo'      => round($g->where('estado', 'confirmada')->where('forma_pago', 'efectivo')->sum('total'), 2),
-                    'tarjeta'       => round($g->where('estado', 'confirmada')->where('forma_pago', 'tarjeta')->sum('total'), 2),
-                    'transferencia' => round($g->where('estado', 'confirmada')->where('forma_pago', 'transferencia')->sum('total'), 2),
-                    'credito'       => round($g->where('estado', 'confirmada')->where('forma_pago', 'credito')->sum('total'), 2),
-                    'descuentos'    => round($g->where('estado', 'confirmada')->sum('descuento'), 2),
-                    'total'         => round($g->where('estado', 'confirmada')->sum('total'), 2),
-                    'ticket_prom'   => $g->where('estado', 'confirmada')->count() > 0
-                        ? round($g->where('estado', 'confirmada')->sum('total') / $g->where('estado', 'confirmada')->count(), 2)
-                        : 0,
-                ])
+                ->map(function ($g, $fecha) {
+                    $confirmadas = $g->where('estado', 'confirmada');
+                    $pagosConfirmados = $confirmadas->flatMap(fn($v) => $v->pagos);
+
+                    return [
+                        'fecha'         => $fecha,
+                        'num_ventas'    => $g->count(),
+                        'canceladas'    => $g->where('estado', 'cancelada')->count(),
+                        'efectivo'      => round($pagosConfirmados->where('forma_pago', 'efectivo')->sum('monto'), 2),
+                        'tarjeta'       => round($pagosConfirmados->where('forma_pago', 'tarjeta')->sum('monto'), 2),
+                        'transferencia' => round($pagosConfirmados->where('forma_pago', 'transferencia')->sum('monto'), 2),
+                        'descuentos'    => round($confirmadas->sum('descuento'), 2),
+                        'total'         => round($confirmadas->sum('total'), 2),
+                        'ticket_prom'   => $confirmadas->count() > 0
+                            ? round($confirmadas->sum('total') / $confirmadas->count(), 2)
+                            : 0,
+                    ];
+                })
                 ->sortKeysDesc()
                 ->values();
 
@@ -100,7 +104,6 @@ class VentasExportacion extends ExportacionBase
                 number_format($agrupado->sum('efectivo'), 2),
                 number_format($agrupado->sum('tarjeta'), 2),
                 number_format($agrupado->sum('transferencia'), 2),
-                number_format($agrupado->sum('credito'), 2),
                 number_format($agrupado->sum('descuentos'), 2),
                 number_format($agrupado->sum('total'), 2),
                 '',
@@ -113,7 +116,6 @@ class VentasExportacion extends ExportacionBase
                 number_format($d['efectivo'], 2),
                 number_format($d['tarjeta'], 2),
                 number_format($d['transferencia'], 2),
-                number_format($d['credito'], 2),
                 number_format($d['descuentos'], 2),
                 number_format($d['total'], 2),
                 number_format($d['ticket_prom'], 2),
@@ -121,7 +123,7 @@ class VentasExportacion extends ExportacionBase
         }
 
         // Listado individual
-        $ventas = $query->with(['user:id,name'])->orderByDesc('fecha')->orderByDesc('id')->get();
+        $ventas = $query->with(['user:id,name', 'pagos'])->orderByDesc('fecha')->orderByDesc('id')->get();
 
         $confirmadas = $ventas->where('estado', 'confirmada');
 
@@ -137,7 +139,7 @@ class VentasExportacion extends ExportacionBase
             Carbon::parse($v->fecha)->format('d/m/Y'),
             Carbon::parse($v->created_at)->setTimezone('America/Mexico_City')->format('H:i'),
             $v->user?->name ?? '—',
-            ucfirst($v->forma_pago),
+            $this->etiquetaFormaPago($v->pagos),
             ucfirst($v->estado),
             number_format((float) $v->subtotal, 2),
             number_format((float) $v->descuento, 2),
@@ -145,10 +147,21 @@ class VentasExportacion extends ExportacionBase
         ]);
     }
 
+    private function etiquetaFormaPago(Collection $pagos): string
+    {
+        $metodos = $pagos->where('forma_pago', '!=', 'saldo_favor')->pluck('forma_pago');
+
+        if ($metodos->isEmpty()) {
+            return $pagos->isNotEmpty() ? 'Saldo a favor' : '—';
+        }
+
+        return $metodos->count() > 1 ? 'Mixto' : ucfirst($metodos->first());
+    }
+
     public function columnWidths(): array
     {
         if ($this->porDia) {
-            return ['A' => 14, 'B' => 10, 'C' => 12, 'D' => 14, 'E' => 14, 'F' => 16, 'G' => 12, 'H' => 14, 'I' => 14, 'J' => 14];
+            return ['A' => 14, 'B' => 10, 'C' => 12, 'D' => 14, 'E' => 14, 'F' => 16, 'G' => 14, 'H' => 14, 'I' => 14];
         }
         return ['A' => 14, 'B' => 12, 'C' => 8, 'D' => 22, 'E' => 14, 'F' => 12, 'G' => 14, 'H' => 14, 'I' => 14];
     }
@@ -164,7 +177,7 @@ class VentasExportacion extends ExportacionBase
             ->when(!empty($this->filtros['user_id']), fn($q) =>
                 $q->where('user_id', $this->filtros['user_id']))
             ->when(!empty($this->filtros['forma_pago']), fn($q) =>
-                $q->where('forma_pago', $this->filtros['forma_pago']))
+                $q->whereHas('pagos', fn($pq) => $pq->where('forma_pago', $this->filtros['forma_pago'])))
             ->when(!empty($this->filtros['estado']), fn($q) =>
                 $q->where('estado', $this->filtros['estado']))
             ->when(!empty($this->filtros['folio']), fn($q) =>

@@ -21,6 +21,8 @@ import MarcasIndex from "../pages/marcas/MarcasIndex.vue";
 import AtributosConfig from "../pages/atributos/AtributosConfig.vue";
 import GestorUnidadesMedida from "../pages/atributos/GestorUnidadesMedida.vue";
 import AtributoValores from "@/pages/catalogos/AtributoValores.vue";
+import CuentasBancarias from "@/pages/catalogos/CuentasBancarias.vue";
+import TerminalesPago from "@/pages/catalogos/TerminalesPago.vue";
 
 import GestorProductos from "../pages/productos/GestorProductos.vue";
 import CatalogoPrecios from "../pages/productos/CatalogoPrecios.vue";
@@ -88,6 +90,8 @@ const routes = [
       { path: "atributos",  name: "atributos",  component: AtributosConfig, meta: { title: "Atributos",        permiso: "catalogos.ver" } },
       { path: "catalogos/atributos/:id", name: "catalogo-atributo-valores", component: AtributoValores, meta: { title: "Catalogo de atributo", permiso: "catalogos.ver" } },
       { path: "unidades-medida", name: "unidades-medida", component: GestorUnidadesMedida, meta: { title: "Unidades de medida", permiso: "catalogos.ver" } },
+      { path: "cuentas-bancarias", name: "cuentas-bancarias", component: CuentasBancarias, meta: { title: "Cuentas bancarias", permiso: "catalogos.ver" } },
+      { path: "terminales-pago", name: "terminales-pago", component: TerminalesPago, meta: { title: "Terminales de pago", permiso: "catalogos.ver" } },
 
       { path: "productos",       name: "productos",       component: GestorProductos, meta: { title: "Productos",         permiso: "productos.ver" } },
       { path: "imagenes",        name: "imagenes",        component: MediaLibrary,    meta: { title: "Biblioteca de imágenes", permiso: "productos.ver" } },

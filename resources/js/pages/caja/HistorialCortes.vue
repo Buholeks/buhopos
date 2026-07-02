@@ -82,7 +82,6 @@
                             <th class="px-4 py-3 text-right">Efectivo</th>
                             <th class="px-4 py-3 text-right">Tarjeta</th>
                             <th class="px-4 py-3 text-right">Transferencia</th>
-                            <th class="px-4 py-3 text-right">Crédito</th>
                             <th class="px-4 py-3 text-center">Estado</th>
                             <th class="px-4 py-3 text-right"></th>
                         </tr>
@@ -91,7 +90,7 @@
                     <tbody class="divide-y divide-slate-100">
                         <tr v-if="cortes.length === 0">
                             <td
-                                colspan="10"
+                                colspan="9"
                                 class="py-12 text-center text-slate-400"
                             >
                                 Sin cortes registrados
@@ -141,12 +140,6 @@
                                 class="px-4 py-3 text-right font-medium text-violet-700"
                             >
                                 {{ fmt(c.ventas_transferencia) }}
-                            </td>
-
-                            <td
-                                class="px-4 py-3 text-right font-medium text-orange-700"
-                            >
-                                {{ fmt(c.ventas_credito) }}
                             </td>
 
                             <td class="px-4 py-3 text-center">

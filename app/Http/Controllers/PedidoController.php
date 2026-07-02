@@ -71,7 +71,11 @@ class PedidoController extends Controller
                 'cliente:id,nombre,telefono',
                 'detalles.producto:id,nombre,codigo',
                 'detalles.variante:id,sku',
-                'saldos' => fn($q) => $q->with('user:id,name')->orderBy('created_at'),
+                'saldos' => fn($q) => $q->with([
+                    'user:id,name',
+                    'movimientoCaja.cuentaBancaria:id,nombre,banco',
+                    'movimientoCaja.terminalPago:id,nombre,banco',
+                ])->orderBy('created_at'),
             ])
             ->findOrFail($id);
 
@@ -93,6 +97,14 @@ class PedidoController extends Controller
             'notas' => ['nullable', 'string'],
             'anticipo' => ['nullable', 'numeric', 'min:0'],
             'forma_pago' => ['nullable', Rule::in(['efectivo', 'tarjeta', 'transferencia'])],
+            'cuenta_bancaria_id' => [
+                'required_if:forma_pago,transferencia', 'nullable', 'integer',
+                Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $empresaId)->where('activo', true)),
+            ],
+            'terminal_pago_id' => [
+                'required_if:forma_pago,tarjeta', 'nullable', 'integer',
+                Rule::exists('terminales_pago', 'id')->where(fn($q) => $q->where('empresa_id', $empresaId)->where('activo', true)),
+            ],
             'detalles' => ['required', 'array', 'min:1'],
             'detalles.*.producto_id' => ['nullable', 'integer', 'exists:productos,id'],
             'detalles.*.variante_id' => ['nullable', 'integer', 'exists:producto_variantes,id'],
@@ -218,12 +230,23 @@ class PedidoController extends Controller
             }
 
             if ($anticipo > 0) {
-                $this->registrarAnticipo($pedido, $corte, $anticipo, $data['forma_pago']);
+                $this->registrarAnticipo(
+                    $pedido,
+                    $corte,
+                    $anticipo,
+                    $data['forma_pago'],
+                    $data['cuenta_bancaria_id'] ?? null,
+                    $data['terminal_pago_id'] ?? null
+                );
             }
 
             DB::commit();
 
-            return response()->json($pedido->load(['cliente', 'detalles.producto', 'detalles.variante', 'saldos']), 201);
+            return response()->json($pedido->load([
+                'cliente', 'detalles.producto', 'detalles.variante',
+                'saldos.movimientoCaja.cuentaBancaria:id,nombre,banco',
+                'saldos.movimientoCaja.terminalPago:id,nombre,banco',
+            ]), 201);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -563,6 +586,14 @@ class PedidoController extends Controller
         $data = $request->validate([
             'monto' => ['required', 'numeric', 'min:0.01'],
             'forma_pago' => ['required', Rule::in(['efectivo', 'tarjeta', 'transferencia'])],
+            'cuenta_bancaria_id' => [
+                'required_if:forma_pago,transferencia', 'nullable', 'integer',
+                Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
+            ],
+            'terminal_pago_id' => [
+                'required_if:forma_pago,tarjeta', 'nullable', 'integer',
+                Rule::exists('terminales_pago', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
+            ],
         ]);
 
         $monto = (float) $data['monto'];
@@ -582,10 +613,21 @@ class PedidoController extends Controller
             $pedido->estado_pago = $this->estadoPago((float) $pedido->subtotal, (float) $pedido->anticipo);
             $pedido->save();
 
-            $this->registrarAnticipo($pedido, $corte, $monto, $data['forma_pago']);
+            $this->registrarAnticipo(
+                $pedido,
+                $corte,
+                $monto,
+                $data['forma_pago'],
+                $data['cuenta_bancaria_id'] ?? null,
+                $data['terminal_pago_id'] ?? null
+            );
 
             DB::commit();
-            return response()->json($pedido->fresh()->load(['cliente', 'detalles', 'saldos']));
+            return response()->json($pedido->fresh()->load([
+                'cliente', 'detalles',
+                'saldos.movimientoCaja.cuentaBancaria:id,nombre,banco',
+                'saldos.movimientoCaja.terminalPago:id,nombre,banco',
+            ]));
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -646,7 +688,11 @@ class PedidoController extends Controller
             DB::commit();
             return response()->json([
                 'message' => 'Abono eliminado.' . $cajaMensaje,
-                'pedido' => $pedido->fresh()->load(['cliente', 'detalles', 'saldos']),
+                'pedido' => $pedido->fresh()->load([
+                'cliente', 'detalles',
+                'saldos.movimientoCaja.cuentaBancaria:id,nombre,banco',
+                'saldos.movimientoCaja.terminalPago:id,nombre,banco',
+            ]),
             ]);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -720,39 +766,34 @@ class PedidoController extends Controller
                     'compra_detalle_id' => null,
                 ]);
 
-            // Si tiene anticipo, acreditarlo al saldo a favor del cliente
+            // El anticipo ya quedó registrado como 'abono' en cliente_saldo_movimientos desde que se
+            // capturó (registrarAnticipo/agregarAbono), y cualquier parte ya usada en una venta se
+            // descontó ahí mismo como 'aplicacion'. El saldo del cliente (SUM abono+devolucion+ajuste
+            // - aplicacion) ya refleja correctamente lo que queda disponible del anticipo: no hay que
+            // volver a acreditarlo aquí, o se duplica (ver bug: cancelar pedido parcial + cancelar la
+            // venta que ya usó el anticipo dejaba doble saldo a favor).
             $anticipo = (float) $pedido->anticipo;
-            if ($anticipo > 0) {
-                $saldoAnterior = ClienteSaldoMovimiento::where('empresa_id', $pedido->empresa_id)
-                    ->where('sucursal_id', $pedido->sucursal_id)
-                    ->where('cliente_id', $pedido->cliente_id)
-                    ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END"));
 
-                ClienteSaldoMovimiento::create([
-                    'empresa_id' => $pedido->empresa_id,
-                    'sucursal_id' => $pedido->sucursal_id,
-                    'cliente_id' => $pedido->cliente_id,
-                    'pedido_id' => $pedido->id,
-                    'corte_id' => null,
-                    'user_id' => Auth::id(),
-                    'tipo' => 'devolucion',
-                    'forma_pago' => null,
-                    'monto' => $anticipo,
-                    'saldo_resultante' => (float) $saldoAnterior + $anticipo,
-                    'concepto' => "Cancelación {$pedido->folio} - anticipo acreditado",
-                ]);
-            }
-
-            $pedido->estado = 'cancelado';
-            $pedido->save();
+            // El estado de cabecera se recalcula a partir de los renglones: si alguno ya
+            // se entregó (se vendió), el pedido queda 'parcial' en vez de 'cancelado', para
+            // no perder el rastro de que parte sí se vendió.
+            $pedido->actualizarEstadoPorDetalles();
+            $pedido->refresh();
 
             DB::commit();
 
+            $huboEntrega = $pedido->estado !== 'cancelado';
+            $mensaje = $huboEntrega
+                ? 'Se canceló la parte pendiente del pedido. Los renglones ya entregados no se modificaron.'
+                : 'Pedido cancelado.';
+
+            if ($anticipo > 0) {
+                $mensaje .= ' La parte del anticipo de $' . number_format($anticipo, 2) . ' que no se haya usado en una venta queda disponible como saldo a favor del cliente.';
+            }
+
             return response()->json([
-                'message' => $anticipo > 0
-                    ? "Pedido cancelado. Se acreditaron $" . number_format($anticipo, 2) . " al saldo a favor del cliente."
-                    : 'Pedido cancelado.',
-                'pedido' => $pedido->fresh()->load(['cliente', 'detalles']),
+                'message' => $mensaje,
+                'pedido' => $pedido->load(['cliente', 'detalles']),
             ]);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -760,13 +801,21 @@ class PedidoController extends Controller
         }
     }
 
-    private function registrarAnticipo(Pedido $pedido, CorteCaja $corte, float $monto, string $formaPago): void
-    {
+    private function registrarAnticipo(
+        Pedido $pedido,
+        CorteCaja $corte,
+        float $monto,
+        string $formaPago,
+        ?int $cuentaBancariaId = null,
+        ?int $terminalPagoId = null
+    ): void {
         $movimientoCaja = MovimientoCaja::create([
             'corte_id' => $corte->id,
             'user_id' => Auth::id(),
             'tipo' => 'ingreso',
             'forma_pago' => $formaPago,
+            'cuenta_bancaria_id' => $cuentaBancariaId,
+            'terminal_pago_id' => $terminalPagoId,
             'monto' => $monto,
             'concepto' => "Anticipo {$pedido->tipo} {$pedido->folio}",
         ]);

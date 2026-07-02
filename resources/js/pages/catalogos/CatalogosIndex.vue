@@ -8,7 +8,7 @@
 import { computed, onMounted, ref } from "vue";
 import axios from "axios";
 import HubSection from "@/components/hub/HubSection.vue";
-import { Users, Truck, Tags, BadgeCheck, Package, SlidersHorizontal } from "lucide-vue-next";
+import { Users, Truck, Tags, BadgeCheck, Package, SlidersHorizontal, Landmark, CreditCard } from "lucide-vue-next";
 
 const tiposAtributo = ref([]);
 
@@ -42,6 +42,18 @@ const catalogosBase = [
         icon: Package,
         to: { name: "productos" },
         permiso: "productos.ver",
+    },
+    {
+        label: "Cuentas Bancarias",
+        icon: Landmark,
+        to: { name: "cuentas-bancarias" },
+        permiso: "catalogos.ver",
+    },
+    {
+        label: "Terminales de Pago",
+        icon: CreditCard,
+        to: { name: "terminales-pago" },
+        permiso: "catalogos.ver",
     },
 ];
 

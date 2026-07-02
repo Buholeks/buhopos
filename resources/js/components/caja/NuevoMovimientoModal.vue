@@ -65,6 +65,38 @@
                     </select>
                 </div>
 
+                <div v-if="form.forma_pago === 'transferencia'">
+                    <label class="text-sm font-medium text-slate-700">
+                        Cuenta bancaria
+                    </label>
+
+                    <select
+                        v-model="form.cuenta_bancaria_id"
+                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                        <option value="" disabled>Selecciona una cuenta…</option>
+                        <option v-for="c in cuentasBancarias" :key="c.id" :value="c.id">
+                            {{ c.nombre }}<template v-if="c.banco"> ({{ c.banco }})</template>
+                        </option>
+                    </select>
+                </div>
+
+                <div v-if="form.forma_pago === 'tarjeta'">
+                    <label class="text-sm font-medium text-slate-700">
+                        Terminal
+                    </label>
+
+                    <select
+                        v-model="form.terminal_pago_id"
+                        class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    >
+                        <option value="" disabled>Selecciona una terminal…</option>
+                        <option v-for="t in terminalesPago" :key="t.id" :value="t.id">
+                            {{ t.nombre }}<template v-if="t.banco"> ({{ t.banco }})</template>
+                        </option>
+                    </select>
+                </div>
+
                 <div>
                     <label class="text-sm font-medium text-slate-700">
                         Monto
@@ -132,6 +164,8 @@ import { X } from "lucide-vue-next";
 const props = defineProps({
     open: { type: Boolean, default: false },
     loading: { type: Boolean, default: false },
+    cuentasBancarias: { type: Array, default: () => [] },
+    terminalesPago: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(["close", "submit"]);
@@ -141,12 +175,17 @@ const TIPOS = ["ingreso", "egreso"];
 const form = reactive({
     tipo: "egreso",
     forma_pago: "efectivo",
+    cuenta_bancaria_id: "",
+    terminal_pago_id: "",
     monto: 0,
     concepto: "",
 });
 
 const isValid = computed(() => {
-    return form.concepto.trim().length > 0 && Number(form.monto) > 0;
+    if (form.concepto.trim().length === 0 || !(Number(form.monto) > 0)) return false;
+    if (form.forma_pago === "transferencia" && !form.cuenta_bancaria_id) return false;
+    if (form.forma_pago === "tarjeta" && !form.terminal_pago_id) return false;
+    return true;
 });
 
 function submit() {
@@ -154,6 +193,8 @@ function submit() {
 
     emit("submit", {
         ...form,
+        cuenta_bancaria_id: form.forma_pago === "transferencia" ? form.cuenta_bancaria_id || null : null,
+        terminal_pago_id: form.forma_pago === "tarjeta" ? form.terminal_pago_id || null : null,
     });
 }
 
@@ -164,10 +205,20 @@ watch(
             Object.assign(form, {
                 tipo: "egreso",
                 forma_pago: "efectivo",
+                cuenta_bancaria_id: "",
+                terminal_pago_id: "",
                 monto: 0,
                 concepto: "",
             });
         }
+    },
+);
+
+watch(
+    () => form.forma_pago,
+    () => {
+        form.cuenta_bancaria_id = "";
+        form.terminal_pago_id = "";
     },
 );
 </script>

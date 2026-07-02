@@ -111,6 +111,36 @@
                         value-key="id"
                         :disabled="Number(form.anticipo) <= 0"
                     />
+                    <label
+                        v-if="Number(form.anticipo) > 0 && form.forma_pago === 'transferencia'"
+                        class="block"
+                    >
+                        <span class="mb-1 block text-xs font-bold text-slate-600">Cuenta bancaria</span>
+                        <select
+                            v-model="form.cuenta_bancaria_id"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                        >
+                            <option value="" disabled>Selecciona una cuenta…</option>
+                            <option v-for="c in cuentasBancarias" :key="c.id" :value="c.id">
+                                {{ c.nombre }}<template v-if="c.banco"> ({{ c.banco }})</template>
+                            </option>
+                        </select>
+                    </label>
+                    <label
+                        v-if="Number(form.anticipo) > 0 && form.forma_pago === 'tarjeta'"
+                        class="block"
+                    >
+                        <span class="mb-1 block text-xs font-bold text-slate-600">Terminal</span>
+                        <select
+                            v-model="form.terminal_pago_id"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                        >
+                            <option value="" disabled>Selecciona una terminal…</option>
+                            <option v-for="t in terminalesPago" :key="t.id" :value="t.id">
+                                {{ t.nombre }}<template v-if="t.banco"> ({{ t.banco }})</template>
+                            </option>
+                        </select>
+                    </label>
                 </div>
 
                 <p
@@ -477,7 +507,14 @@ const {
     agregarProducto,
     quitarDetalle,
     guardarEncargo,
+    cuentasBancarias,
+    terminalesPago,
+    cargarCuentasBancarias,
+    cargarTerminalesPago,
 } = useEncargos({ tipo: "pedido" });
+
+cargarCuentasBancarias();
+cargarTerminalesPago();
 
 const formasPago = [
     { id: "efectivo", nombre: "Efectivo" },

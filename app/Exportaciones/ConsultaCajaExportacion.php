@@ -55,7 +55,6 @@ class ConsultaCajaExportacion extends ExportacionBase
                 'efectivo'      => 'Efectivo',
                 'tarjeta'       => 'Tarjeta',
                 'transferencia' => 'Transferencia',
-                'credito'       => 'Crédito',
                 default         => $this->filtros['forma_pago'],
             };
         }
@@ -133,8 +132,9 @@ class ConsultaCajaExportacion extends ExportacionBase
         if ($userId)    $qMov->where('m.user_id', $userId);
         if ($concepto)  $qMov->where('m.concepto', 'like', "%{$concepto}%");
 
-        // ── Rama 2: ventas confirmadas ────────────────────────────────────────
-        $qVentas = DB::table('ventas as v')
+        // ── Rama 2: ventas confirmadas (una fila por línea de venta_pagos) ────
+        $qVentas = DB::table('venta_pagos as vp')
+            ->join('ventas as v', 'v.id', '=', 'vp.venta_id')
             ->join('users as u', 'v.user_id', '=', 'u.id')
             ->join('cortes_caja as c', 'v.corte_id', '=', 'c.id')
             ->where('v.empresa_id', $this->empresaId)
@@ -142,21 +142,22 @@ class ConsultaCajaExportacion extends ExportacionBase
             ->where('c.empresa_id', $this->empresaId)
             ->where('v.estado', 'confirmada')
             ->whereNotNull('v.corte_id')
+            ->whereIn('vp.forma_pago', ['efectivo', 'tarjeta', 'transferencia'])
             ->whereBetween('v.created_at', [$desdeTs, $hastaTs])
             ->select([
-                'v.id',
+                'vp.id',
                 DB::raw("'venta' as origen"),
                 DB::raw("DATE_FORMAT(v.created_at, '%Y-%m-%dT%H:%i:%S+00:00') as fecha_hora"),
                 'u.name as usuario',
                 DB::raw("'ingreso' as tipo"),
-                'v.forma_pago',
-                DB::raw('CAST(GREATEST(v.total - COALESCE(v.saldo_aplicado, 0), 0) AS DECIMAL(14,2)) as monto'),
+                'vp.forma_pago',
+                DB::raw('CAST(vp.monto AS DECIMAL(14,2)) as monto'),
                 DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id)) as concepto"),
                 'c.terminal',
                 'v.folio',
             ]);
 
-        if ($formaPago) $qVentas->where('v.forma_pago', $formaPago);
+        if ($formaPago) $qVentas->where('vp.forma_pago', $formaPago);
         if ($userId)    $qVentas->where('v.user_id', $userId);
         if ($concepto)  $qVentas->where(DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id))"), 'like', "%{$concepto}%");
         if ($tipo === 'egreso') $qVentas->whereRaw('1=0');
@@ -172,7 +173,6 @@ class ConsultaCajaExportacion extends ExportacionBase
             'efectivo'      => 'Efectivo',
             'tarjeta'       => 'Tarjeta',
             'transferencia' => 'Transferencia',
-            'credito'       => 'Crédito',
             default         => ucfirst((string) $f),
         };
 

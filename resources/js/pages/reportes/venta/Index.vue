@@ -158,7 +158,7 @@
                                 <option value="transferencia">
                                     Transferencia
                                 </option>
-                                <option value="credito">Crédito</option>
+                                <option value="saldo_favor">Saldo a favor</option>
                             </select>
                         </div>
                     </div>
@@ -371,11 +371,6 @@
                                     <th
                                         class="px-4 py-3 text-right font-medium"
                                     >
-                                        Crédito
-                                    </th>
-                                    <th
-                                        class="px-4 py-3 text-right font-medium"
-                                    >
                                         Desc.
                                     </th>
                                     <th
@@ -458,18 +453,6 @@
                                         }}
                                     </td>
                                     <td
-                                        class="px-4 py-3 text-right font-mono"
-                                        :class="
-                                            d.credito > 0
-                                                ? 'text-slate-700'
-                                                : 'text-slate-400'
-                                        "
-                                    >
-                                        {{
-                                            d.credito > 0 ? fmt(d.credito) : "—"
-                                        }}
-                                    </td>
-                                    <td
                                         class="px-4 py-3 text-right font-mono text-red-600"
                                     >
                                         {{
@@ -513,9 +496,6 @@
                                     </td>
                                     <td class="px-4 py-3 text-right font-mono">
                                         {{ fmt(totales.transferencia) }}
-                                    </td>
-                                    <td class="px-4 py-3 text-right font-mono">
-                                        {{ fmt(totales.credito) }}
                                     </td>
                                     <td
                                         class="px-4 py-3 text-right font-mono text-red-600"
@@ -643,12 +623,18 @@
                                                 class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize"
                                                 :class="
                                                     badgeFormaPagoClass(
-                                                        v.forma_pago,
+                                                        formaPagoResumen(v).clave,
                                                     )
                                                 "
                                             >
-                                                {{ v.forma_pago }}
+                                                {{ formaPagoResumen(v).label }}
                                             </span>
+                                            <div
+                                                v-if="formaPagoResumen(v).detalle"
+                                                class="mt-1 text-[11px] text-slate-500"
+                                            >
+                                                {{ formaPagoResumen(v).detalle }}
+                                            </div>
                                         </td>
                                         <td class="px-4 py-3">
                                             <span
@@ -1035,7 +1021,7 @@ const formasPago = [
     { key: "efectivo", label: "Efectivo" },
     { key: "tarjeta", label: "Tarjeta" },
     { key: "transferencia", label: "Transferencia" },
-    { key: "credito", label: "Crédito" },
+    { key: "saldo_favor", label: "Saldo a favor" },
 ];
 
 // ── Estado ─────────────────────────────────────────────────────────────────
@@ -1207,11 +1193,51 @@ function params() {
     };
 }
 
+const ETIQUETAS_FORMA_PAGO = {
+    efectivo: "Efectivo",
+    tarjeta: "Tarjeta",
+    transferencia: "Transferencia",
+    saldo_favor: "Saldo a favor",
+};
+
+function formaPagoResumen(venta) {
+    const pagos = Array.isArray(venta?.pagos) ? venta.pagos : [];
+    const metodos = pagos.filter((p) => p.forma_pago !== "saldo_favor");
+    const tieneSaldoFavor = pagos.some((p) => p.forma_pago === "saldo_favor");
+
+    if (metodos.length === 0) {
+        return {
+            clave: tieneSaldoFavor ? "saldo_favor" : "—",
+            label: tieneSaldoFavor ? "Saldo a favor" : "—",
+            detalle: "",
+        };
+    }
+
+    if (metodos.length > 1) {
+        return {
+            clave: "mixto",
+            label: "Mixto",
+            detalle: metodos
+                .map((p) => `${ETIQUETAS_FORMA_PAGO[p.forma_pago] ?? p.forma_pago}: ${fmt(p.monto)}`)
+                .join(" · "),
+        };
+    }
+
+    const unico = metodos[0];
+    const cuentaTerminal = unico.cuenta_bancaria?.nombre ?? unico.terminal_pago?.nombre ?? "";
+
+    return {
+        clave: unico.forma_pago,
+        label: ETIQUETAS_FORMA_PAGO[unico.forma_pago] ?? unico.forma_pago,
+        detalle: cuentaTerminal,
+    };
+}
+
 function badgeFormaPagoClass(forma) {
     if (forma === "efectivo") return "bg-emerald-50 text-emerald-700";
     if (forma === "tarjeta") return "bg-sky-50 text-sky-700";
     if (forma === "transferencia") return "bg-violet-50 text-violet-700";
-    if (forma === "credito") return "bg-amber-50 text-amber-700";
+    if (forma === "mixto") return "bg-amber-50 text-amber-700";
     return "bg-slate-100 text-slate-700";
 }
 

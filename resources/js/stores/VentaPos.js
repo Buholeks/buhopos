@@ -1,6 +1,16 @@
 import { defineStore } from "pinia";
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import http from "@/lib/http";
+
+function nuevaLineaPago(formaPago = "efectivo", monto = 0) {
+    return {
+        forma_pago: formaPago,
+        monto,
+        cuenta_bancaria_id: "",
+        terminal_pago_id: "",
+        monto_recibido: "",
+    };
+}
 
 function fechaLocal() {
     const d = new Date();
@@ -37,12 +47,38 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         visible: false,
         vendedor_id: null,
         vendedor: null,
-        forma_pago: "efectivo",
-        monto_recibido: "",
+        pagos: [],
         saldo_disponible: 0,
         saldo_aplicado: 0,
         notas: "",
     });
+
+    const cuentasBancarias = ref([]);
+    const terminalesPago = ref([]);
+
+    async function cargarCuentasBancarias() {
+        try {
+            const { data } = await http.get("/api/cuentas-bancarias", { params: { activo: 1 } });
+            cuentasBancarias.value = data;
+        } catch {
+            cuentasBancarias.value = [];
+        }
+    }
+
+    async function cargarTerminalesPago() {
+        try {
+            const { data } = await http.get("/api/terminales-pago", { params: { activo: 1 } });
+            terminalesPago.value = data;
+        } catch {
+            terminalesPago.value = [];
+        }
+    }
+
+    // Se cargan desde ahora (no hasta abrir el cobro) para que ya estén
+    // disponibles si el cajero elige tarjeta/transferencia justo al abrir el
+    // modal, en vez de mostrar el select vacío mientras llega la petición.
+    cargarCuentasBancarias();
+    cargarTerminalesPago();
 
     const detalles = ref([]);
     let keyCounter = 0;
@@ -72,14 +108,40 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         Math.max(0, total.value - Number(cobro.saldo_aplicado || 0)),
     );
 
-    const cambio = computed(() => {
-        if (cobro.forma_pago !== "efectivo") return 0;
-        return Math.max(0, Number(cobro.monto_recibido || 0) - totalACobrar.value);
-    });
+    const montoAsignado = computed(() =>
+        cobro.pagos.reduce((acc, p) => acc + (Number(p.monto) || 0), 0),
+    );
 
-    const pagoInsuficiente = computed(() => {
-        if (cobro.forma_pago !== "efectivo") return false;
-        return Number(cobro.monto_recibido || 0) < totalACobrar.value;
+    const restante = computed(
+        () => Math.round((totalACobrar.value - montoAsignado.value) * 100) / 100,
+    );
+
+    const cambio = computed(() =>
+        cobro.pagos
+            .filter((p) => p.forma_pago === "efectivo")
+            .reduce(
+                (acc, p) =>
+                    acc + Math.max(0, Number(p.monto_recibido || 0) - Number(p.monto || 0)),
+                0,
+            ),
+    );
+
+    const pagoInsuficiente = computed(() =>
+        cobro.pagos.some(
+            (p) =>
+                p.forma_pago === "efectivo" &&
+                p.monto_recibido !== "" &&
+                Number(p.monto_recibido || 0) < Number(p.monto || 0),
+        ),
+    );
+
+    // Mientras haya una sola línea de pago, se mantiene sincronizada con el
+    // total a cobrar (mismo flujo simple de siempre). Al dividir el pago en
+    // varias líneas, cada una se ajusta manualmente.
+    watch(totalACobrar, (nuevo) => {
+        if (cobro.pagos.length === 1) {
+            cobro.pagos[0].monto = nuevo;
+        }
     });
 
     const hayExcedido = computed(() =>
@@ -231,8 +293,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
             visible: false,
             vendedor_id: null,
             vendedor: null,
-            forma_pago: "efectivo",
-            monto_recibido: "",
+            pagos: [],
             saldo_disponible: 0,
             saldo_aplicado: 0,
             notas: "",
@@ -243,6 +304,68 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         detalles.value.forEach(normalizeLinea);
         idempotencyKey.value = generarIdempotencyKey();
         cobro.visible = true;
+        cobro.pagos = [nuevaLineaPago("efectivo", totalACobrar.value)];
+
+        if (!cuentasBancarias.value.length) cargarCuentasBancarias();
+        if (!terminalesPago.value.length) cargarTerminalesPago();
+    }
+
+    // En efectivo no se captura "monto" por separado: el monto asignado a la
+    // línea se calcula a partir de lo recibido, topado a lo que aún falta
+    // cubrir entre las demás líneas (para no exceder el total ni robarle
+    // cobertura a otro método).
+    function recalcularMontoEfectivo(idx) {
+        const linea = cobro.pagos[idx];
+        if (!linea || linea.forma_pago !== "efectivo") return;
+
+        const otras = cobro.pagos.reduce(
+            (acc, p, i) => (i === idx ? acc : acc + (Number(p.monto) || 0)),
+            0,
+        );
+        const disponible = Math.max(0, totalACobrar.value - otras);
+        linea.monto = Math.min(Number(linea.monto_recibido) || 0, disponible);
+    }
+
+    function agregarLineaPago() {
+        const usados = cobro.pagos.map((p) => p.forma_pago);
+        const disponible =
+            ["efectivo", "tarjeta", "transferencia"].find((m) => !usados.includes(m)) ??
+            "efectivo";
+
+        // Antes de sumar una línea nueva, se ajusta el monto de cualquier
+        // línea de efectivo existente (mientras había una sola línea, su
+        // monto seguía fijo al total y no reflejaba lo recibido).
+        cobro.pagos.forEach((_, i) => recalcularMontoEfectivo(i));
+
+        cobro.pagos.push(nuevaLineaPago(disponible, Math.max(0, restante.value)));
+    }
+
+    function quitarLineaPago(idx) {
+        if (cobro.pagos.length <= 1) return;
+        cobro.pagos.splice(idx, 1);
+    }
+
+    function actualizarLineaPago(idx, campo, valor) {
+        const linea = cobro.pagos[idx];
+        if (!linea) return;
+
+        linea[campo] = valor;
+
+        if (cobro.pagos.length <= 1) return;
+
+        if (campo === "monto_recibido" || campo === "forma_pago") {
+            recalcularMontoEfectivo(idx);
+            return;
+        }
+
+        // El "Monto" de una línea que no es efectivo se edita a mano y afecta
+        // cuánto queda disponible para las demás; se resincroniza cualquier
+        // línea de efectivo con ese nuevo disponible.
+        if (campo === "monto") {
+            cobro.pagos.forEach((p, i) => {
+                if (p.forma_pago === "efectivo") recalcularMontoEfectivo(i);
+            });
+        }
     }
 
     function cerrarCobro() {
@@ -273,18 +396,21 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
                 fecha: form.fecha,
                 cliente_id: clienteId.value,
                 vendedor_id: cobro.vendedor_id,
-                forma_pago: cobro.forma_pago,
+                pagos: cobro.pagos.map((p) => ({
+                    forma_pago: p.forma_pago,
+                    monto: Number(p.monto || 0),
+                    cuenta_bancaria_id:
+                        p.forma_pago === "transferencia" ? p.cuenta_bancaria_id || null : null,
+                    terminal_pago_id:
+                        p.forma_pago === "tarjeta" ? p.terminal_pago_id || null : null,
+                    monto_recibido:
+                        p.forma_pago === "efectivo"
+                            ? Number(p.monto_recibido || p.monto || 0)
+                            : null,
+                })),
                 descuento: Number(form.descuento || 0),
                 saldo_aplicado: Number(cobro.saldo_aplicado || 0),
                 notas: cobro.notas || form.notas || null,
-                monto_recibido:
-                    cobro.forma_pago === "efectivo"
-                        ? Number(cobro.monto_recibido || 0)
-                        : null,
-                cambio:
-                    cobro.forma_pago === "efectivo"
-                        ? Number(cambio.value || 0)
-                        : 0,
                 idempotency_key: idempotencyKey.value,
                 detalles: detalles.value.map((d) => ({
                     producto_id: d.producto_id,
@@ -341,11 +467,15 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         clienteId,
         form,
         cobro,
+        cuentasBancarias,
+        terminalesPago,
         detalles,
         subtotal,
         total,
         saldoAplicable,
         totalACobrar,
+        montoAsignado,
+        restante,
         cambio,
         pagoInsuficiente,
         hayExcedido,
@@ -362,6 +492,9 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         cerrarCobro,
         resetCobro,
         resetVenta,
+        agregarLineaPago,
+        quitarLineaPago,
+        actualizarLineaPago,
         guardarVenta,
         setUltimaVenta,
     };

@@ -160,6 +160,7 @@ class ReporteComprasController extends Controller
         $pagos = DB::table('pagos_proveedor as pp')
             ->join('compras as c', 'pp.compra_id', '=', 'c.id')
             ->leftJoin('users', 'pp.user_id', '=', 'users.id')
+            ->leftJoin('cuentas_bancarias as cb', 'pp.cuenta_bancaria_id', '=', 'cb.id')
             ->where('pp.compra_id', $id)
             ->where('c.empresa_id', $user->empresa_id)
             ->where('c.sucursal_id', $user->sucursal_id)
@@ -170,7 +171,8 @@ class ReporteComprasController extends Controller
                 'pp.forma_pago',
                 'pp.referencia',
                 'pp.notas',
-                'users.name as usuario_nombre'
+                'users.name as usuario_nombre',
+                'cb.nombre as cuenta_bancaria_nombre'
             )
             ->orderByDesc('pp.fecha_pago')
             ->orderByDesc('pp.id')

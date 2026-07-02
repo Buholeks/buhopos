@@ -221,6 +221,8 @@
             :pedidos="pedidos"
             :cargando="cargando"
             :abonos="abonos"
+            :cuentas-bancarias="cuentasBancarias"
+            :terminales-pago="terminalesPago"
             @detalle="abrirDetalle"
             @cancelar="abrirCancelar"
             @abonar="registrarAbono"
@@ -290,6 +292,10 @@ const {
     cargarPedidos,
     registrarAbono,
     cancelarPedido,
+    cuentasBancarias,
+    terminalesPago,
+    cargarCuentasBancarias,
+    cargarTerminalesPago,
 } = useEncargos({ tipo: "pedido" });
 
 const todosPendientesSeleccionados = computed(() => {
@@ -313,6 +319,8 @@ watch(buscar, () => {
 onMounted(() => {
     cargarPedidos();
     cargarPendientesCompra();
+    cargarCuentasBancarias();
+    cargarTerminalesPago();
 });
 
 async function cargarPendientesCompra() {

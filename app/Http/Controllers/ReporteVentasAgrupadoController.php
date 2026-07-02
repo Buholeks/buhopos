@@ -109,7 +109,7 @@ class ReporteVentasAgrupadoController extends Controller
             'tab'          => ['required', 'in:clientes,categorias,marcas,modelos,proveedores,articulos,articulos_detalle'],
             'fecha_desde'  => ['required', 'date'],
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
-            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia'],
             'estado'       => ['nullable', 'in:confirmada,cancelada'],
             'entidad_id'   => ['nullable', 'integer'],
             'categoria_id' => ['nullable', 'integer'],
@@ -298,18 +298,18 @@ class ReporteVentasAgrupadoController extends Controller
     private function exportClientes($user, Request $request): array
     {
         $rows = $this->withTicket($this->queryClientes($user, $request)->get());
-        $cols = ['Cliente', 'Ventas', 'Confirmadas', 'Canceladas', 'Total', 'Descuentos', 'Ticket prom.', 'Efectivo', 'Tarjeta', 'Transferencia', 'Crédito'];
+        $cols = ['Cliente', 'Ventas', 'Confirmadas', 'Canceladas', 'Total', 'Descuentos', 'Ticket prom.', 'Efectivo', 'Tarjeta', 'Transferencia'];
         $filas = $rows->map(fn($r) => [
             $r->cliente, $r->num_ventas, $r->confirmadas, $r->canceladas,
             number_format($r->total, 2), number_format($r->descuentos, 2),
             number_format($r->ticket_prom ?? 0, 2),
             number_format($r->efectivo, 2), number_format($r->tarjeta, 2),
-            number_format($r->transferencia, 2), number_format($r->credito, 2),
+            number_format($r->transferencia, 2),
         ]);
         $tot = ['Totales', $rows->sum('num_ventas'), $rows->sum('confirmadas'), $rows->sum('canceladas'),
             number_format($rows->sum('total'), 2), number_format($rows->sum('descuentos'), 2), '',
             number_format($rows->sum('efectivo'), 2), number_format($rows->sum('tarjeta'), 2),
-            number_format($rows->sum('transferencia'), 2), number_format($rows->sum('credito'), 2)];
+            number_format($rows->sum('transferencia'), 2)];
         return [$cols, $filas, $tot, 'Ventas por Cliente'];
     }
 
@@ -335,17 +335,17 @@ class ReporteVentasAgrupadoController extends Controller
 
     private function exportAgrupado(Collection $rows, string $campo, string $labelCol, string $titulo): array
     {
-        $cols = [$labelCol, 'Ventas', 'Unidades', 'Total', 'Margen', 'Efectivo', 'Tarjeta', 'Transferencia', 'Crédito'];
+        $cols = [$labelCol, 'Ventas', 'Unidades', 'Total', 'Margen', 'Efectivo', 'Tarjeta', 'Transferencia'];
         $filas = $rows->map(fn($r) => [
             $r->$campo, $r->num_ventas, $r->unidades,
             number_format($r->total, 2), number_format($r->margen, 2),
             number_format($r->efectivo, 2), number_format($r->tarjeta, 2),
-            number_format($r->transferencia, 2), number_format($r->credito, 2),
+            number_format($r->transferencia, 2),
         ]);
         $tot = ['Totales', $rows->sum('num_ventas'), $rows->sum('unidades'),
             number_format($rows->sum('total'), 2), number_format($rows->sum('margen'), 2),
             number_format($rows->sum('efectivo'), 2), number_format($rows->sum('tarjeta'), 2),
-            number_format($rows->sum('transferencia'), 2), number_format($rows->sum('credito'), 2)];
+            number_format($rows->sum('transferencia'), 2)];
         return [$cols, $filas, $tot, $titulo];
     }
 
@@ -384,7 +384,7 @@ class ReporteVentasAgrupadoController extends Controller
         $request->validate([
             'fecha_desde' => ['required', 'date'],
             'fecha_hasta' => ['required', 'date', 'after_or_equal:fecha_desde'],
-            'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia'],
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'entidad_id'  => ['nullable', 'integer'],
             'por_pagina'  => ['nullable', 'integer', 'min:1', 'max:200'],
@@ -397,7 +397,7 @@ class ReporteVentasAgrupadoController extends Controller
         $request->validate([
             'fecha_desde'  => ['required', 'date'],
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
-            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia,credito'],
+            'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia'],
             'estado'       => ['nullable', 'in:confirmada,cancelada'],
             'categoria_id' => ['nullable', 'integer'],
             'producto_id'  => ['nullable', 'integer'],
@@ -407,9 +407,23 @@ class ReporteVentasAgrupadoController extends Controller
         ]);
     }
 
+    // Subquery con una fila por venta (evita el fan-out de unirse directo a venta_pagos)
+    private function subPagosPorVenta()
+    {
+        return DB::table('venta_pagos')
+            ->selectRaw("
+                venta_id,
+                SUM(CASE WHEN forma_pago = 'efectivo'      THEN monto ELSE 0 END) as efectivo,
+                SUM(CASE WHEN forma_pago = 'tarjeta'       THEN monto ELSE 0 END) as tarjeta,
+                SUM(CASE WHEN forma_pago = 'transferencia' THEN monto ELSE 0 END) as transferencia
+            ")
+            ->groupBy('venta_id');
+    }
+
     private function baseVentas($user)
     {
         return DB::table('ventas as v')
+            ->leftJoinSub($this->subPagosPorVenta(), 'vp', fn($j) => $j->on('vp.venta_id', '=', 'v.id'))
             ->where('v.empresa_id',  $user->empresa_id)
             ->where('v.sucursal_id', $user->sucursal_id);
     }
@@ -419,6 +433,7 @@ class ReporteVentasAgrupadoController extends Controller
         return DB::table('ventas as v')
             ->join('venta_detalles as vd', 'vd.venta_id', '=', 'v.id')
             ->join('productos as p',       'p.id',         '=', 'vd.producto_id')
+            ->leftJoinSub($this->subPagosPorVenta(), 'vp', fn($j) => $j->on('vp.venta_id', '=', 'v.id'))
             ->where('v.empresa_id',  $user->empresa_id)
             ->where('v.sucursal_id', $user->sucursal_id);
     }
@@ -428,7 +443,12 @@ class ReporteVentasAgrupadoController extends Controller
         return $query
             ->whereDate('v.fecha', '>=', $request->fecha_desde)
             ->whereDate('v.fecha', '<=', $request->fecha_hasta)
-            ->when($request->filled('forma_pago'), fn($q) => $q->where('v.forma_pago', $request->forma_pago))
+            ->when($request->filled('forma_pago'), fn($q) => $q->whereExists(
+                fn($sub) => $sub->select(DB::raw(1))
+                    ->from('venta_pagos')
+                    ->whereColumn('venta_pagos.venta_id', 'v.id')
+                    ->where('venta_pagos.forma_pago', $request->forma_pago)
+            ))
             ->when($request->filled('estado'),     fn($q) => $q->where('v.estado',     $request->estado));
     }
 
@@ -466,13 +486,15 @@ class ReporteVentasAgrupadoController extends Controller
             COALESCE(SUM(CASE WHEN v.estado = 'cancelada'  THEN 1          ELSE 0 END), 0)               AS canceladas,
             COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN v.total    ELSE 0 END), 0)               AS total,
             COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN v.descuento ELSE 0 END), 0)              AS descuentos,
-            COALESCE(SUM(CASE WHEN v.forma_pago = 'efectivo'      AND v.estado = 'confirmada' THEN v.total ELSE 0 END), 0) AS efectivo,
-            COALESCE(SUM(CASE WHEN v.forma_pago = 'tarjeta'       AND v.estado = 'confirmada' THEN v.total ELSE 0 END), 0) AS tarjeta,
-            COALESCE(SUM(CASE WHEN v.forma_pago = 'transferencia' AND v.estado = 'confirmada' THEN v.total ELSE 0 END), 0) AS transferencia,
-            COALESCE(SUM(CASE WHEN v.forma_pago = 'credito'       AND v.estado = 'confirmada' THEN v.total ELSE 0 END), 0) AS credito
+            COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vp.efectivo      ELSE 0 END), 0) AS efectivo,
+            COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vp.tarjeta       ELSE 0 END), 0) AS tarjeta,
+            COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vp.transferencia ELSE 0 END), 0) AS transferencia
         ";
     }
 
+    // Nota: efectivo/tarjeta/transferencia se prorratean por línea según la
+    // proporción de cada método en el total de la venta (una venta mixta no
+    // tiene un solo método por línea de producto).
     private function colsDetalle(): string
     {
         return "
@@ -480,10 +502,9 @@ class ReporteVentasAgrupadoController extends Controller
             COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vd.cantidad ELSE 0 END), 0)                              AS unidades,
             COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vd.subtotal ELSE 0 END), 0)                              AS total,
             COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN (vd.precio_venta - vd.precio_costo) * vd.cantidad ELSE 0 END), 0) AS margen,
-            COALESCE(SUM(CASE WHEN v.forma_pago = 'efectivo'      AND v.estado = 'confirmada' THEN vd.subtotal ELSE 0 END), 0) AS efectivo,
-            COALESCE(SUM(CASE WHEN v.forma_pago = 'tarjeta'       AND v.estado = 'confirmada' THEN vd.subtotal ELSE 0 END), 0) AS tarjeta,
-            COALESCE(SUM(CASE WHEN v.forma_pago = 'transferencia' AND v.estado = 'confirmada' THEN vd.subtotal ELSE 0 END), 0) AS transferencia,
-            COALESCE(SUM(CASE WHEN v.forma_pago = 'credito'       AND v.estado = 'confirmada' THEN vd.subtotal ELSE 0 END), 0) AS credito
+            COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vd.subtotal * COALESCE(vp.efectivo,0)      / NULLIF(v.total,0) ELSE 0 END), 0) AS efectivo,
+            COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vd.subtotal * COALESCE(vp.tarjeta,0)       / NULLIF(v.total,0) ELSE 0 END), 0) AS tarjeta,
+            COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vd.subtotal * COALESCE(vp.transferencia,0) / NULLIF(v.total,0) ELSE 0 END), 0) AS transferencia
         ";
     }
 }

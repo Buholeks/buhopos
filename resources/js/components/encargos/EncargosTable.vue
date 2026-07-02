@@ -95,33 +95,57 @@
                                     </button>
                                 </div>
 
-                                <div v-if="!pedidoCerrado(pedido)" class="flex w-full items-center justify-end gap-1.5">
-                                    <input
-                                        v-model.number="abonos[pedido.id].monto"
-                                        type="number"
-                                        min="0"
-                                        :max="pedido.saldo_pendiente"
-                                        step="0.01"
-                                        class="w-20 rounded-xl border border-slate-200 px-2 py-1.5 text-right text-sm outline-none focus:border-emerald-500"
-                                        placeholder="0.00"
-                                    />
+                                <div v-if="!pedidoCerrado(pedido)" class="flex w-full flex-col items-end gap-1.5">
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <input
+                                            v-model.number="abonos[pedido.id].monto"
+                                            type="number"
+                                            min="0"
+                                            :max="pedido.saldo_pendiente"
+                                            step="0.01"
+                                            class="w-20 rounded-xl border border-slate-200 px-2 py-1.5 text-right text-sm outline-none focus:border-emerald-500"
+                                            placeholder="0.00"
+                                        />
+
+                                        <select
+                                            v-model="abonos[pedido.id].forma_pago"
+                                            class="rounded-xl border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-emerald-500"
+                                        >
+                                            <option value="efectivo">Efec.</option>
+                                            <option value="tarjeta">Tarj.</option>
+                                            <option value="transferencia">Trans.</option>
+                                        </select>
+
+                                        <button
+                                            type="button"
+                                            class="rounded-xl border border-emerald-200 px-2 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                                            @click="$emit('abonar', pedido)"
+                                        >
+                                            Abonar
+                                        </button>
+                                    </div>
 
                                     <select
-                                        v-model="abonos[pedido.id].forma_pago"
-                                        class="rounded-xl border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-emerald-500"
+                                        v-if="abonos[pedido.id].forma_pago === 'transferencia'"
+                                        v-model="abonos[pedido.id].cuenta_bancaria_id"
+                                        class="w-full rounded-xl border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-emerald-500"
                                     >
-                                        <option value="efectivo">Efec.</option>
-                                        <option value="tarjeta">Tarj.</option>
-                                        <option value="transferencia">Trans.</option>
+                                        <option value="" disabled>Cuenta bancaria…</option>
+                                        <option v-for="c in cuentasBancarias" :key="c.id" :value="c.id">
+                                            {{ c.nombre }}<template v-if="c.banco"> ({{ c.banco }})</template>
+                                        </option>
                                     </select>
 
-                                    <button
-                                        type="button"
-                                        class="rounded-xl border border-emerald-200 px-2 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-50"
-                                        @click="$emit('abonar', pedido)"
+                                    <select
+                                        v-if="abonos[pedido.id].forma_pago === 'tarjeta'"
+                                        v-model="abonos[pedido.id].terminal_pago_id"
+                                        class="w-full rounded-xl border border-slate-200 px-2 py-1.5 text-xs outline-none focus:border-emerald-500"
                                     >
-                                        Abonar
-                                    </button>
+                                        <option value="" disabled>Terminal…</option>
+                                        <option v-for="t in terminalesPago" :key="t.id" :value="t.id">
+                                            {{ t.nombre }}<template v-if="t.banco"> ({{ t.banco }})</template>
+                                        </option>
+                                    </select>
                                 </div>
 
                                 <p v-else class="text-xs font-bold text-slate-400">
@@ -147,6 +171,8 @@ defineProps({
     pedidos: { type: Array, default: () => [] },
     cargando: { type: Boolean, default: false },
     abonos: { type: Object, required: true },
+    cuentasBancarias: { type: Array, default: () => [] },
+    terminalesPago: { type: Array, default: () => [] },
 })
 
 defineEmits(['detalle', 'cancelar', 'abonar'])

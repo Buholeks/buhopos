@@ -1,15 +1,10 @@
 <template>
-    <div class="rounded-xl border border-black-200 bg-white p-3">
-        <div class="mb-2 flex items-center justify-between gap-2 flex-wrap">
+    <div class="rounded-xl border border-black-200 bg-white p-2">
+        <div class="mb-1.5 flex items-center justify-between gap-2 flex-wrap">
             <label
                 class="block text-[11px] font-semibold uppercase tracking-widest text-slate-400"
             >
                 Buscar producto
-                <span
-                    class="ml-2 normal-case font-normal tracking-normal text-slate-300"
-                >
-                    Nombre, código, SKU o código de barras
-                </span>
             </label>
 
             <div class="flex items-center gap-1">
@@ -36,7 +31,8 @@
                 v-model="local"
                 :leftIcon="Search"
                 :disabled="disabled"
-                placeholder="Escribe y presiona Enter…"
+                placeholder="Nombre, código, SKU o código de barras…"
+                title="F2 Buscar · Enter Buscar/seleccionar · Ctrl+Enter Guardar · Del Eliminar fila"
                 autocomplete="off"
                 @keydown.down.prevent="$emit('moveCursor', 1)"
                 @keydown.up.prevent="$emit('moveCursor', -1)"
@@ -193,28 +189,20 @@
                     local.length > 0 &&
                     !buscando
                 "
-                class="absolute left-0 right-0 top-[calc(100%+6px)] z-40 rounded-xl border border-slate-200 bg-white p-6 text-center shadow-[0_16px_48px_rgba(0,0,0,0.10)]"
+                class="absolute left-0 right-0 top-[calc(100%+6px)] z-40 flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-8 text-center shadow-[0_16px_48px_rgba(0,0,0,0.10),0_4px_12px_rgba(0,0,0,0.06)]"
             >
-                <div class="text-2xl">🔍</div>
-                <p class="mt-2 text-[13px] text-slate-500">
+                <div
+                    class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100"
+                >
+                    <SearchX class="h-5 w-5 text-slate-400" />
+                </div>
+                <p class="text-[13px] text-slate-500">
                     Sin resultados para
-                    <strong class="text-slate-700">{{ local }}</strong>
+                    <strong class="text-slate-700">"{{ local }}"</strong>
                 </p>
-            </div>
-
-            <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-400">
-                <span class="rounded-full bg-slate-100 px-2 py-0.5"
-                    >F2 Buscar</span
-                >
-                <span class="rounded-full bg-slate-100 px-2 py-0.5"
-                    >Enter Buscar</span
-                >
-                <span class="rounded-full bg-slate-100 px-2 py-0.5"
-                    >Ctrl+Enter Guardar</span
-                >
-                <span class="rounded-full bg-slate-100 px-2 py-0.5"
-                    >Del Eliminar fila</span
-                >
+                <p class="text-[11px] text-slate-400">
+                    Verifica el nombre, código o SKU e intenta de nuevo
+                </p>
             </div>
         </div>
     </div>
@@ -223,7 +211,7 @@
 <script setup>
 import { computed, ref } from "vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
-import { Search, X, Loader2, ImageOff, Cloud } from "lucide-vue-next";
+import { Search, X, Loader2, ImageOff, Cloud, SearchX } from "lucide-vue-next";
 
 const props = defineProps({
     modelValue: { type: String, default: "" },

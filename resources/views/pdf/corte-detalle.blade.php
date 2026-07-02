@@ -123,7 +123,6 @@
         <td><span class="label">Efectivo</span><span class="valor">{{ $fmt($corte->ventas_efectivo) }}</span></td>
         <td><span class="label">Tarjeta</span><span class="valor">{{ $fmt($corte->ventas_tarjeta) }}</span></td>
         <td><span class="label">Transferencia</span><span class="valor">{{ $fmt($corte->ventas_transferencia) }}</span></td>
-        <td><span class="label">Crédito</span><span class="valor">{{ $fmt($corte->ventas_credito) }}</span></td>
         <td><span class="label">Saldo a favor</span><span class="valor">{{ $fmt($corte->ventas_saldo_favor) }}</span></td>
     </tr>
 </table>
@@ -223,7 +222,7 @@
             <td>{{ $v->folio ?? $v->id }}</td>
             <td>{{ \Carbon\Carbon::parse($v->fecha)->setTimezone('America/Mexico_City')->format('H:i') }}</td>
             <td>{{ $v->user?->name ?? '—' }}</td>
-            <td>{{ ucfirst(str_replace('_', ' ', $v->forma_pago)) }}</td>
+            <td>{{ $v->pagos->pluck('forma_pago')->unique()->count() > 1 ? 'Mixto' : ucfirst(str_replace('_', ' ', $v->pagos->first()->forma_pago ?? '—')) }}</td>
             <td>{{ $v->detalles->map(fn($d) => ($d->producto?->nombre ?? '—') . ' x' . $d->cantidad)->join(', ') }}</td>
             <td class="text-right">{{ $v->descuento > 0 ? $fmt($v->descuento) : '—' }}</td>
             <td class="text-right">{{ $fmt($v->total) }}</td>

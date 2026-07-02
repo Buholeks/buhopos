@@ -32,7 +32,7 @@
             </div>
         </section>
 
-        <EncargosTable :pedidos="pedidos" :cargando="cargando" :abonos="abonos" @detalle="abrirDetalle" @cancelar="abrirCancelar" @abonar="registrarAbono" />
+        <EncargosTable :pedidos="pedidos" :cargando="cargando" :abonos="abonos" :cuentas-bancarias="cuentasBancarias" :terminales-pago="terminalesPago" @detalle="abrirDetalle" @cancelar="abrirCancelar" @abonar="registrarAbono" />
         <EncargoDetalleModal :visible="modalDetalle.visible" :cargando="modalDetalle.cargando" :pedido="modalDetalle.pedido" :data="modalDetalle.data" @close="cerrarDetalle" />
         <EncargoCancelarModal :visible="modalCancelar.visible" :procesando="modalCancelar.procesando" :pedido="modalCancelar.pedido" @close="cerrarCancelar" @confirm="ejecutarCancelacion" />
     </main>
@@ -51,13 +51,21 @@ import { useEncargos } from '@/stores/useEncargos'
 let timer = null
 const modalDetalle = reactive({ visible: false, cargando: false, pedido: null, data: null })
 const modalCancelar = reactive({ visible: false, procesando: false, pedido: null })
-const { pedidos, cargando, buscar, filtroEstado, filtroFechaDesde, filtroFechaHasta, abonos, cargarPedidos, registrarAbono, cancelarPedido } = useEncargos({ tipo: 'apartado' })
+const {
+    pedidos, cargando, buscar, filtroEstado, filtroFechaDesde, filtroFechaHasta, abonos,
+    cargarPedidos, registrarAbono, cancelarPedido,
+    cuentasBancarias, terminalesPago, cargarCuentasBancarias, cargarTerminalesPago,
+} = useEncargos({ tipo: 'apartado' })
 
 watch(buscar, () => {
     window.clearTimeout(timer)
     timer = window.setTimeout(cargarPedidos, 350)
 })
-onMounted(cargarPedidos)
+onMounted(() => {
+    cargarPedidos()
+    cargarCuentasBancarias()
+    cargarTerminalesPago()
+})
 
 async function abrirDetalle(pedido) {
     modalDetalle.visible = true

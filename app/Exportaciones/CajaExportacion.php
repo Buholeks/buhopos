@@ -61,7 +61,6 @@ class CajaExportacion extends ExportacionBase
             'Efectivo',
             'Tarjeta',
             'Transferencia',
-            'Crédito',
             'Total Ventas',
             'Movs. Efectivo',
             'Dif. Efectivo',
@@ -113,7 +112,7 @@ class CajaExportacion extends ExportacionBase
         $totalVentasGlobal = $coleccion->sum(
             fn($c) =>
             (float) $c->ventas_efectivo + (float) $c->ventas_tarjeta +
-                (float) $c->ventas_transferencia + (float) $c->ventas_credito
+                (float) $c->ventas_transferencia
         );
 
         $this->totalesCache = [
@@ -124,7 +123,6 @@ class CajaExportacion extends ExportacionBase
             number_format((float) $coleccion->sum('ventas_efectivo'), 2),
             number_format((float) $coleccion->sum('ventas_tarjeta'), 2),
             number_format((float) $coleccion->sum('ventas_transferencia'), 2),
-            number_format((float) $coleccion->sum('ventas_credito'), 2),
             number_format($totalVentasGlobal, 2),
             number_format((float) $coleccion->sum('movs_efectivo'), 2),
             number_format((float) $coleccion->sum('dif_efectivo'), 2),
@@ -140,10 +138,9 @@ class CajaExportacion extends ExportacionBase
             number_format((float) $c->ventas_efectivo, 2),
             number_format((float) $c->ventas_tarjeta, 2),
             number_format((float) $c->ventas_transferencia, 2),
-            number_format((float) $c->ventas_credito, 2),
             number_format(
                 (float) $c->ventas_efectivo + (float) $c->ventas_tarjeta +
-                    (float) $c->ventas_transferencia + (float) $c->ventas_credito,
+                    (float) $c->ventas_transferencia,
                 2
             ),
             number_format((float) $c->movs_efectivo, 2),
@@ -163,12 +160,11 @@ class CajaExportacion extends ExportacionBase
             'E' => 14, // Efectivo
             'F' => 14, // Tarjeta
             'G' => 16, // Transferencia
-            'H' => 12, // Crédito
-            'I' => 15, // Total Ventas
-            'J' => 16, // Movs. Efectivo
-            'K' => 15, // Dif. Efectivo
-            'L' => 13, // Dif. Tarjeta
-            'M' => 18, // Dif. Transferencia
+            'H' => 15, // Total Ventas
+            'I' => 16, // Movs. Efectivo
+            'J' => 15, // Dif. Efectivo
+            'K' => 13, // Dif. Tarjeta
+            'L' => 18, // Dif. Transferencia
         ];
     }
 }

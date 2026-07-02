@@ -226,7 +226,6 @@ const formasPago = [
     { id: "efectivo", nombre: "Efectivo" },
     { id: "tarjeta", nombre: "Tarjeta" },
     { id: "transferencia", nombre: "Transferencia" },
-    { id: "credito", nombre: "Crédito" },
 ];
 
 const f = reactive({

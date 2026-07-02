@@ -321,7 +321,7 @@
                                                 mov.forma_pago ===
                                                 'transferencia',
                                             'bg-amber-50 text-amber-700':
-                                                mov.forma_pago === 'credito',
+                                                mov.forma_pago === 'saldo_favor',
                                         }"
                                     >
                                         <Banknote
@@ -467,7 +467,6 @@ const opcionesFormaPago = [
     { id: "efectivo", nombre: "Efectivo" },
     { id: "tarjeta", nombre: "Tarjeta" },
     { id: "transferencia", nombre: "Transferencia" },
-    { id: "credito", nombre: "Crédito" },
 ];
 
 const filtros = ref({
@@ -622,7 +621,7 @@ function etiquetaFormaPago(f) {
             efectivo: "Efectivo",
             tarjeta: "Tarjeta",
             transferencia: "Transferencia",
-            credito: "Crédito",
+            saldo_favor: "Saldo a favor",
         }[f] ?? f
     );
 }

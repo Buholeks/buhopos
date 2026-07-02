@@ -13,15 +13,37 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
     const cliente = ref(null)
     const resumenCliente = reactive({ saldo_favor: 0, pedidos_disponibles: [] })
     const abonos = reactive({})
+    const cuentasBancarias = ref([])
+    const terminalesPago = ref([])
 
     const form = reactive({
         tipo,
         fecha_promesa: '',
         anticipo: 0,
         forma_pago: 'efectivo',
+        cuenta_bancaria_id: '',
+        terminal_pago_id: '',
         notas: '',
         detalles: [],
     })
+
+    async function cargarCuentasBancarias() {
+        try {
+            const { data } = await http.get('/api/cuentas-bancarias', { params: { activo: 1 } })
+            cuentasBancarias.value = data
+        } catch {
+            cuentasBancarias.value = []
+        }
+    }
+
+    async function cargarTerminalesPago() {
+        try {
+            const { data } = await http.get('/api/terminales-pago', { params: { activo: 1 } })
+            terminalesPago.value = data
+        } catch {
+            terminalesPago.value = []
+        }
+    }
 
     const subtotal = computed(() => form.detalles.reduce((total, detalle) => total + Number(detalle.cantidad || 0) * Number(detalle.precio_acordado || 0), 0))
     const saldoPendiente = computed(() => Math.max(0, subtotal.value - Number(form.anticipo || 0)))
@@ -49,7 +71,9 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
     }
 
     function inicializarAbono(pedidoId) {
-        if (!abonos[pedidoId]) abonos[pedidoId] = { monto: '', forma_pago: 'efectivo' }
+        if (!abonos[pedidoId]) {
+            abonos[pedidoId] = { monto: '', forma_pago: 'efectivo', cuenta_bancaria_id: '', terminal_pago_id: '' }
+        }
     }
 
     async function buscarClientes(q) {
@@ -154,6 +178,17 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
             return false
         }
 
+        if (Number(form.anticipo) > 0) {
+            if (form.forma_pago === 'transferencia' && !form.cuenta_bancaria_id) {
+                toastError('Selecciona la cuenta bancaria del anticipo')
+                return false
+            }
+            if (form.forma_pago === 'tarjeta' && !form.terminal_pago_id) {
+                toastError('Selecciona la terminal del anticipo')
+                return false
+            }
+        }
+
         const detalles = form.detalles.map((detalle) => ({
             producto_id: detalle.producto_id,
             variante_id: detalle.variante_id,
@@ -177,12 +212,15 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
 
         guardando.value = true
         try {
+            const hayAnticipo = Number(form.anticipo || 0) > 0
             await http.post('/api/pedidos', {
                 tipo,
                 cliente_id: cliente.value.id,
                 fecha_promesa: form.fecha_promesa || null,
                 anticipo: Number(form.anticipo || 0),
-                forma_pago: Number(form.anticipo || 0) > 0 ? form.forma_pago : null,
+                forma_pago: hayAnticipo ? form.forma_pago : null,
+                cuenta_bancaria_id: hayAnticipo && form.forma_pago === 'transferencia' ? form.cuenta_bancaria_id || null : null,
+                terminal_pago_id: hayAnticipo && form.forma_pago === 'tarjeta' ? form.terminal_pago_id || null : null,
                 notas: form.notas,
                 detalles,
             })
@@ -204,9 +242,18 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         if (monto <= 0) return toastError('Captura un monto de abono')
         if (monto > Number(pedido.saldo_pendiente)) return toastError('El abono supera el saldo pendiente')
 
+        const formaPago = estado.forma_pago || 'efectivo'
+        if (formaPago === 'transferencia' && !estado.cuenta_bancaria_id) return toastError('Selecciona la cuenta bancaria')
+        if (formaPago === 'tarjeta' && !estado.terminal_pago_id) return toastError('Selecciona la terminal')
+
         try {
-            await http.post(`/api/pedidos/${pedido.id}/abonos`, { monto, forma_pago: estado.forma_pago || 'efectivo' })
-            abonos[pedido.id] = { monto: '', forma_pago: 'efectivo' }
+            await http.post(`/api/pedidos/${pedido.id}/abonos`, {
+                monto,
+                forma_pago: formaPago,
+                cuenta_bancaria_id: formaPago === 'transferencia' ? estado.cuenta_bancaria_id || null : null,
+                terminal_pago_id: formaPago === 'tarjeta' ? estado.terminal_pago_id || null : null,
+            })
+            abonos[pedido.id] = { monto: '', forma_pago: 'efectivo', cuenta_bancaria_id: '', terminal_pago_id: '' }
             toastSuccess('Abono registrado')
             await cargarPedidos()
         } catch (e) {
@@ -227,6 +274,8 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         form.fecha_promesa = ''
         form.anticipo = 0
         form.forma_pago = 'efectivo'
+        form.cuenta_bancaria_id = ''
+        form.terminal_pago_id = ''
         form.notas = ''
         form.detalles = []
     }
@@ -242,6 +291,10 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         cliente,
         resumenCliente,
         abonos,
+        cuentasBancarias,
+        terminalesPago,
+        cargarCuentasBancarias,
+        cargarTerminalesPago,
         form,
         subtotal,
         saldoPendiente,

@@ -952,6 +952,9 @@
                                                 Forma
                                             </th>
                                             <th class="px-4 py-3 text-left">
+                                                Cuenta
+                                            </th>
+                                            <th class="px-4 py-3 text-left">
                                                 Referencia
                                             </th>
                                             <th class="px-4 py-3 text-right">
@@ -988,6 +991,11 @@
                                                         )
                                                     }}
                                                 </span>
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 text-slate-500"
+                                            >
+                                                {{ p.cuenta_bancaria_nombre ?? "-" }}
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-slate-500"
@@ -1145,6 +1153,27 @@
                                 </select>
                             </div>
 
+                            <div v-if="formPago.forma_pago === 'transferencia'">
+                                <label
+                                    class="mb-1 block text-xs font-medium text-slate-500"
+                                >
+                                    Cuenta bancaria
+                                </label>
+                                <select
+                                    v-model="formPago.cuenta_bancaria_id"
+                                    class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                >
+                                    <option value="" disabled>Selecciona una cuenta…</option>
+                                    <option
+                                        v-for="c in cuentasBancarias"
+                                        :key="c.id"
+                                        :value="c.id"
+                                    >
+                                        {{ c.nombre }}<template v-if="c.banco"> ({{ c.banco }})</template>
+                                    </option>
+                                </select>
+                            </div>
+
                             <BaseInput
                                 v-model="formPago.referencia"
                                 label="Referencia"
@@ -1199,6 +1228,9 @@
                                                 Forma
                                             </th>
                                             <th class="px-4 py-3 text-left">
+                                                Cuenta
+                                            </th>
+                                            <th class="px-4 py-3 text-left">
                                                 Referencia
                                             </th>
                                             <th class="px-4 py-3 text-right">
@@ -1235,6 +1267,11 @@
                                                         )
                                                     }}
                                                 </span>
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 text-slate-500"
+                                            >
+                                                {{ p.cuenta_bancaria?.nombre ?? "-" }}
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-slate-500"
@@ -1383,6 +1420,7 @@ const detalle = ref(null);
 const datosPagos = ref(null);
 const compraActual = ref(null);
 const proveedores = ref([]);
+const cuentasBancarias = ref([]);
 
 const filtros = ref({
     fecha_inicio: fechaOffset(-30),
@@ -1402,6 +1440,7 @@ const formPago = ref({
     monto: "",
     fecha_pago: fechaOffset(0),
     forma_pago: "efectivo",
+    cuenta_bancaria_id: "",
     referencia: "",
     notas: "",
 });
@@ -1760,9 +1799,20 @@ function resetFormPago() {
         monto: "",
         fecha_pago: fechaOffset(0),
         forma_pago: "efectivo",
+        cuenta_bancaria_id: "",
         referencia: "",
         notas: "",
     };
+}
+
+async function cargarCuentasBancarias() {
+    try {
+        const { data } = await axios.get("/api/cuentas-bancarias", { params: { activo: 1 } });
+        cuentasBancarias.value = data;
+    } catch (e) {
+        console.error(e);
+        cuentasBancarias.value = [];
+    }
 }
 
 async function abrirPagos(compra) {
@@ -1814,12 +1864,20 @@ async function registrarPago() {
         return;
     }
 
+    if (formPago.value.forma_pago === "transferencia" && !formPago.value.cuenta_bancaria_id) {
+        toastWarning("Selecciona la cuenta bancaria");
+        return;
+    }
+
     guardandoPago.value = true;
 
     try {
         await axios.post(
             `/api/compras/${compraActual.value.id}/pagos`,
-            formPago.value,
+            {
+                ...formPago.value,
+                cuenta_bancaria_id: formPago.value.forma_pago === "transferencia" ? formPago.value.cuenta_bancaria_id || null : null,
+            },
         );
 
         const { data } = await axios.get(
@@ -1879,6 +1937,7 @@ async function eliminarPago(pago) {
 
 onMounted(async () => {
     await cargarProveedores();
+    cargarCuentasBancarias();
 
     if (esVistaCompras.value) {
         await buscar();

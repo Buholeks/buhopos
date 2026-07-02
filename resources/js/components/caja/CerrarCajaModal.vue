@@ -259,6 +259,10 @@
                     placeholder="0.00"
                   />
                 </div>
+                <p class="mt-2 text-xs text-slate-500">
+                  Esperado:
+                  <span class="font-mono font-semibold text-slate-700">{{ fmt(corte?.esperado_tarjeta) }}</span>
+                </p>
               </div>
 
               <div>
@@ -274,6 +278,10 @@
                     placeholder="0.00"
                   />
                 </div>
+                <p class="mt-2 text-xs text-slate-500">
+                  Esperado:
+                  <span class="font-mono font-semibold text-slate-700">{{ fmt(corte?.esperado_transferencia) }}</span>
+                </p>
               </div>
             </div>
 

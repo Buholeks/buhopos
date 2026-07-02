@@ -16,6 +16,7 @@ class PagoProveedor extends Model
         'monto',
         'fecha_pago',
         'forma_pago',
+        'cuenta_bancaria_id',
         'referencia',
         'notas',
     ];
@@ -35,5 +36,10 @@ class PagoProveedor extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cuentaBancaria()
+    {
+        return $this->belongsTo(CuentaBancaria::class);
     }
 }

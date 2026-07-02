@@ -82,7 +82,7 @@ class CorteCajaController extends Controller
             ->where('sucursal_id', $user->sucursal_id)
             ->where('terminal', $terminal)
             ->where('estado', 'abierto')
-            ->with(['desglose', 'movimientos.user:id,name'])
+            ->with(['desglose', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco'])
             ->first();
 
         if ($corte) {
@@ -144,24 +144,34 @@ class CorteCajaController extends Controller
             ->firstOrFail();
 
         $datos = $request->validate([
-            'tipo'       => ['required', 'in:ingreso,egreso'],
-            'forma_pago' => ['required', 'in:efectivo,tarjeta,transferencia'],
+            'tipo'               => ['required', 'in:ingreso,egreso'],
+            'forma_pago'         => ['required', 'in:efectivo,tarjeta,transferencia'],
+            'cuenta_bancaria_id' => [
+                'required_if:forma_pago,transferencia', 'nullable', 'integer',
+                Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
+            ],
+            'terminal_pago_id' => [
+                'required_if:forma_pago,tarjeta', 'nullable', 'integer',
+                Rule::exists('terminales_pago', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
+            ],
             'monto'      => ['required', 'numeric', 'min:0.01'],
             'concepto'   => ['required', 'string', 'max:255'],
         ]);
 
         $mov = MovimientoCaja::create([
-            'corte_id'   => $corte->id,
-            'user_id'    => $user->id,
-            'tipo'       => $datos['tipo'],
-            'forma_pago' => $datos['forma_pago'],
-            'monto'      => $datos['monto'],
-            'concepto'   => $datos['concepto'],
+            'corte_id'           => $corte->id,
+            'user_id'            => $user->id,
+            'tipo'               => $datos['tipo'],
+            'forma_pago'         => $datos['forma_pago'],
+            'cuenta_bancaria_id' => $datos['cuenta_bancaria_id'] ?? null,
+            'terminal_pago_id'   => $datos['terminal_pago_id'] ?? null,
+            'monto'              => $datos['monto'],
+            'concepto'           => $datos['concepto'],
         ]);
 
         $corte->recalcularMovimientos();
 
-        return response()->json($mov->load('user:id,name'), 201);
+        return response()->json($mov->load(['user:id,name', 'cuentaBancaria:id,nombre,banco', 'terminalPago:id,nombre,banco']), 201);
     }
 
 public function cerrar(Request $request, int $id): JsonResponse
@@ -275,7 +285,7 @@ public function cerrar(Request $request, int $id): JsonResponse
         DB::commit();
 
         return response()->json(
-            $corte->load(['desglose', 'movimientos.user:id,name', 'user:id,name'])
+            $corte->load(['desglose', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco', 'user:id,name'])
         );
     } catch (\Throwable $e) {
         DB::rollBack();
@@ -290,7 +300,7 @@ public function cerrar(Request $request, int $id): JsonResponse
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
-            ->with(['user:id,name', 'desglose', 'movimientos.user:id,name'])
+            ->with(['user:id,name', 'desglose', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco'])
             ->findOrFail($id);
 
         // refrescar totales (si todavía estuviera abierto)
@@ -333,7 +343,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             'hasta'      => ['nullable', 'date', 'after_or_equal:desde'],
             'origen'     => ['nullable', Rule::in(['', 'venta', 'movimiento'])],
             'tipo'       => ['nullable', Rule::in(['', 'ingreso', 'egreso'])],
-            'forma_pago' => ['nullable', Rule::in(['', 'efectivo', 'tarjeta', 'transferencia', 'credito'])],
+            'forma_pago' => ['nullable', Rule::in(['', 'efectivo', 'tarjeta', 'transferencia'])],
             'user_id'    => ['nullable', 'integer'],
             'concepto'   => ['nullable', 'string', 'max:120'],
             'formato'    => ['required', 'in:excel,pdf'],
@@ -413,7 +423,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
             'origen' => ['nullable', Rule::in(['', 'venta', 'movimiento'])],
             'tipo' => ['nullable', Rule::in(['', 'ingreso', 'egreso'])],
-            'forma_pago' => ['nullable', Rule::in(['', 'efectivo', 'tarjeta', 'transferencia', 'credito'])],
+            'forma_pago' => ['nullable', Rule::in(['', 'efectivo', 'tarjeta', 'transferencia'])],
             'user_id' => ['nullable', 'integer'],
             'concepto' => ['nullable', 'string', 'max:120'],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -459,8 +469,9 @@ public function cerrar(Request $request, int $id): JsonResponse
         if ($userId)    $qMov->where('m.user_id', $userId);
         if ($concepto)  $qMov->where('m.concepto', 'like', "%{$concepto}%");
 
-        // ── Rama 2: ventas confirmadas ────────────────────────────────────────
-        $qVentas = DB::table('ventas as v')
+        // ── Rama 2: ventas confirmadas (una fila por línea de venta_pagos) ────
+        $qVentas = DB::table('venta_pagos as vp')
+            ->join('ventas as v', 'v.id', '=', 'vp.venta_id')
             ->join('users as u', 'v.user_id', '=', 'u.id')
             ->join('cortes_caja as c', 'v.corte_id', '=', 'c.id')
             ->where('v.empresa_id', $eid)
@@ -468,22 +479,23 @@ public function cerrar(Request $request, int $id): JsonResponse
             ->where('c.empresa_id', $eid)
             ->where('v.estado', 'confirmada')
             ->whereNotNull('v.corte_id')
+            ->whereIn('vp.forma_pago', ['efectivo', 'tarjeta', 'transferencia'])
             ->where('v.created_at', '>=', $desdeTs)
             ->where('v.created_at', '<=', $hastaTs)
             ->select([
-                'v.id',
+                'vp.id',
                 DB::raw("'venta' as origen"),
                 DB::raw("DATE_FORMAT(v.created_at, '%Y-%m-%dT%H:%i:%S+00:00') as fecha_hora"),
                 'u.name as usuario',
                 DB::raw("'ingreso' as tipo"),
-                'v.forma_pago',
-                DB::raw('CAST(GREATEST(v.total - COALESCE(v.saldo_aplicado, 0), 0) AS DECIMAL(14,2)) as monto'),
+                'vp.forma_pago',
+                DB::raw('CAST(vp.monto AS DECIMAL(14,2)) as monto'),
                 DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id)) as concepto"),
                 'c.terminal',
                 'v.folio',
             ]);
 
-        if ($formaPago) $qVentas->where('v.forma_pago', $formaPago);
+        if ($formaPago) $qVentas->where('vp.forma_pago', $formaPago);
         if ($userId)    $qVentas->where('v.user_id', $userId);
         if ($concepto)  $qVentas->where(DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id))"), 'like', "%{$concepto}%");
         // ventas son siempre ingreso; si filtran egreso, excluimos ventas
@@ -551,12 +563,12 @@ public function cerrar(Request $request, int $id): JsonResponse
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
-            ->with(['user:id,name', 'movimientos.user:id,name'])
+            ->with(['user:id,name', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco'])
             ->findOrFail($id);
 
         $ventas = Venta::where('corte_id', $corte->id)
             ->where('estado', 'confirmada')
-            ->with(['detalles.producto:id,nombre', 'user:id,name'])
+            ->with(['detalles.producto:id,nombre', 'user:id,name', 'pagos'])
             ->orderBy('fecha')
             ->get();
 

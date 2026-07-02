@@ -435,12 +435,12 @@ const muestra = crearTicketVenta({
     sucursal: { nombre: "Sucursal Centro", direccion: "Calle 5 de Mayo #10", telefono: "55 1234 5678" },
     vendedor: { name: "Vendedor" },
     cliente: null,
-    forma_pago: "efectivo",
+    pagos: [
+        { forma_pago: "efectivo", monto: 450, monto_recibido: 500, cambio: 50 },
+    ],
     subtotal: 450,
     descuento: 0,
     total: 450,
-    monto_recibido: 500,
-    cambio: 50,
     detalles: [
         { cantidad: 2, producto_nombre: "Producto A", precio_aplicado: 100, subtotal: 200 },
         { cantidad: 1, producto_nombre: "Producto B", precio_aplicado: 250, subtotal: 250 },

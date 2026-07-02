@@ -722,11 +722,44 @@ class VentaController extends Controller
         $sucursalId = (int) $user->sucursal_id;
         $q          = trim($request->q ?? '');
         $pedidoDetalleId = $request->integer('pedido_detalle_id') ?: null;
+        $filtroStock = $request->input('filtro_stock', 'todos');
 
         if (strlen($q) < 1) return response()->json([]);
         $tokens = ProductVariantSearch::tokens($q);
 
         $resultados = collect();
+
+        // ── Filtro de existencia a nivel SQL, antes del limit/take ───────────
+        // Si se aplicara solo al final (sobre los 10-15 resultados ya
+        // recortados por relevancia de texto), una búsqueda con muchas
+        // coincidencias (ej. una marca con cientos de variantes) podía dejar
+        // fuera del recorte justo a las que sí tienen existencia, mostrando
+        // "sin resultados" con el filtro "Con existencia" aunque sí hubiera
+        // stock real. Al exigir el whereExists/whereNotExists antes del
+        // limit(), el recorte por relevancia solo compite entre candidatos
+        // que ya cumplen el filtro de existencia pedido.
+        $aplicarFiltroExistencia = function ($query, string $productoIdCol, ?string $varianteIdCol) use ($filtroStock, $empresaId, $sucursalId) {
+            if ($filtroStock === 'todos') {
+                return $query;
+            }
+
+            $condicion = function ($sub) use ($productoIdCol, $varianteIdCol, $empresaId, $sucursalId) {
+                $sub->select(DB::raw(1))
+                    ->from('inventario')
+                    ->where('inventario.empresa_id', $empresaId)
+                    ->where('inventario.sucursal_id', $sucursalId)
+                    ->whereColumn('inventario.producto_id', $productoIdCol)
+                    ->where('inventario.stock', '>', 0);
+
+                $varianteIdCol
+                    ? $sub->whereColumn('inventario.variante_id', $varianteIdCol)
+                    : $sub->whereNull('inventario.variante_id');
+            };
+
+            return $filtroStock === 'con_existencia'
+                ? $query->whereExists($condicion)
+                : $query->whereNotExists($condicion);
+        };
 
         // ── Helper: precios con herencia variante > producto ─────────────────
         $resolverPrecio = fn($varVal, $prodVal) => ($varVal && (float)$varVal > 0) ? (float)$varVal : (($prodVal && (float)$prodVal > 0) ? (float)$prodVal : null);
@@ -851,6 +884,7 @@ class VentaController extends Controller
             ->where('activo', true)
             ->where('tiene_variantes', false)
             ->tap(fn($query) => ProductVariantSearch::applyProductoTokens($query, $tokens))
+            ->tap(fn($query) => $aplicarFiltroExistencia($query, 'productos.id', null))
             ->select(
                 'id',
                 'nombre',
@@ -941,6 +975,7 @@ class VentaController extends Controller
             ->where(
                 fn($q2) => ProductVariantSearch::applyVarianteTokens($q2, $tokens)
             )
+            ->tap(fn($query) => $aplicarFiltroExistencia($query, 'producto_variantes.producto_id', 'producto_variantes.id'))
             ->limit(80)
             ->get()
             ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)))

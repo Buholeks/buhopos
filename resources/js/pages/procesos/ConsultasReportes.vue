@@ -56,6 +56,13 @@ const consultas = [
         permiso: "compras.ver",
     },
     {
+        label: "Consulta de articulo",
+        icon: PackageSearch,
+        to: { name: "reportes-articulo" },
+        badge: "Disponible",
+        permiso: "reportes.ver",
+    },
+    {
         label: "Reporte de utilidades",
         icon: TrendingUp,
         to: { name: "reportes-utilidades" },

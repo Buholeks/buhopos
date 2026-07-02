@@ -9,6 +9,7 @@ use App\Models\Producto;
 use App\Models\ProductoVariante;
 use App\Models\TipoAtributo;
 use App\Models\VarianteAtributo;
+use App\Servicios\KardexServicio;
 use App\Servicios\ProductosImportacionServicio;
 use App\Support\VariantImageResolver;
 use App\Traits\HandlesMediaImages;
@@ -174,6 +175,29 @@ class ProductoController extends Controller
             }
 
             $producto->save();
+
+            app(KardexServicio::class)->registrar([
+                'empresa_id' => $empresaId,
+                'sucursal_id' => $this->sucursalId(),
+                'producto_id' => $producto->id,
+                'variante_id' => null,
+                'user_id' => Auth::id(),
+                'tipo' => 'alta_producto',
+                'direccion' => 'neutro',
+                'cantidad' => 0,
+                'stock_antes' => 0,
+                'stock_despues' => 0,
+                'costo_unitario' => $producto->precio_costo !== null ? (float) $producto->precio_costo : null,
+                'precio_unitario' => $producto->precio_venta !== null ? (float) $producto->precio_venta : null,
+                'referencia_tipo' => 'producto',
+                'referencia_id' => $producto->id,
+                'folio' => $producto->codigo,
+                'fecha' => $producto->created_at ?? now(),
+                'metadata' => [
+                    'nombre' => $producto->nombre,
+                    'codigo' => $producto->codigo,
+                ],
+            ]);
 
             DB::commit();
 
@@ -475,6 +499,31 @@ class ProductoController extends Controller
             if (! $producto->tiene_variantes) {
                 $producto->update(['tiene_variantes' => true]);
             }
+
+            app(KardexServicio::class)->registrar([
+                'empresa_id' => $empresaId,
+                'sucursal_id' => $this->sucursalId(),
+                'producto_id' => $producto->id,
+                'variante_id' => $variante->id,
+                'user_id' => Auth::id(),
+                'tipo' => 'alta_variante',
+                'direccion' => 'neutro',
+                'cantidad' => 0,
+                'stock_antes' => 0,
+                'stock_despues' => 0,
+                'costo_unitario' => $variante->precio_costo !== null ? (float) $variante->precio_costo : null,
+                'precio_unitario' => $variante->precio_venta !== null ? (float) $variante->precio_venta : null,
+                'referencia_tipo' => 'producto_variante',
+                'referencia_id' => $variante->id,
+                'folio' => $variante->sku,
+                'fecha' => $variante->created_at ?? now(),
+                'metadata' => [
+                    'producto_id' => $producto->id,
+                    'producto_codigo' => $producto->codigo,
+                    'sku' => $variante->sku,
+                    'codigo_barras' => $variante->codigo_barras,
+                ],
+            ]);
 
             DB::commit();
 

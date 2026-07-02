@@ -10,6 +10,7 @@ use App\Models\Serie;
 use App\Models\Sucursal;
 use App\Models\Traspaso;
 use App\Models\TraspasoDetalle;
+use App\Servicios\KardexServicio;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -435,7 +436,12 @@ class TraspasoController extends Controller
                 throw new \RuntimeException('Solo la sucursal destino puede rechazar este traspaso.');
             }
 
-            $this->devolverPendienteAOrigen($traspaso);
+            $this->devolverPendienteAOrigen(
+                $traspaso,
+                'rechazo_traspaso',
+                (int) $user->id,
+                $data['motivo_rechazo'] ?? null
+            );
 
             $traspaso->update([
                 'estado' => 'rechazado',
@@ -476,7 +482,12 @@ class TraspasoController extends Controller
                 throw new \RuntimeException('Solo la sucursal origen puede cancelar un traspaso pendiente.');
             }
 
-            $this->devolverPendienteAOrigen($traspaso);
+            $this->devolverPendienteAOrigen(
+                $traspaso,
+                'cancelacion_traspaso',
+                (int) $user->id,
+                $data['motivo_cancelacion'] ?? null
+            );
 
             $traspaso->update([
                 'estado' => 'cancelado',
@@ -562,13 +573,15 @@ class TraspasoController extends Controller
             throw new \RuntimeException("Stock insuficiente para {$producto->nombre}. Disponible: {$stockOrigen}, solicitado: {$cantidad}.");
         }
 
+        $stockAntes = (float) $origen->stock;
+        $stockDespues = $stockAntes - $cantidad;
         $origen->descontarVenta($cantidad);
 
         if ($serie) {
             $serie->update(['estado' => 'apartado']);
         }
 
-        TraspasoDetalle::create([
+        $traspasoDetalle = TraspasoDetalle::create([
             'traspaso_id' => $traspaso->id,
             'producto_id' => $productoId,
             'variante_id' => $varianteId,
@@ -581,6 +594,32 @@ class TraspasoController extends Controller
             'precio_venta' => $this->precioVenta($producto, $variante, $serie),
             'cantidad_recibida' => 0,
             'estado' => 'pendiente',
+        ]);
+
+        app(KardexServicio::class)->registrar([
+            'empresa_id' => $traspaso->empresa_id,
+            'sucursal_id' => $traspaso->origen_sucursal_id,
+            'producto_id' => $productoId,
+            'variante_id' => $varianteId,
+            'serie_id' => $serie?->id,
+            'user_id' => $traspaso->user_id,
+            'tipo' => 'traspaso_salida',
+            'direccion' => 'salida',
+            'cantidad' => $cantidad,
+            'stock_antes' => $stockAntes,
+            'stock_despues' => $stockDespues,
+            'costo_unitario' => $traspasoDetalle->precio_costo,
+            'precio_unitario' => $traspasoDetalle->precio_venta,
+            'importe' => round($cantidad * (float) $traspasoDetalle->precio_costo, 2),
+            'referencia_tipo' => 'traspaso',
+            'referencia_id' => $traspaso->id,
+            'referencia_detalle_id' => $traspasoDetalle->id,
+            'folio' => $traspaso->folio,
+            'fecha' => $traspaso->created_at ?? now(),
+            'metadata' => [
+                'origen_sucursal_id' => $traspaso->origen_sucursal_id,
+                'destino_sucursal_id' => $traspaso->destino_sucursal_id,
+            ],
         ]);
 
         return $cantidad;
@@ -598,7 +637,36 @@ class TraspasoController extends Controller
             $detalle->variante_id ? (int) $detalle->variante_id : null
         );
 
-        $destino->increment('stock', (float) $detalle->cantidad);
+        $stockAntes = (float) $destino->stock;
+        $stockDespues = $stockAntes + (float) $detalle->cantidad;
+        $destino->stock = $stockDespues;
+        $destino->save();
+
+        app(KardexServicio::class)->registrar([
+            'empresa_id' => $traspaso->empresa_id,
+            'sucursal_id' => $traspaso->destino_sucursal_id,
+            'producto_id' => $detalle->producto_id,
+            'variante_id' => $detalle->variante_id,
+            'serie_id' => $detalle->serie_id,
+            'user_id' => Auth::id(),
+            'tipo' => 'traspaso_entrada',
+            'direccion' => 'entrada',
+            'cantidad' => (float) $detalle->cantidad,
+            'stock_antes' => $stockAntes,
+            'stock_despues' => $stockDespues,
+            'costo_unitario' => (float) $detalle->precio_costo,
+            'precio_unitario' => (float) $detalle->precio_venta,
+            'importe' => round((float) $detalle->cantidad * (float) $detalle->precio_costo, 2),
+            'referencia_tipo' => 'traspaso',
+            'referencia_id' => $traspaso->id,
+            'referencia_detalle_id' => $detalle->id,
+            'folio' => $traspaso->folio,
+            'fecha' => now(),
+            'metadata' => [
+                'origen_sucursal_id' => $traspaso->origen_sucursal_id,
+                'destino_sucursal_id' => $traspaso->destino_sucursal_id,
+            ],
+        ]);
 
         if ($detalle->serie_id) {
             $serie = Serie::where('id', $detalle->serie_id)
@@ -619,7 +687,7 @@ class TraspasoController extends Controller
         }
     }
 
-    private function devolverPendienteAOrigen(Traspaso $traspaso): void
+    private function devolverPendienteAOrigen(Traspaso $traspaso, string $tipo, int $userId, ?string $motivo = null): void
     {
         $traspaso->loadMissing('detalles');
 
@@ -636,7 +704,37 @@ class TraspasoController extends Controller
                 0
             );
 
-            $origen->increment('stock', (float) $detalle->cantidad);
+            $stockAntes = (float) $origen->stock;
+            $stockDespues = $stockAntes + (float) $detalle->cantidad;
+            $origen->stock = $stockDespues;
+            $origen->save();
+
+            app(KardexServicio::class)->registrar([
+                'empresa_id' => $traspaso->empresa_id,
+                'sucursal_id' => $traspaso->origen_sucursal_id,
+                'producto_id' => $detalle->producto_id,
+                'variante_id' => $detalle->variante_id,
+                'serie_id' => $detalle->serie_id,
+                'user_id' => $userId,
+                'tipo' => $tipo,
+                'direccion' => 'entrada',
+                'cantidad' => (float) $detalle->cantidad,
+                'stock_antes' => $stockAntes,
+                'stock_despues' => $stockDespues,
+                'costo_unitario' => (float) $detalle->precio_costo,
+                'precio_unitario' => (float) $detalle->precio_venta,
+                'importe' => round((float) $detalle->cantidad * (float) $detalle->precio_costo, 2),
+                'referencia_tipo' => 'traspaso',
+                'referencia_id' => $traspaso->id,
+                'referencia_detalle_id' => $detalle->id,
+                'folio' => $traspaso->folio,
+                'motivo' => $motivo,
+                'fecha' => now(),
+                'metadata' => [
+                    'origen_sucursal_id' => $traspaso->origen_sucursal_id,
+                    'destino_sucursal_id' => $traspaso->destino_sucursal_id,
+                ],
+            ]);
 
             if ($detalle->serie_id) {
                 $serie = Serie::where('id', $detalle->serie_id)

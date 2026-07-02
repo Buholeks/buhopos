@@ -15,6 +15,7 @@ use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
 use App\Services\FolioService;
+use App\Servicios\KardexServicio;
 use App\Support\TerminalResolver;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -130,7 +131,16 @@ class CancelacionDevolucionController extends Controller
             }
 
             foreach ($venta->detalles as $detalle) {
-                $this->regresarInventario($venta, $detalle, (float) $detalle->cantidad);
+                $this->regresarInventario($venta, $detalle, (float) $detalle->cantidad, [
+                    'tipo' => 'cancelacion_venta',
+                    'user_id' => $user->id,
+                    'motivo' => $data['motivo'],
+                    'referencia_tipo' => 'venta',
+                    'referencia_id' => $venta->id,
+                    'referencia_detalle_id' => $detalle->id,
+                    'folio' => $venta->folio,
+                    'fecha' => now(),
+                ]);
                 if ($detalle->pedido_detalle_id) {
                     $destinoPedido === 'devuelto'
                         ? $this->marcarPedidoDetalleDevuelto($detalle)
@@ -294,7 +304,21 @@ class CancelacionDevolucionController extends Controller
                     'importe' => $importe,
                 ]);
 
-                $this->regresarInventario($venta, $detalle, $linea['cantidad']);
+                $this->regresarInventario($venta, $detalle, $linea['cantidad'], [
+                    'tipo' => 'devolucion_cliente',
+                    'user_id' => $user->id,
+                    'motivo' => $data['motivo'],
+                    'referencia_tipo' => 'devolucion_cliente',
+                    'referencia_id' => $devolucion->id,
+                    'referencia_detalle_id' => $detalleDev->id,
+                    'folio' => $devolucion->folio,
+                    'fecha' => $devolucion->created_at ?? now(),
+                    'metadata' => [
+                        'venta_id' => $venta->id,
+                        'venta_folio' => $venta->folio,
+                        'venta_detalle_id' => $detalle->id,
+                    ],
+                ]);
                 if ($detalle->pedido_detalle_id) {
                     $this->marcarPedidoDetalleDevuelto($detalle);
                 }
@@ -419,9 +443,9 @@ class CancelacionDevolucionController extends Controller
         return max(0, (float) $detalle->cantidad - $this->cantidadDevuelta($detalle));
     }
 
-    private function regresarInventario(Venta $venta, VentaDetalle $detalle, float $cantidad): void
+    private function regresarInventario(Venta $venta, VentaDetalle $detalle, float $cantidad, array $kardex = []): void
     {
-        $inventario = Inventario::firstOrCreate(
+        Inventario::firstOrCreate(
             [
                 'empresa_id' => $venta->empresa_id,
                 'sucursal_id' => $venta->sucursal_id,
@@ -431,7 +455,38 @@ class CancelacionDevolucionController extends Controller
             ['stock' => 0, 'stock_minimo' => 0]
         );
 
-        $inventario->increment('stock', $cantidad);
+        $inventario = Inventario::where([
+            'empresa_id' => $venta->empresa_id,
+            'sucursal_id' => $venta->sucursal_id,
+            'producto_id' => $detalle->producto_id,
+            'variante_id' => $detalle->variante_id,
+        ])->lockForUpdate()->firstOrFail();
+
+        $stockAntes = (float) $inventario->stock;
+        $stockDespues = $stockAntes + $cantidad;
+        $inventario->stock = $stockDespues;
+        $inventario->save();
+
+        app(KardexServicio::class)->registrar(array_merge([
+            'empresa_id' => $venta->empresa_id,
+            'sucursal_id' => $venta->sucursal_id,
+            'producto_id' => $detalle->producto_id,
+            'variante_id' => $detalle->variante_id,
+            'serie_id' => $detalle->serie_id,
+            'tipo' => 'devolucion_cliente',
+            'direccion' => 'entrada',
+            'cantidad' => $cantidad,
+            'stock_antes' => $stockAntes,
+            'stock_despues' => $stockDespues,
+            'costo_unitario' => $detalle->precio_costo !== null ? (float) $detalle->precio_costo : null,
+            'precio_unitario' => (float) $detalle->precio_venta,
+            'importe' => round($cantidad * (float) $detalle->precio_venta, 2),
+            'referencia_tipo' => 'venta',
+            'referencia_id' => $venta->id,
+            'referencia_detalle_id' => $detalle->id,
+            'folio' => $venta->folio,
+            'fecha' => now(),
+        ], $kardex));
 
         if ($detalle->serie_id) {
             Serie::where('id', $detalle->serie_id)->update([

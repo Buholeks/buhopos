@@ -10,6 +10,7 @@ use App\Models\InventarioReserva;
 use App\Models\MovimientoCaja;
 use App\Models\ProveedorSaldoMovimiento;
 use App\Models\Serie;
+use App\Servicios\KardexServicio;
 use App\Support\TerminalResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -196,7 +197,37 @@ class DevolucionProveedorController extends Controller
                     'precio_compra' => $linea['detalle']->precio_compra,
                     'subtotal' => $linea['subtotal'],
                 ]);
-                $linea['inventario']->decrement('stock', $linea['cantidad']);
+                $stockAntes = (float) $linea['inventario']->stock;
+                $stockDespues = $stockAntes - (float) $linea['cantidad'];
+                $linea['inventario']->stock = $stockDespues;
+                $linea['inventario']->save();
+
+                app(KardexServicio::class)->registrar([
+                    'empresa_id' => $user->empresa_id,
+                    'sucursal_id' => $compra->sucursal_id,
+                    'producto_id' => $linea['detalle']->producto_id,
+                    'variante_id' => $linea['detalle']->variante_id,
+                    'user_id' => $user->id,
+                    'tipo' => ($data['cancelacion'] ?? false) ? 'cancelacion_compra' : 'devolucion_proveedor',
+                    'direccion' => 'salida',
+                    'cantidad' => $linea['cantidad'],
+                    'stock_antes' => $stockAntes,
+                    'stock_despues' => $stockDespues,
+                    'costo_unitario' => (float) $linea['detalle']->precio_compra,
+                    'importe' => $linea['subtotal'],
+                    'referencia_tipo' => 'devolucion_proveedor',
+                    'referencia_id' => $devolucion->id,
+                    'referencia_detalle_id' => $detalleDev->id,
+                    'folio' => $devolucion->referencia ?: $compra->folio,
+                    'motivo' => $devolucion->motivo,
+                    'fecha' => $devolucion->created_at ?? now(),
+                    'metadata' => [
+                        'compra_id' => $compra->id,
+                        'compra_folio' => $compra->folio,
+                        'compra_detalle_id' => $linea['detalle']->id,
+                    ],
+                ]);
+
                 foreach ($linea['series'] as $serie) {
                     $serie->update(['estado' => 'devuelto']);
                     $detalleDev->series()->attach($serie->id);
@@ -276,7 +307,34 @@ class DevolucionProveedorController extends Controller
                 ])->lockForUpdate()->first();
 
                 if ($inventario) {
-                    $inventario->increment('stock', $detalle->cantidad);
+                    $stockAntes = (float) $inventario->stock;
+                    $stockDespues = $stockAntes + (float) $detalle->cantidad;
+                    $inventario->stock = $stockDespues;
+                    $inventario->save();
+
+                    app(KardexServicio::class)->registrar([
+                        'empresa_id' => $devolucion->empresa_id,
+                        'sucursal_id' => $devolucion->sucursal_id,
+                        'producto_id' => $detalle->producto_id,
+                        'variante_id' => $detalle->variante_id,
+                        'user_id' => $user->id,
+                        'tipo' => 'anulacion_devolucion_proveedor',
+                        'direccion' => 'entrada',
+                        'cantidad' => (float) $detalle->cantidad,
+                        'stock_antes' => $stockAntes,
+                        'stock_despues' => $stockDespues,
+                        'costo_unitario' => (float) $detalle->precio_compra,
+                        'importe' => (float) $detalle->subtotal,
+                        'referencia_tipo' => 'devolucion_proveedor',
+                        'referencia_id' => $devolucion->id,
+                        'referencia_detalle_id' => $detalle->id,
+                        'folio' => $devolucion->referencia,
+                        'motivo' => 'Anulacion de devolucion a proveedor',
+                        'fecha' => now(),
+                        'metadata' => [
+                            'compra_id' => $devolucion->compra_id,
+                        ],
+                    ]);
                 }
 
                 // Devolver series a disponible

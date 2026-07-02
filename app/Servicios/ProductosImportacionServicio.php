@@ -416,6 +416,26 @@ class ProductosImportacionServicio
                 'cantidad_nueva' => $stockNuevo,
                 'motivo' => 'Importacion de productos',
             ]);
+
+            app(KardexServicio::class)->registrar([
+                'empresa_id' => $this->empresaId(),
+                'sucursal_id' => $this->sucursalId(),
+                'producto_id' => $producto->id,
+                'variante_id' => null,
+                'user_id' => Auth::id(),
+                'tipo' => $stockAnterior == 0.0 ? 'saldo_inicial' : ($diferencia > 0 ? 'ajuste_positivo' : 'ajuste_negativo'),
+                'direccion' => $diferencia > 0 ? 'entrada' : 'salida',
+                'cantidad' => abs($diferencia),
+                'stock_antes' => $stockAnterior,
+                'stock_despues' => $stockNuevo,
+                'referencia_tipo' => 'importacion_productos',
+                'referencia_id' => $producto->id,
+                'motivo' => 'Importacion de productos',
+                'fecha' => now(),
+                'metadata' => [
+                    'stock_minimo' => $stockMinimo,
+                ],
+            ]);
         }
     }
 

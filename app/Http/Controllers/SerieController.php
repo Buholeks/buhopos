@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Serie;
 use App\Models\Inventario;
 use App\Models\Producto;
+use App\Servicios\KardexServicio;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -219,7 +220,34 @@ class SerieController extends Controller
                     ],
                     ['stock' => 0, 'stock_minimo' => 0]
                 );
-                $inv->increment('stock');
+                $stockAntes = (float) $inv->stock;
+                $stockDespues = $stockAntes + 1;
+                $inv->stock = $stockDespues;
+                $inv->save();
+
+                app(KardexServicio::class)->registrar([
+                    'empresa_id' => $empresaId,
+                    'sucursal_id' => $sucursalId,
+                    'producto_id' => $productoId,
+                    'variante_id' => $varianteId,
+                    'serie_id' => $serie->id,
+                    'user_id' => Auth::id(),
+                    'tipo' => 'alta_serie',
+                    'direccion' => 'entrada',
+                    'cantidad' => 1,
+                    'stock_antes' => $stockAntes,
+                    'stock_despues' => $stockDespues,
+                    'costo_unitario' => (float) ($s['precio_costo'] ?? 0),
+                    'precio_unitario' => isset($s['precio_venta']) ? (float) $s['precio_venta'] : null,
+                    'referencia_tipo' => 'serie',
+                    'referencia_id' => $serie->id,
+                    'folio' => $serie->identificador,
+                    'fecha' => $serie->created_at ?? now(),
+                    'metadata' => [
+                        'compra_id' => $serie->compra_id,
+                        'proveedor_id' => $serie->proveedor_id,
+                    ],
+                ]);
             }
 
             if (! empty($errores) && empty($creadas)) {

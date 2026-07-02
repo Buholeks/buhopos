@@ -12,6 +12,7 @@ use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
 use App\Models\Producto;
 use App\Models\ProveedorSaldoMovimiento;
+use App\Servicios\KardexServicio;
 use App\Support\ProductVariantSearch;
 use App\Support\VariantImageResolver;
 use Illuminate\Http\JsonResponse;
@@ -149,8 +150,35 @@ class CompraController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                $inv->stock = (float) $inv->stock + $cantidad;
+                $stockAntes = (float) $inv->stock;
+                $stockDespues = $stockAntes + $cantidad;
+                $inv->stock = $stockDespues;
                 $inv->save();
+
+                app(KardexServicio::class)->registrar([
+                    'empresa_id' => $empresaId,
+                    'sucursal_id' => $sucursalId,
+                    'producto_id' => $productoId,
+                    'variante_id' => $varianteId,
+                    'user_id' => $user->id,
+                    'tipo' => 'compra',
+                    'direccion' => 'entrada',
+                    'cantidad' => $cantidad,
+                    'stock_antes' => $stockAntes,
+                    'stock_despues' => $stockDespues,
+                    'costo_unitario' => $precioCompra,
+                    'precio_unitario' => $precioVenta,
+                    'importe' => $subtotal,
+                    'referencia_tipo' => 'compra',
+                    'referencia_id' => $compra->id,
+                    'referencia_detalle_id' => $compraDetalle->id,
+                    'folio' => $compra->folio,
+                    'fecha' => $compra->created_at ?? now(),
+                    'metadata' => [
+                        'proveedor_id' => $compra->proveedor_id,
+                        'pedido_detalle_ids' => $det['pedido_detalle_ids'] ?? [],
+                    ],
+                ]);
 
                 $this->vincularPedidosSeleccionados(
                     $empresaId,
@@ -239,6 +267,13 @@ class CompraController extends Controller
             DB::table('compras')
                 ->where('id', $compra->id)
                 ->update($updateFinal);
+
+            if (! empty($updateFinal['folio'])) {
+                DB::table('kardex_movimientos')
+                    ->where('referencia_tipo', 'compra')
+                    ->where('referencia_id', $compra->id)
+                    ->update(['folio' => $updateFinal['folio']]);
+            }
 
             $compra->refresh()->load(['empresa', 'sucursal', 'proveedor']);
             $snapshotBuilder = app(EtiquetaController::class);
@@ -616,8 +651,30 @@ class CompraController extends Controller
                     ], 422);
                 }
 
+                $stockAntes = (float) $inv->stock;
                 $inv->stock = $nuevo;
                 $inv->save();
+
+                app(KardexServicio::class)->registrar([
+                    'empresa_id' => $empresaId,
+                    'sucursal_id' => (int) $compra->sucursal_id,
+                    'producto_id' => $productoId,
+                    'variante_id' => $varianteId,
+                    'user_id' => $user->id,
+                    'tipo' => 'cancelacion_compra',
+                    'direccion' => 'salida',
+                    'cantidad' => $cantidad,
+                    'stock_antes' => $stockAntes,
+                    'stock_despues' => $nuevo,
+                    'costo_unitario' => (float) $det->precio_compra,
+                    'precio_unitario' => $det->precio_venta !== null ? (float) $det->precio_venta : null,
+                    'importe' => (float) $det->subtotal,
+                    'referencia_tipo' => 'compra',
+                    'referencia_id' => $compra->id,
+                    'referencia_detalle_id' => $det->id,
+                    'folio' => $compra->folio,
+                    'fecha' => now(),
+                ]);
 
                 $this->liberarPedidosVinculadosACompraDetalle($det->id);
             }

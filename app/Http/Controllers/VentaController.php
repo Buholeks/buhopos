@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use App\Models\CorteCaja;
 use App\Models\Serie;
+use App\Servicios\KardexServicio;
 use App\Support\ProductVariantSearch;
 use App\Support\TerminalResolver;
 use App\Support\VariantImageResolver;
@@ -427,11 +428,42 @@ class VentaController extends Controller
                     }
                 }
 
+                $stockDespues = $stockActual - $cantidad;
                 $inv->descontarVenta($cantidad, false);
 
                 if ($exhibicionVendida) {
                     $exhibicionVendida->quitarExhibicion();
                 }
+
+                app(KardexServicio::class)->registrar([
+                    'empresa_id' => $empresaId,
+                    'sucursal_id' => $sucursalId,
+                    'producto_id' => $productoId,
+                    'variante_id' => $varianteId,
+                    'serie_id' => $serieId,
+                    'user_id' => $user->id,
+                    'tipo' => 'venta',
+                    'direccion' => 'salida',
+                    'cantidad' => $cantidad,
+                    'stock_antes' => $stockActual,
+                    'stock_despues' => $stockDespues,
+                    'costo_unitario' => $precioCosto,
+                    'precio_unitario' => $precioVenta,
+                    'importe' => $subtotalLinea,
+                    'referencia_tipo' => 'venta',
+                    'referencia_id' => $venta->id,
+                    'referencia_detalle_id' => $detalle->id,
+                    'folio' => $venta->folio,
+                    'fecha' => $venta->created_at ?? now(),
+                    'metadata' => [
+                        'cliente_id' => $venta->cliente_id,
+                        'vendedor_id' => $venta->vendedor_id,
+                        'pedido_id' => $det['pedido_id'] ?? null,
+                        'pedido_detalle_id' => $det['pedido_detalle_id'] ?? null,
+                        'lista_precio_usada' => $listaPrecioUsada,
+                        'era_exhibido' => (bool) ($det['era_exhibido'] ?? false),
+                    ],
+                ]);
 
                 if ($serieObj) {
                     $serieObj->marcarVendido($venta->id, $detalle->id);

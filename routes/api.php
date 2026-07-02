@@ -40,6 +40,7 @@ use App\Http\Controllers\ReporteVentasController;
 use App\Http\Controllers\ReporteVentasAgrupadoController;
 use App\Http\Controllers\ReporteUtilidadesController;
 use App\Http\Controllers\ReporteInventarioController;
+use App\Http\Controllers\ReporteArticuloController;
 use App\Http\Controllers\DevolucionProveedorController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\ProfileController;
@@ -422,6 +423,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/utilidades/exportar', [ReporteUtilidadesController::class, 'exportar']);
         Route::get('/utilidades', [ReporteUtilidadesController::class, 'index']);
+        Route::get('/articulo/buscar-productos', [ReporteArticuloController::class, 'buscarProductos']);
+        Route::get('/articulo/historial', [ReporteArticuloController::class, 'historial']);
         Route::get('/inventario/exportar', [ReporteInventarioController::class, 'exportar']);
         Route::get('/inventario', [ReporteInventarioController::class, 'index']);
     });

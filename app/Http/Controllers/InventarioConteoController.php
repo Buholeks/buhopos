@@ -8,6 +8,7 @@ use App\Models\InventarioConteo;
 use App\Models\InventarioConteoDetalle;
 use App\Models\InventarioConteoEvento;
 use App\Models\InventarioMovimiento;
+use App\Servicios\KardexServicio;
 use App\Models\Categoria;
 use App\Models\Compra;
 use App\Models\Devolucion;
@@ -647,6 +648,29 @@ class InventarioConteoController extends Controller
                     'cantidad_movimiento' => abs($delta),
                     'cantidad_nueva' => $nuevo,
                     'motivo' => $data['motivo'],
+                ]);
+
+                app(KardexServicio::class)->registrar([
+                    'empresa_id' => $conteo->empresa_id,
+                    'sucursal_id' => $conteo->sucursal_id,
+                    'producto_id' => $detalle->producto_id,
+                    'variante_id' => $detalle->variante_id,
+                    'user_id' => Auth::id(),
+                    'tipo' => $delta > 0 ? 'ajuste_positivo' : 'ajuste_negativo',
+                    'direccion' => $delta > 0 ? 'entrada' : 'salida',
+                    'cantidad' => abs($delta),
+                    'stock_antes' => $anterior,
+                    'stock_despues' => $nuevo,
+                    'referencia_tipo' => 'inventario_conteo',
+                    'referencia_id' => $conteo->id,
+                    'referencia_detalle_id' => $detalle->id,
+                    'motivo' => $data['motivo'],
+                    'fecha' => now(),
+                    'metadata' => [
+                        'stock_sistema' => $anterior,
+                        'cantidad_fisica' => $nuevo,
+                        'diferencia' => $delta,
+                    ],
                 ]);
             });
 

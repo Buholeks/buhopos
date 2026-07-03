@@ -181,6 +181,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('productos/{id}/variantes')->group(function () {
         Route::get('/', [ProductoController::class, 'variantes']);
         Route::post('/', [ProductoController::class, 'storeVariante']);
+        Route::patch('/restablecer-precios', [ProductoController::class, 'restablecerPreciosVariantes']);
         Route::put('/{varianteId}', [ProductoController::class, 'updateVariante']);
         Route::delete('/{varianteId}', [ProductoController::class, 'destroyVariante']);
     });

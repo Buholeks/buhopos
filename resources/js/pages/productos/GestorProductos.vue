@@ -174,6 +174,7 @@
             @quitar-imagen-edit="quitarImagenEditVar"
             @eliminar="confirmarEliminarVariante"
             @update:formEditVar="Object.assign(formEditVar, $event)"
+            @restablecer-precios="restablecerPreciosVariantes"
         />
     </div>
 </template>
@@ -888,6 +889,37 @@ async function confirmarEliminarVariante(v) {
         await cargarProductos(paginacion.value.current_page);
     } catch (e) {
         toastError(e.response?.data?.mensaje ?? "Error");
+    }
+}
+
+async function restablecerPreciosVariantes() {
+    if (!variantes.value.length) return;
+
+    const r = await Swal.fire({
+        title: "Ajustar precios al producto padre",
+        text: `Se borrará el precio propio de las ${variantes.value.length} variantes de este producto. Todas volverán a usar los precios del producto padre.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d97706",
+        cancelButtonColor: "#64748b",
+        confirmButtonText: "Ajustar precios",
+        cancelButtonText: "Cancelar",
+        reverseButtons: true,
+    });
+    if (!r.isConfirmed) return;
+
+    cargandoVar.value = true;
+    try {
+        const { data } = await http.patch(
+            `/api/productos/${modalVar.productoId}/variantes/restablecer-precios`,
+        );
+        toastSuccess(data?.message ?? "Precios ajustados al producto padre");
+        await cargarVariantes(modalVar.productoId);
+        await cargarProductos(paginacion.value.current_page);
+    } catch (e) {
+        toastError(e.response?.data?.message ?? "Error al ajustar precios");
+    } finally {
+        cargandoVar.value = false;
     }
 }
 </script>

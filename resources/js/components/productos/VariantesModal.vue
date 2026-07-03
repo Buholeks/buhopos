@@ -102,6 +102,16 @@
                                     <span class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600">
                                         {{ variantesInactivas }} inactivas
                                     </span>
+                                    <button
+                                        type="button"
+                                        :disabled="cargandoVar || (variantes ?? []).length === 0"
+                                        title="Borra el precio propio de todas las variantes para que vuelvan a usar el precio del producto padre"
+                                        class="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                        @click="emit('restablecer-precios')"
+                                    >
+                                        <RotateCcw class="h-3.5 w-3.5" />
+                                        Ajustar a precio padre
+                                    </button>
                                 </div>
                             </div>
 
@@ -988,6 +998,7 @@ import {
     AlertTriangle,
     Search,
     ChevronDown,
+    RotateCcw,
 } from "lucide-vue-next";
 
 const props = defineProps({
@@ -1019,6 +1030,7 @@ const emit = defineEmits([
     "quitar-imagen-edit",
     "eliminar",
     "update:formEditVar",
+    "restablecer-precios",
 ]);
 
 const formEditProxy = computed({

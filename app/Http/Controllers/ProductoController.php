@@ -697,6 +697,38 @@ class ProductoController extends Controller
         ]);
     }
 
+    // ── PATCH /api/productos/{id}/variantes/restablecer-precios ───────────────
+    // Limpia los precios propios de TODAS las variantes del producto para que
+    // vuelvan a heredar los precios del producto padre (precio() en el modelo
+    // resuelve variante ?? producto cuando el campo es null).
+    public function restablecerPreciosVariantes(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+        $empresaId = $this->empresaId();
+
+        Producto::where('empresa_id', $empresaId)->findOrFail($id);
+
+        $actualizadas = ProductoVariante::where('empresa_id', $empresaId)
+            ->where('producto_id', $id)
+            ->update([
+                'precio_costo'  => null,
+                'precio_venta'  => null,
+                'precio1'       => null,
+                'precio2'       => null,
+                'precio3'       => null,
+                'precio4'       => null,
+                'precio5'       => null,
+                'precio_oferta' => null,
+                'oferta_activa' => false,
+                'oferta_hasta'  => null,
+            ]);
+
+        return response()->json([
+            'message'      => "Se restablecieron los precios de {$actualizadas} variante(s) al precio del producto padre.",
+            'actualizadas' => $actualizadas,
+        ]);
+    }
+
     // ── DELETE /api/productos/{id}/variantes/{varianteId} ─────────────────────
     public function destroyVariante(int $id, int $varianteId): JsonResponse
     {

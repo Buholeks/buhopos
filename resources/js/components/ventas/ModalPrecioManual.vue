@@ -24,7 +24,7 @@
         placeholder="Ej: Precio especial, promoción, etc."
         class="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-[13px] text-slate-700 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
         @input="$emit('update:motivo', $event.target.value)"
-        @keydown.enter.ctrl="$emit('confirm')"
+        @keydown.enter.ctrl.prevent="confirmarSiTieneMotivo"
       />
 
       <p class="mt-2 text-[11px] text-slate-400">Ctrl+Enter para confirmar</p>
@@ -62,7 +62,12 @@ const props = defineProps({
   formatPrecio: { type: Function, required: true },
 });
 
-defineEmits(["update:motivo", "cancel", "confirm"]);
+const emit = defineEmits(["update:motivo", "cancel", "confirm"]);
 
 const motivoTrim = computed(() => props.motivo.trim().length > 0);
+
+function confirmarSiTieneMotivo() {
+  if (!motivoTrim.value) return;
+  emit("confirm");
+}
 </script>

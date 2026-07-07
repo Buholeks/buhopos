@@ -396,18 +396,20 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
                 fecha: form.fecha,
                 cliente_id: clienteId.value,
                 vendedor_id: cobro.vendedor_id,
-                pagos: cobro.pagos.map((p) => ({
-                    forma_pago: p.forma_pago,
-                    monto: Number(p.monto || 0),
-                    cuenta_bancaria_id:
-                        p.forma_pago === "transferencia" ? p.cuenta_bancaria_id || null : null,
-                    terminal_pago_id:
-                        p.forma_pago === "tarjeta" ? p.terminal_pago_id || null : null,
-                    monto_recibido:
-                        p.forma_pago === "efectivo"
-                            ? Number(p.monto_recibido || p.monto || 0)
-                            : null,
-                })),
+                pagos: cobro.pagos
+                    .filter((p) => Number(p.monto || 0) > 0)
+                    .map((p) => ({
+                        forma_pago: p.forma_pago,
+                        monto: Number(p.monto || 0),
+                        cuenta_bancaria_id:
+                            p.forma_pago === "transferencia" ? p.cuenta_bancaria_id || null : null,
+                        terminal_pago_id:
+                            p.forma_pago === "tarjeta" ? p.terminal_pago_id || null : null,
+                        monto_recibido:
+                            p.forma_pago === "efectivo"
+                                ? Number(p.monto_recibido || p.monto || 0)
+                                : null,
+                    })),
                 descuento: Number(form.descuento || 0),
                 saldo_aplicado: Number(cobro.saldo_aplicado || 0),
                 notas: cobro.notas || form.notas || null,

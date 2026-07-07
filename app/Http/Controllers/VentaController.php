@@ -86,7 +86,7 @@ class VentaController extends Controller
             'vendedor_id'              => ['required', 'exists:users,id'],
             'pagos'                    => ['nullable', 'array'],
             'pagos.*.forma_pago'       => ['required', 'in:efectivo,tarjeta,transferencia'],
-            'pagos.*.monto'            => ['required', 'numeric', 'min:0.01'],
+            'pagos.*.monto'            => ['required', 'numeric', 'min:0'],
             'pagos.*.cuenta_bancaria_id' => [
                 'required_if:pagos.*.forma_pago,transferencia', 'nullable', 'integer',
                 Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $empresaId)->where('activo', true)),
@@ -211,7 +211,10 @@ class VentaController extends Controller
         $totalCalculado = max(0, $subtotalCalculado - $descuento);
         $saldoAplicado = round((float) ($datos['saldo_aplicado'] ?? 0), 2);
         $totalACobrar = max(0, $totalCalculado - $saldoAplicado);
-        $pagos = $datos['pagos'] ?? [];
+        $pagos = collect($datos['pagos'] ?? [])
+            ->filter(fn($p) => round((float) ($p['monto'] ?? 0), 2) > 0)
+            ->values()
+            ->all();
 
         if ($saldoAplicado > 0 && empty($datos['cliente_id'])) {
             return response()->json([
@@ -577,6 +580,10 @@ class VentaController extends Controller
     {
         foreach ($pagos as $p) {
             $monto = round((float) $p['monto'], 2);
+            if ($monto <= 0) {
+                continue;
+            }
+
             $montoRecibido = $p['forma_pago'] === 'efectivo' ? (float) ($p['monto_recibido'] ?? $monto) : null;
 
             $venta->pagos()->create([

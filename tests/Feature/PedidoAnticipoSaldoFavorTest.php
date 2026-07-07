@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Cliente;
+use App\Models\ClienteSaldoMovimiento;
 use App\Models\CorteCaja;
 use App\Models\Empresa;
 use App\Models\Inventario;
@@ -96,6 +97,67 @@ class PedidoAnticipoSaldoFavorTest extends TestCase
         // El saldo a favor final debe volver a coincidir con el anticipo original ($300),
         // no con $981 (300 + 681) ni con $600 (300 devuelto dos veces).
         $this->assertSame(300.0, (float) $this->saldoFavor($cliente->id));
+    }
+
+    public function test_venta_puede_quedar_totalmente_cubierta_con_saldo_a_favor(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        Inventario::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'producto_id' => $producto->id,
+            'variante_id' => null,
+            'stock' => 5,
+        ]);
+
+        CorteCaja::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'user_id' => $user->id,
+            'estado' => 'abierto',
+            'terminal' => 'POS-01',
+            'fecha_apertura' => now(),
+            'fondo_inicial_efectivo' => 0,
+        ]);
+
+        ClienteSaldoMovimiento::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'cliente_id' => $cliente->id,
+            'user_id' => $user->id,
+            'tipo' => 'ajuste',
+            'forma_pago' => 'saldo_favor',
+            'monto' => 100,
+            'saldo_resultante' => 100,
+            'concepto' => 'Saldo inicial de prueba',
+        ]);
+
+        $venta = $this->postJson('/api/ventas', [
+            'fecha' => now()->toDateString(),
+            'cliente_id' => $cliente->id,
+            'vendedor_id' => $user->id,
+            'saldo_aplicado' => 100,
+            'pagos' => [
+                ['forma_pago' => 'efectivo', 'monto' => 0, 'monto_recibido' => 0],
+            ],
+            'detalles' => [
+                ['producto_id' => $producto->id, 'cantidad' => 1, 'precio_venta' => 100],
+            ],
+        ])->assertCreated();
+
+        $this->assertSame(0.0, (float) $this->saldoFavor($cliente->id));
+        $this->assertDatabaseHas('venta_pagos', [
+            'venta_id' => $venta->json('id'),
+            'forma_pago' => 'saldo_favor',
+            'monto' => 100,
+        ]);
+        $this->assertDatabaseMissing('venta_pagos', [
+            'venta_id' => $venta->json('id'),
+            'forma_pago' => 'efectivo',
+            'monto' => 0,
+        ]);
     }
 
     private function saldoFavor(int $clienteId): float

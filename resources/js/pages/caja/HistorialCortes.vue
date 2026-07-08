@@ -127,19 +127,19 @@
                             <td
                                 class="px-4 py-3 text-right font-medium text-emerald-700"
                             >
-                                {{ fmt(c.ventas_efectivo) }}
+                                {{ fmt(c.esperado_efectivo) }}
                             </td>
 
                             <td
                                 class="px-4 py-3 text-right font-medium text-blue-700"
                             >
-                                {{ fmt(c.ventas_tarjeta) }}
+                                {{ fmt(c.esperado_tarjeta) }}
                             </td>
 
                             <td
                                 class="px-4 py-3 text-right font-medium text-violet-700"
                             >
-                                {{ fmt(c.ventas_transferencia) }}
+                                {{ fmt(c.esperado_transferencia) }}
                             </td>
 
                             <td class="px-4 py-3 text-center">

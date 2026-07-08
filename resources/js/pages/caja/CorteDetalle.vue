@@ -63,17 +63,17 @@
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <TarjetaResumen
                     label="Efectivo"
-                    :valor="corte.ventas_efectivo"
+                    :valor="corte.esperado_efectivo"
                     color="emerald"
                 />
                 <TarjetaResumen
                     label="Tarjeta"
-                    :valor="corte.ventas_tarjeta"
+                    :valor="corte.esperado_tarjeta"
                     color="blue"
                 />
                 <TarjetaResumen
                     label="Transferencia"
-                    :valor="corte.ventas_transferencia"
+                    :valor="corte.esperado_transferencia"
                     color="violet"
                 />
                 <TarjetaResumen

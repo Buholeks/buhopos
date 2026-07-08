@@ -116,13 +116,13 @@
     <span>Estado: <span class="badge {{ $corte->estado === 'abierto' ? 'badge-abierto' : 'badge-cerrado' }}">{{ ucfirst($corte->estado) }}</span></span>
 </div>
 
-{{-- ── Resumen de ventas ─────────────────────────────────────────── --}}
-<div class="seccion-titulo">Resumen de ventas</div>
+{{-- ── Resumen ──────────────────────────────────────────────────── --}}
+<div class="seccion-titulo">Resumen</div>
 <table class="grid-resumen">
     <tr>
-        <td><span class="label">Efectivo</span><span class="valor">{{ $fmt($corte->ventas_efectivo) }}</span></td>
-        <td><span class="label">Tarjeta</span><span class="valor">{{ $fmt($corte->ventas_tarjeta) }}</span></td>
-        <td><span class="label">Transferencia</span><span class="valor">{{ $fmt($corte->ventas_transferencia) }}</span></td>
+        <td><span class="label">Efectivo</span><span class="valor">{{ $fmt($corte->esperado_efectivo) }}</span></td>
+        <td><span class="label">Tarjeta</span><span class="valor">{{ $fmt($corte->esperado_tarjeta) }}</span></td>
+        <td><span class="label">Transferencia</span><span class="valor">{{ $fmt($corte->esperado_transferencia) }}</span></td>
         <td><span class="label">Saldo a favor</span><span class="valor">{{ $fmt($corte->ventas_saldo_favor) }}</span></td>
     </tr>
 </table>

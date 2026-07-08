@@ -44,7 +44,7 @@
             <span class="h-2 w-2 rounded-full bg-sky-400"></span>
             Tarjeta
           </span>
-          <span class="font-mono text-sm font-semibold text-slate-700">{{ fmt(corte?.ventas_tarjeta) }}</span>
+          <span class="font-mono text-sm font-semibold text-slate-700">{{ fmt(corte?.esperado_tarjeta) }}</span>
         </div>
 
         <div class="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
@@ -52,7 +52,7 @@
             <span class="h-2 w-2 rounded-full bg-violet-400"></span>
             Transferencia
           </span>
-          <span class="font-mono text-sm font-semibold text-slate-700">{{ fmt(corte?.ventas_transferencia) }}</span>
+          <span class="font-mono text-sm font-semibold text-slate-700">{{ fmt(corte?.esperado_transferencia) }}</span>
         </div>
 
         <div class="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">

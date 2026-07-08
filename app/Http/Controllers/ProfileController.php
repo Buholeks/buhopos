@@ -156,7 +156,7 @@ class ProfileController extends Controller
             'rol'                  => $rol?->nombre,
             'permisos'             => $user->permisosActivos(),
             'puede_editar_empresa' => $user->tienePermiso('empresa.editar'),
-            'puede_editar_sucursal'=> $user->tienePermiso('sucursales.editar'),
+            'puede_editar_sucursal' => $user->tienePermiso('sucursales.editar'),
             'stats'                => $this->statsDelMes($user),
             'empresa'              => $empresa ? array_merge($empresa->toArray(), [
                 'logo_url' => $empresa->logo ? Storage::disk('public')->url($empresa->logo) : null,

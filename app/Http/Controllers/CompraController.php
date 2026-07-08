@@ -439,6 +439,7 @@ class CompraController extends Controller
             $detalle->update([
                 'compra_detalle_id' => $compraDetalle->id,
                 'estado' => 'disponible',
+                'disponible_desde' => now(),
             ]);
 
             InventarioReserva::create([
@@ -577,6 +578,7 @@ class CompraController extends Controller
                 $detalle->update([
                     'compra_detalle_id' => null,
                     'estado' => 'pendiente',
+                    'disponible_desde' => null,
                 ]);
             }
 

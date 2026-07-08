@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Cliente;
 use App\Models\ClienteSaldoMovimiento;
 use App\Models\CorteCaja;
+use App\Models\Empresa;
 use App\Models\Inventario;
 use App\Models\InventarioReserva;
 use App\Models\MovimientoCaja;
@@ -29,6 +30,7 @@ class PedidoController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.ver'), 403, 'Sin permiso: pedidos.ver');
         $user = Auth::user();
+        $this->marcarPedidosVencidos((int) $user->empresa_id, (int) $user->sucursal_id);
 
         $pedidos = Pedido::query()
             ->where('empresa_id', $user->empresa_id)
@@ -64,6 +66,7 @@ class PedidoController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.ver'), 403, 'Sin permiso: pedidos.ver');
         $user = Auth::user();
+        $this->marcarPedidosVencidos((int) $user->empresa_id, (int) $user->sucursal_id);
 
         $pedido = Pedido::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
@@ -182,6 +185,14 @@ class PedidoController extends Controller
                 fn($d) => ((float) $d['precio_acordado']) * ((int) $d['cantidad'])
             );
 
+            $fechaPromesa = $data['fecha_promesa'] ?? null;
+            if (! $fechaPromesa && $data['tipo'] === 'apartado') {
+                $diasVigencia = (int) (Empresa::find($empresaId)?->config_pedidos['dias_vigencia_apartado'] ?? 0);
+                if ($diasVigencia > 0) {
+                    $fechaPromesa = now('America/Mexico_City')->addDays($diasVigencia)->toDateString();
+                }
+            }
+
             $pedido = Pedido::create([
                 'empresa_id' => $empresaId,
                 'sucursal_id' => $sucursalId,
@@ -191,7 +202,7 @@ class PedidoController extends Controller
                 'tipo' => $data['tipo'],
                 'estado' => $data['tipo'] === 'apartado' ? 'disponible' : 'pendiente',
                 'estado_pago' => $this->estadoPago($subtotal, $anticipo),
-                'fecha_promesa' => $data['fecha_promesa'] ?? null,
+                'fecha_promesa' => $fechaPromesa,
                 'subtotal' => $subtotal,
                 'anticipo' => $anticipo,
                 'saldo_pendiente' => max(0, $subtotal - $anticipo),
@@ -609,9 +620,7 @@ class PedidoController extends Controller
         DB::beginTransaction();
         try {
             $pedido->anticipo = (float) $pedido->anticipo + $monto;
-            $pedido->saldo_pendiente = max(0, (float) $pedido->subtotal - (float) $pedido->anticipo);
-            $pedido->estado_pago = $this->estadoPago((float) $pedido->subtotal, (float) $pedido->anticipo);
-            $pedido->save();
+            $pedido->recalcularSaldoPendiente();
 
             $this->registrarAnticipo(
                 $pedido,
@@ -634,10 +643,11 @@ class PedidoController extends Controller
         }
     }
 
-    public function eliminarAbono(int $pedidoId, int $abonoId): JsonResponse
+    public function eliminarAbono(Request $request, int $pedidoId, int $abonoId): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
         $user = Auth::user();
+        $terminal = TerminalResolver::fromRequest($request);
 
         $pedido = Pedido::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
@@ -649,45 +659,42 @@ class PedidoController extends Controller
 
         $abono = ClienteSaldoMovimiento::where('pedido_id', $pedido->id)
             ->where('tipo', 'abono')
+            ->with('movimientoCaja')
             ->findOrFail($abonoId);
+
+        $corte = $this->corteAbierto((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
+        if (! $corte) {
+            return response()->json(['message' => 'No hay caja abierta para registrar el egreso del abono eliminado.'], 422);
+        }
 
         DB::beginTransaction();
         try {
             $monto = (float) $abono->monto;
-            $cajaMensaje = '';
 
-            // Si el corte sigue abierto, eliminar el movimiento de caja asociado por FK exacto
-            if ($abono->corte_id) {
-                $corte = CorteCaja::where('id', $abono->corte_id)->where('estado', 'abierto')->first();
-                if ($corte) {
-                    if ($abono->movimiento_caja_id) {
-                        MovimientoCaja::where('id', $abono->movimiento_caja_id)->delete();
-                    } else {
-                        // Fallback para abonos antiguos sin FK: búsqueda heurística
-                        MovimientoCaja::where('corte_id', $abono->corte_id)
-                            ->where('tipo', 'ingreso')
-                            ->where('monto', $abono->monto)
-                            ->where('concepto', 'like', "%{$pedido->folio}%")
-                            ->orderByDesc('id')
-                            ->limit(1)
-                            ->delete();
-                    }
-                    $corte->recalcularMovimientos();
-                } else {
-                    $cajaMensaje = ' El corte de caja ya está cerrado; ajusta manualmente si es necesario.';
-                }
-            }
+            // El ingreso original nunca se borra: queda como historial de que el abono se
+            // cobró. En vez de eso se registra un egreso en la caja abierta de HOY, para que
+            // el corte actual refleje que salió ese dinero, sin importar si el abono se cobró
+            // en este mismo corte o en uno anterior ya cerrado.
+            MovimientoCaja::create([
+                'corte_id' => $corte->id,
+                'user_id' => Auth::id(),
+                'tipo' => 'egreso',
+                'forma_pago' => $abono->forma_pago ?? 'efectivo',
+                'cuenta_bancaria_id' => $abono->movimientoCaja?->cuenta_bancaria_id,
+                'terminal_pago_id' => $abono->movimientoCaja?->terminal_pago_id,
+                'monto' => $monto,
+                'concepto' => "Eliminacion de abono {$pedido->tipo} {$pedido->folio}",
+            ]);
+            $corte->recalcularMovimientos();
 
             $pedido->anticipo = max(0, (float) $pedido->anticipo - $monto);
-            $pedido->saldo_pendiente = max(0, (float) $pedido->subtotal - (float) $pedido->anticipo);
-            $pedido->estado_pago = $this->estadoPago((float) $pedido->subtotal, (float) $pedido->anticipo);
-            $pedido->save();
+            $pedido->recalcularSaldoPendiente();
 
             $abono->delete();
 
             DB::commit();
             return response()->json([
-                'message' => 'Abono eliminado.' . $cajaMensaje,
+                'message' => 'Abono eliminado. Se registró un egreso de $' . number_format($monto, 2) . ' en la caja actual.',
                 'pedido' => $pedido->fresh()->load([
                 'cliente', 'detalles',
                 'saldos.movimientoCaja.cuentaBancaria:id,nombre,banco',
@@ -704,6 +711,7 @@ class PedidoController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('ventas.crear'), 403, 'Sin permiso: ventas.crear');
         $user = Auth::user();
+        $this->marcarPedidosVencidos((int) $user->empresa_id, (int) $user->sucursal_id);
 
         $saldo = ClienteSaldoMovimiento::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
@@ -735,6 +743,32 @@ class PedidoController extends Controller
             'saldo_favor' => round((float) $saldo, 2),
             'pedidos_disponibles' => $pedidos,
             'tiene_productos_pendientes' => $tieneProductosPendientes,
+        ]);
+    }
+
+    public function saldoCancelacion(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.cancelar'), 403, 'Sin permiso: pedidos.cancelar');
+        $user = Auth::user();
+
+        $pedido = Pedido::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->findOrFail($id);
+
+        $anticipo = round((float) $pedido->anticipo, 2);
+        $saldoDisponibleCliente = $this->saldoDisponibleCliente(
+            (int) $pedido->empresa_id,
+            (int) $pedido->sucursal_id,
+            (int) $pedido->cliente_id
+        );
+
+        return response()->json([
+            'anticipo' => $anticipo,
+            'saldo_disponible_cliente' => $saldoDisponibleCliente,
+            // Lo mismo que valida cancelar(): no se puede devolver mas del anticipo de
+            // este pedido ni mas de lo que el cliente realmente tiene disponible (parte
+            // pudo ya haberse gastado como saldo_aplicado en una venta).
+            'maximo_devolucion' => max(0, round(min($anticipo, $saldoDisponibleCliente), 2)),
         ]);
     }
 
@@ -778,7 +812,9 @@ class PedidoController extends Controller
             }
         }
 
-        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
+        // 'vencido' se excluye a propósito: un pedido vencido debe poder cancelarse para
+        // decidir qué pasa con su anticipo (mantenerlo o devolverlo), no queda "cerrado".
+        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado'])) {
             return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
         }
 
@@ -795,6 +831,7 @@ class PedidoController extends Controller
                 ->update([
                     'estado' => 'cancelado',
                     'compra_detalle_id' => null,
+                    'disponible_desde' => null,
                 ]);
 
             // El anticipo ya quedó registrado como 'abono' en cliente_saldo_movimientos desde que se
@@ -831,6 +868,7 @@ class PedidoController extends Controller
             // se entregó (se vendió), el pedido queda 'parcial' en vez de 'cancelado', para
             // no perder el rastro de que parte sí se vendió.
             $pedido->actualizarEstadoPorDetalles();
+            $pedido->recalcularSaldoPendiente();
             $pedido->refresh();
 
             DB::commit();
@@ -1010,5 +1048,66 @@ class PedidoController extends Controller
         if ($anticipo <= 0) return 'sin_anticipo';
         if ($anticipo >= $subtotal && $subtotal > 0) return 'pagado';
         return 'con_anticipo';
+    }
+
+    /**
+     * Marca como 'vencido' los pedidos/apartados que ya no deberian seguir reservando
+     * inventario, y libera esa reserva. Se hace de forma perezosa (al consultar) en vez
+     * de con un job programado, para no depender de que el servidor tenga el scheduler
+     * de Laravel corriendo.
+     *
+     * Apartados: la reserva existe desde que se crea el apartado, asi que vencen por
+     * fecha_promesa completa (capturada a mano o generada con dias_vigencia_apartado).
+     *
+     * Pedidos: no hay nada reservado hasta que el renglon llega via una compra
+     * (PedidoDetalle.estado = 'disponible'). Por eso vencen por renglon, contando los
+     * dias desde que CADA renglon llego (disponible_desde), no desde fecha_promesa (que
+     * para un pedido es solo el estimado informativo de llegada). Es opt-in: sin
+     * dias_vigencia_pedido configurado en la empresa, ningun pedido vence por esta via.
+     */
+    private function marcarPedidosVencidos(int $empresaId, int $sucursalId): void
+    {
+        $hoy = now('America/Mexico_City')->startOfDay();
+
+        $apartadosVencidosIds = Pedido::where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->where('tipo', 'apartado')
+            ->whereIn('estado', ['disponible', 'parcial'])
+            ->whereNotNull('fecha_promesa')
+            ->where('fecha_promesa', '<', $hoy)
+            ->pluck('id');
+
+        if ($apartadosVencidosIds->isNotEmpty()) {
+            Pedido::whereIn('id', $apartadosVencidosIds)->update(['estado' => 'vencido']);
+
+            InventarioReserva::whereIn('pedido_id', $apartadosVencidosIds)
+                ->where('estado', 'activa')
+                ->update(['estado' => 'liberada']);
+        }
+
+        $diasVigenciaPedido = (int) (Empresa::find($empresaId)?->config_pedidos['dias_vigencia_pedido'] ?? 0);
+
+        if ($diasVigenciaPedido > 0) {
+            $limite = now('America/Mexico_City')->subDays($diasVigenciaPedido);
+
+            $detallesVencidos = PedidoDetalle::where('estado', 'disponible')
+                ->whereNotNull('disponible_desde')
+                ->where('disponible_desde', '<', $limite)
+                ->whereHas('pedido', fn($q) => $q
+                    ->where('empresa_id', $empresaId)
+                    ->where('sucursal_id', $sucursalId)
+                    ->where('tipo', 'pedido')
+                    ->whereIn('estado', ['pendiente', 'en_proceso', 'disponible', 'parcial']))
+                ->get(['id', 'pedido_id']);
+
+            if ($detallesVencidos->isNotEmpty()) {
+                Pedido::whereIn('id', $detallesVencidos->pluck('pedido_id')->unique())
+                    ->update(['estado' => 'vencido']);
+
+                InventarioReserva::whereIn('pedido_detalle_id', $detallesVencidos->pluck('id'))
+                    ->where('estado', 'activa')
+                    ->update(['estado' => 'liberada']);
+            }
+        }
     }
 }

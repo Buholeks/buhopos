@@ -220,4 +220,24 @@ class ProfileController extends Controller
         $empresa->update(['ticket_config' => $request->input('config')]);
         return response()->json(['ok' => true]);
     }
+
+    public function getConfigPedidos(Request $request): JsonResponse
+    {
+        $empresa = $request->user()->empresa;
+        return response()->json($empresa?->config_pedidos);
+    }
+
+    public function saveConfigPedidos(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->tienePermiso('empresa.editar'), 403, 'Sin permiso para editar la empresa.');
+
+        $data = $request->validate([
+            'dias_vigencia_apartado' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'dias_vigencia_pedido' => ['nullable', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        $user->empresa()->firstOrFail()->update(['config_pedidos' => $data]);
+        return response()->json(['ok' => true]);
+    }
 }

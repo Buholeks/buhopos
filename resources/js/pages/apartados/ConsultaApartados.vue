@@ -33,13 +33,30 @@
         </section>
 
         <EncargosTable :pedidos="pedidos" :cargando="cargando" :abonos="abonos" :cuentas-bancarias="cuentasBancarias" :terminales-pago="terminalesPago" @detalle="abrirDetalle" @cancelar="abrirCancelar" @abonar="registrarAbono" />
-        <EncargoDetalleModal :visible="modalDetalle.visible" :cargando="modalDetalle.cargando" :pedido="modalDetalle.pedido" :data="modalDetalle.data" @close="cerrarDetalle" />
-        <EncargoCancelarModal :visible="modalCancelar.visible" :procesando="modalCancelar.procesando" :pedido="modalCancelar.pedido" :cuentas-bancarias="cuentasBancarias" @close="cerrarCancelar" @confirm="ejecutarCancelacion" />
+        <EncargoDetalleModal
+            :visible="modalDetalle.visible"
+            :cargando="modalDetalle.cargando"
+            :pedido="modalDetalle.pedido"
+            :data="modalDetalle.data"
+            :eliminando-abono-id="eliminandoAbonoId"
+            @close="cerrarDetalle"
+            @eliminar-abono="eliminarAbonoDetalle"
+        />
+        <EncargoCancelarModal
+            :visible="modalCancelar.visible"
+            :procesando="modalCancelar.procesando"
+            :pedido="modalCancelar.pedido"
+            :cuentas-bancarias="cuentasBancarias"
+            :maximo-devolucion="modalCancelar.maximoDevolucion"
+            :cargando-saldo="modalCancelar.cargandoSaldo"
+            @close="cerrarCancelar"
+            @confirm="ejecutarCancelacion"
+        />
     </main>
 </template>
 
 <script setup>
-import { onMounted, reactive, watch } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { Search } from 'lucide-vue-next'
 import http from '@/lib/http'
 import { toastError } from '@/lib/alert'
@@ -50,10 +67,11 @@ import { useEncargos } from '@/stores/useEncargos'
 
 let timer = null
 const modalDetalle = reactive({ visible: false, cargando: false, pedido: null, data: null })
-const modalCancelar = reactive({ visible: false, procesando: false, pedido: null })
+const modalCancelar = reactive({ visible: false, procesando: false, pedido: null, maximoDevolucion: 0, cargandoSaldo: false })
+const eliminandoAbonoId = ref(null)
 const {
     pedidos, cargando, buscar, filtroEstado, filtroFechaDesde, filtroFechaHasta, abonos,
-    cargarPedidos, registrarAbono, cancelarPedido,
+    cargarPedidos, registrarAbono, cancelarPedido, eliminarAbono,
     cuentasBancarias, terminalesPago, cargarCuentasBancarias, cargarTerminalesPago,
 } = useEncargos({ tipo: 'apartado' })
 
@@ -87,14 +105,36 @@ function cerrarDetalle() {
     modalDetalle.pedido = null
     modalDetalle.data = null
 }
-function abrirCancelar(pedido) {
+async function eliminarAbonoDetalle(abonoId) {
+    if (!modalDetalle.pedido) return
+    eliminandoAbonoId.value = abonoId
+    try {
+        const ok = await eliminarAbono(modalDetalle.pedido, abonoId)
+        if (ok) await abrirDetalle(modalDetalle.pedido)
+    } finally {
+        eliminandoAbonoId.value = null
+    }
+}
+async function abrirCancelar(pedido) {
     modalCancelar.visible = true
     modalCancelar.pedido = pedido
+    modalCancelar.maximoDevolucion = 0
+    modalCancelar.cargandoSaldo = true
+    try {
+        const { data } = await http.get(`/api/pedidos/${pedido.id}/saldo-cancelacion`)
+        modalCancelar.maximoDevolucion = Number(data?.maximo_devolucion ?? 0)
+    } catch {
+        modalCancelar.maximoDevolucion = 0
+    } finally {
+        modalCancelar.cargandoSaldo = false
+    }
 }
 function cerrarCancelar() {
     modalCancelar.visible = false
     modalCancelar.pedido = null
     modalCancelar.procesando = false
+    modalCancelar.maximoDevolucion = 0
+    modalCancelar.cargandoSaldo = false
 }
 async function ejecutarCancelacion(payload = {}) {
     if (!modalCancelar.pedido) return

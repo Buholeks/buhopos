@@ -95,7 +95,7 @@
                                     </button>
                                 </div>
 
-                                <div v-if="!pedidoCerrado(pedido)" class="flex w-full flex-col items-end gap-1.5">
+                                <div v-if="puedeAbonar(pedido)" class="flex w-full flex-col items-end gap-1.5">
                                     <div class="flex items-center justify-end gap-1.5">
                                         <input
                                             v-model.number="abonos[pedido.id].monto"
@@ -148,6 +148,9 @@
                                     </select>
                                 </div>
 
+                                <p v-else-if="pedido?.estado === 'vencido'" class="text-xs font-bold text-amber-600">
+                                    Vencido
+                                </p>
                                 <p v-else class="text-xs font-bold text-slate-400">
                                     Cerrado
                                 </p>
@@ -178,7 +181,13 @@ defineProps({
 defineEmits(['detalle', 'cancelar', 'abonar'])
 
 function pedidoCerrado(pedido) {
-    return ['entregado', 'devuelto', 'cancelado', 'vencido'].includes(pedido?.estado)
+    return ['entregado', 'devuelto', 'cancelado'].includes(pedido?.estado)
+}
+
+// Un pedido vencido ya no admite abonos, pero sigue pudiendo cancelarse para
+// decidir que pasa con su anticipo (por eso no cuenta como "cerrado").
+function puedeAbonar(pedido) {
+    return !pedidoCerrado(pedido) && pedido?.estado !== 'vencido'
 }
 
 function money(value) {

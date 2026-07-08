@@ -6,7 +6,7 @@
 
 <script setup>
 import HubSection from "@/components/hub/HubSection.vue";
-import { Ruler, ShieldCheck, SlidersHorizontal, Ticket, Tags, UsersRound } from "lucide-vue-next";
+import { CalendarClock, Ruler, ShieldCheck, SlidersHorizontal, Ticket, Tags, UsersRound } from "lucide-vue-next";
 
 const items = [
     {
@@ -50,6 +50,13 @@ const items = [
         to: { name: "ticket-config" },
         badge: "Disponible",
         permiso: "ventas.crear",
+    },
+    {
+        label: "Vigencia de pedidos y apartados",
+        icon: CalendarClock,
+        to: { name: "vigencia-pedidos" },
+        badge: "Disponible",
+        permiso: "empresa.editar",
     },
 ];
 </script>

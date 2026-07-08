@@ -556,10 +556,7 @@ class CancelacionDevolucionController extends Controller
 
         $pedido = $detalle->pedido;
         $pedido->actualizarEstadoPorDetalles();
-        $pedido->update([
-            'estado_pago' => $this->estadoPagoPedido((float) $pedido->subtotal, (float) $pedido->anticipo),
-            'saldo_pendiente' => max(0, (float) $pedido->subtotal - (float) $pedido->anticipo),
-        ]);
+        $pedido->recalcularSaldoPendiente();
     }
 
     private function marcarPedidoDetalleDevuelto(VentaDetalle $ventaDetalle): void
@@ -580,6 +577,7 @@ class CancelacionDevolucionController extends Controller
             ->update(['estado' => 'liberada']);
 
         $detalle->pedido->actualizarEstadoPorDetalles();
+        $detalle->pedido->recalcularSaldoPendiente();
     }
 
     private function desgloseDevolucion(Venta $venta, float $total, string $formaDevolucion): array
@@ -691,13 +689,6 @@ class CancelacionDevolucionController extends Controller
             ->where('sucursal_id', $sucursalId)
             ->where('cliente_id', $clienteId)
             ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END")), 2);
-    }
-
-    private function estadoPagoPedido(float $subtotal, float $anticipo): string
-    {
-        if ($anticipo <= 0) return 'sin_anticipo';
-        if ($anticipo >= $subtotal && $subtotal > 0) return 'pagado';
-        return 'con_anticipo';
     }
 
     private function corteAbiertoPorTerminal(int $empresaId, int $sucursalId, string $terminal): ?CorteCaja

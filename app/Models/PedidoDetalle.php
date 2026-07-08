@@ -15,6 +15,7 @@ class PedidoDetalle extends Model
         'producto_id',
         'variante_id',
         'compra_detalle_id',
+        'disponible_desde',
         'descripcion',
         'marca_texto',
         'modelo_texto',
@@ -31,6 +32,7 @@ class PedidoDetalle extends Model
         'cantidad' => 'integer',
         'precio_acordado' => 'decimal:2',
         'subtotal' => 'decimal:2',
+        'disponible_desde' => 'datetime',
     ];
 
     public function pedido(): BelongsTo

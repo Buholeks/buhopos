@@ -16,10 +16,12 @@ class Empresa extends Model
         'logo',
         'activo',
         'ticket_config',
+        'config_pedidos',
     ];
 
     protected $casts = [
         'ticket_config' => 'array',
+        'config_pedidos' => 'array',
     ];
 
 

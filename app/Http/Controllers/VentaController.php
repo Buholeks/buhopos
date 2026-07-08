@@ -709,16 +709,8 @@ class VentaController extends Controller
             ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
             ->exists();
 
-        if ($pendientes) {
-            $pedido->update(['estado' => 'parcial']);
-            return;
-        }
-
-        $pedido->update([
-            'estado' => 'entregado',
-            'estado_pago' => 'pagado',
-            'saldo_pendiente' => 0,
-        ]);
+        $pedido->estado = $pendientes ? 'parcial' : 'entregado';
+        $pedido->recalcularSaldoPendiente();
     }
 
     public function buscarVariantes(Request $request): JsonResponse

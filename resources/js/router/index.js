@@ -64,6 +64,7 @@ import ReporteInventario from "@/pages/reportes/inventario/Index.vue";
 import HistorialArticulo from "@/pages/reportes/articulo/HistorialArticulo.vue";
 
 import ConfiguracionIndex from "@/pages/configuracion/ConfiguracionIndex.vue";
+import VigenciaPedidos from "@/pages/configuracion/VigenciaPedidos.vue";
 import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
 import RolesIndex from "@/pages/roles/RolesIndex.vue";
 import SinPermiso from "@/pages/errores/SinPermiso.vue";
@@ -139,6 +140,7 @@ const routes = [
       { path: "reportes-inventario",     name: "reportes-inventario",     component: ReporteInventario, meta: { title: "Inversion en mercancia", permiso: "reportes.ver" } },
 
       { path: "configuracion", name: "configuracion", component: ConfiguracionIndex, meta: { title: "Configuración" } },
+      { path: "configuracion/vigencia-pedidos", name: "vigencia-pedidos", component: VigenciaPedidos, meta: { title: "Vigencia de pedidos y apartados", permiso: "empresa.editar" } },
       { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios",permiso: "usuarios.gestionar" } },
       { path: "roles",    name: "roles",    component: RolesIndex,    meta: { title: "Roles y permisos", permiso: "usuarios.gestionar" } },
       { path: "perfil",   name: "perfil",   component: PerfilIndex,   meta: { title: "Mi perfil" } },

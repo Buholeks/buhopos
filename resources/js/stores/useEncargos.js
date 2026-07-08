@@ -1,6 +1,6 @@
 import { computed, reactive, ref } from 'vue'
 import http from '@/lib/http'
-import { toastError, toastSuccess, toastWarning } from '@/lib/alert'
+import { confirm, toastError, toastSuccess, toastWarning } from '@/lib/alert'
 
 export function useEncargos({ tipo = 'pedido' } = {}) {
     const pedidos = ref([])
@@ -267,6 +267,25 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         await cargarPedidos()
     }
 
+    async function eliminarAbono(pedido, abonoId) {
+        const ok = await confirm({
+            title: 'Eliminar abono',
+            text: 'Se registrará un egreso en la caja abierta actual por el monto del abono. ¿Continuar?',
+            confirmText: 'Sí, eliminar',
+        })
+        if (!ok) return false
+
+        try {
+            const { data } = await http.delete(`/api/pedidos/${pedido.id}/abonos/${abonoId}`)
+            toastSuccess(data?.message || 'Abono eliminado')
+            await cargarPedidos()
+            return true
+        } catch (e) {
+            toastError(e?.response?.data?.message || 'No se pudo eliminar el abono')
+            return false
+        }
+    }
+
     function limpiarFormulario() {
         cliente.value = null
         resumenCliente.saldo_favor = 0
@@ -311,6 +330,7 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         guardarEncargo,
         registrarAbono,
         cancelarPedido,
+        eliminarAbono,
         limpiarFormulario,
     }
 }

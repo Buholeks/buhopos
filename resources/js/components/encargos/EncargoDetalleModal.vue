@@ -77,9 +77,22 @@
                                 <p class="font-bold text-slate-900">{{ mov.concepto }}</p>
                                 <p class="text-xs text-slate-400">{{ formatFechaHora(mov.created_at) }} <span v-if="mov.forma_pago">· {{ mov.forma_pago }}</span></p>
                             </div>
-                            <span class="font-black" :class="['abono', 'devolucion', 'ajuste'].includes(mov.tipo) ? 'text-emerald-700' : 'text-red-600'">
-                                {{ ['abono', 'devolucion', 'ajuste'].includes(mov.tipo) ? '+' : '-' }}{{ money(mov.monto) }}
-                            </span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-black" :class="['abono', 'devolucion', 'ajuste'].includes(mov.tipo) ? 'text-emerald-700' : 'text-red-600'">
+                                    {{ ['abono', 'devolucion', 'ajuste'].includes(mov.tipo) ? '+' : '-' }}{{ money(mov.monto) }}
+                                </span>
+                                <button
+                                    v-if="mov.tipo === 'abono' && puedeEliminarAbono"
+                                    type="button"
+                                    class="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                                    title="Eliminar abono"
+                                    :disabled="eliminandoAbonoId === mov.id"
+                                    @click="$emit('eliminar-abono', mov.id)"
+                                >
+                                    <Loader2 v-if="eliminandoAbonoId === mov.id" class="h-4 w-4 animate-spin" />
+                                    <Trash2 v-else class="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -98,17 +111,27 @@
 </template>
 
 <script setup>
-import { Loader2, X } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { Loader2, Trash2, X } from 'lucide-vue-next'
 import EncargoEstadoBadge from './EncargoEstadoBadge.vue'
+import { useAuthStore } from '@/stores/auth'
 
-defineProps({
+const auth = useAuthStore()
+
+const props = defineProps({
     visible: { type: Boolean, default: false },
     cargando: { type: Boolean, default: false },
     pedido: { type: Object, default: null },
     data: { type: Object, default: null },
+    eliminandoAbonoId: { type: [Number, String], default: null },
 })
 
-defineEmits(['close'])
+defineEmits(['close', 'eliminar-abono'])
+
+const puedeEliminarAbono = computed(() => {
+    if (!auth.can('pedidos.crear')) return false
+    return !['entregado', 'devuelto', 'cancelado', 'vencido'].includes(props.data?.estado)
+})
 
 function money(value) {
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(value || 0))

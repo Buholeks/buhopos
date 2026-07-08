@@ -74,6 +74,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/perfil/sucursal', [ProfileController::class, 'updateSucursal']);
     Route::get('/ticket-config', [ProfileController::class, 'getTicketConfig']);
     Route::put('/ticket-config', [ProfileController::class, 'saveTicketConfig']);
+    Route::get('/config-pedidos', [ProfileController::class, 'getConfigPedidos']);
+    Route::put('/config-pedidos', [ProfileController::class, 'saveConfigPedidos']);
 
     /*
     |--------------------------------------------------------------------------
@@ -270,6 +272,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pedidos/{pedido}', [PedidoController::class, 'show']);
     Route::post('/pedidos/{pedido}/abonos', [PedidoController::class, 'abonar']);
     Route::delete('/pedidos/{pedido}/abonos/{abono}', [PedidoController::class, 'eliminarAbono']);
+    Route::get('/pedidos/{pedido}/saldo-cancelacion', [PedidoController::class, 'saldoCancelacion']);
     Route::post('/pedidos/{pedido}/cancelar', [PedidoController::class, 'cancelar']);
 
     Route::prefix('cancelaciones-devoluciones')->group(function () {

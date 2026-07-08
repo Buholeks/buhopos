@@ -233,7 +233,9 @@
             :cargando="modalDetalle.cargando"
             :pedido="modalDetalle.pedido"
             :data="modalDetalle.data"
+            :eliminando-abono-id="eliminandoAbonoId"
             @close="cerrarDetalle"
+            @eliminar-abono="eliminarAbonoDetalle"
         />
 
         <EncargoCancelarModal
@@ -241,6 +243,8 @@
             :procesando="modalCancelar.procesando"
             :pedido="modalCancelar.pedido"
             :cuentas-bancarias="cuentasBancarias"
+            :maximo-devolucion="modalCancelar.maximoDevolucion"
+            :cargando-saldo="modalCancelar.cargandoSaldo"
             @close="cerrarCancelar"
             @confirm="ejecutarCancelacion"
         />
@@ -279,7 +283,11 @@ const modalCancelar = reactive({
     visible: false,
     procesando: false,
     pedido: null,
+    maximoDevolucion: 0,
+    cargandoSaldo: false,
 });
+
+const eliminandoAbonoId = ref(null);
 
 const {
     pedidos,
@@ -293,6 +301,7 @@ const {
     cargarPedidos,
     registrarAbono,
     cancelarPedido,
+    eliminarAbono,
     cuentasBancarias,
     terminalesPago,
     cargarCuentasBancarias,
@@ -399,15 +408,38 @@ function cerrarDetalle() {
     modalDetalle.data = null;
 }
 
-function abrirCancelar(pedido) {
+async function eliminarAbonoDetalle(abonoId) {
+    if (!modalDetalle.pedido) return;
+    eliminandoAbonoId.value = abonoId;
+    try {
+        const ok = await eliminarAbono(modalDetalle.pedido, abonoId);
+        if (ok) await abrirDetalle(modalDetalle.pedido);
+    } finally {
+        eliminandoAbonoId.value = null;
+    }
+}
+
+async function abrirCancelar(pedido) {
     modalCancelar.visible = true;
     modalCancelar.pedido = pedido;
+    modalCancelar.maximoDevolucion = 0;
+    modalCancelar.cargandoSaldo = true;
+    try {
+        const { data } = await http.get(`/api/pedidos/${pedido.id}/saldo-cancelacion`);
+        modalCancelar.maximoDevolucion = Number(data?.maximo_devolucion ?? 0);
+    } catch {
+        modalCancelar.maximoDevolucion = 0;
+    } finally {
+        modalCancelar.cargandoSaldo = false;
+    }
 }
 
 function cerrarCancelar() {
     modalCancelar.visible = false;
     modalCancelar.pedido = null;
     modalCancelar.procesando = false;
+    modalCancelar.maximoDevolucion = 0;
+    modalCancelar.cargandoSaldo = false;
 }
 
 async function ejecutarCancelacion(payload = {}) {

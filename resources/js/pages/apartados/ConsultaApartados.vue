@@ -34,7 +34,7 @@
 
         <EncargosTable :pedidos="pedidos" :cargando="cargando" :abonos="abonos" :cuentas-bancarias="cuentasBancarias" :terminales-pago="terminalesPago" @detalle="abrirDetalle" @cancelar="abrirCancelar" @abonar="registrarAbono" />
         <EncargoDetalleModal :visible="modalDetalle.visible" :cargando="modalDetalle.cargando" :pedido="modalDetalle.pedido" :data="modalDetalle.data" @close="cerrarDetalle" />
-        <EncargoCancelarModal :visible="modalCancelar.visible" :procesando="modalCancelar.procesando" :pedido="modalCancelar.pedido" @close="cerrarCancelar" @confirm="ejecutarCancelacion" />
+        <EncargoCancelarModal :visible="modalCancelar.visible" :procesando="modalCancelar.procesando" :pedido="modalCancelar.pedido" :cuentas-bancarias="cuentasBancarias" @close="cerrarCancelar" @confirm="ejecutarCancelacion" />
     </main>
 </template>
 
@@ -96,11 +96,11 @@ function cerrarCancelar() {
     modalCancelar.pedido = null
     modalCancelar.procesando = false
 }
-async function ejecutarCancelacion() {
+async function ejecutarCancelacion(payload = {}) {
     if (!modalCancelar.pedido) return
     modalCancelar.procesando = true
     try {
-        await cancelarPedido(modalCancelar.pedido)
+        await cancelarPedido(modalCancelar.pedido, payload)
         cerrarCancelar()
     } finally {
         modalCancelar.procesando = false

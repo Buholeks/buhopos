@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Cliente;
 use App\Models\ClienteSaldoMovimiento;
 use App\Models\CorteCaja;
+use App\Models\CuentaBancaria;
 use App\Models\Empresa;
 use App\Models\Inventario;
 use App\Models\Pedido;
@@ -158,6 +159,162 @@ class PedidoAnticipoSaldoFavorTest extends TestCase
             'forma_pago' => 'efectivo',
             'monto' => 0,
         ]);
+    }
+
+    public function test_cancelar_pedido_manteniendo_saldo_no_duplica_anticipo(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        CorteCaja::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'user_id' => $user->id,
+            'estado' => 'abierto',
+            'terminal' => 'POS-01',
+            'fecha_apertura' => now(),
+            'fondo_inicial_efectivo' => 0,
+        ]);
+
+        Inventario::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'producto_id' => $producto->id,
+            'variante_id' => null,
+            'stock' => 5,
+        ]);
+
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'apartado',
+            'cliente_id' => $cliente->id,
+            'anticipo' => 250,
+            'forma_pago' => 'efectivo',
+            'detalles' => [
+                ['producto_id' => $producto->id, 'descripcion' => 'Renglon cancelado', 'cantidad' => 1, 'precio_acordado' => 500],
+            ],
+        ])->assertCreated();
+
+        $this->postJson("/api/pedidos/{$pedido->json('id')}/cancelar", [
+            'destino_saldo' => 'mantener_saldo',
+        ])->assertOk();
+
+        $this->assertSame(250.0, (float) $this->saldoFavor($cliente->id));
+        $this->assertSame(1, ClienteSaldoMovimiento::where('pedido_id', $pedido->json('id'))->where('tipo', 'abono')->count());
+        $this->assertSame(0, ClienteSaldoMovimiento::where('pedido_id', $pedido->json('id'))->where('tipo', 'aplicacion')->count());
+    }
+
+    public function test_cancelar_pedido_devolviendo_efectivo_consume_saldo_y_registra_egreso(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        $corte = CorteCaja::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'user_id' => $user->id,
+            'estado' => 'abierto',
+            'terminal' => 'POS-01',
+            'fecha_apertura' => now(),
+            'fondo_inicial_efectivo' => 0,
+        ]);
+
+        Inventario::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'producto_id' => $producto->id,
+            'variante_id' => null,
+            'stock' => 5,
+        ]);
+
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'apartado',
+            'cliente_id' => $cliente->id,
+            'anticipo' => 250,
+            'forma_pago' => 'efectivo',
+            'detalles' => [
+                ['producto_id' => $producto->id, 'descripcion' => 'Renglon cancelado', 'cantidad' => 1, 'precio_acordado' => 500],
+            ],
+        ])->assertCreated();
+
+        $this->postJson("/api/pedidos/{$pedido->json('id')}/cancelar", [
+            'destino_saldo' => 'efectivo',
+            'monto_devolucion' => 250,
+        ])->assertOk();
+
+        $this->assertSame(0.0, (float) $this->saldoFavor($cliente->id));
+        $this->assertDatabaseHas('cliente_saldo_movimientos', [
+            'pedido_id' => $pedido->json('id'),
+            'tipo' => 'aplicacion',
+            'forma_pago' => 'efectivo',
+            'monto' => 250,
+        ]);
+        $this->assertDatabaseHas('movimientos_caja', [
+            'corte_id' => $corte->id,
+            'tipo' => 'egreso',
+            'forma_pago' => 'efectivo',
+            'monto' => 250,
+        ]);
+        $this->assertSame(0.0, (float) $corte->fresh()->movs_efectivo);
+    }
+
+    public function test_cancelar_pedido_devolviendo_transferencia_requiere_cuenta_y_registra_egreso(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        $corte = CorteCaja::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'user_id' => $user->id,
+            'estado' => 'abierto',
+            'terminal' => 'POS-01',
+            'fecha_apertura' => now(),
+            'fondo_inicial_efectivo' => 0,
+        ]);
+
+        $cuenta = CuentaBancaria::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'user_id' => $user->id,
+            'nombre' => 'Cuenta devoluciones',
+            'banco' => 'Banco prueba',
+            'activo' => true,
+        ]);
+
+        Inventario::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'producto_id' => $producto->id,
+            'variante_id' => null,
+            'stock' => 5,
+        ]);
+
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'apartado',
+            'cliente_id' => $cliente->id,
+            'anticipo' => 250,
+            'forma_pago' => 'transferencia',
+            'cuenta_bancaria_id' => $cuenta->id,
+            'detalles' => [
+                ['producto_id' => $producto->id, 'descripcion' => 'Renglon cancelado', 'cantidad' => 1, 'precio_acordado' => 500],
+            ],
+        ])->assertCreated();
+
+        $this->postJson("/api/pedidos/{$pedido->json('id')}/cancelar", [
+            'destino_saldo' => 'transferencia',
+            'monto_devolucion' => 250,
+            'cuenta_bancaria_id' => $cuenta->id,
+        ])->assertOk();
+
+        $this->assertSame(0.0, (float) $this->saldoFavor($cliente->id));
+        $this->assertDatabaseHas('movimientos_caja', [
+            'corte_id' => $corte->id,
+            'tipo' => 'egreso',
+            'forma_pago' => 'transferencia',
+            'cuenta_bancaria_id' => $cuenta->id,
+            'monto' => 250,
+        ]);
+        $this->assertSame(0.0, (float) $corte->fresh()->movs_transferencia);
     }
 
     private function saldoFavor(int $clienteId): float

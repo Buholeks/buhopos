@@ -742,10 +742,41 @@ class PedidoController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.cancelar'), 403, 'Sin permiso: pedidos.cancelar');
         $user = Auth::user();
+        $terminal = TerminalResolver::fromRequest($request);
+
+        $data = $request->validate([
+            'destino_saldo' => ['nullable', Rule::in(['mantener_saldo', 'efectivo', 'transferencia'])],
+            'monto_devolucion' => ['nullable', 'numeric', 'min:0'],
+            'cuenta_bancaria_id' => [
+                'required_if:destino_saldo,transferencia', 'nullable', 'integer',
+                Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
+            ],
+        ]);
+
+        $destinoSaldo = $data['destino_saldo'] ?? 'mantener_saldo';
+        $montoDevolucionSolicitado = round((float) ($data['monto_devolucion'] ?? 0), 2);
+        $corte = null;
 
         $pedido = Pedido::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
             ->findOrFail($id);
+
+        if (in_array($destinoSaldo, ['efectivo', 'transferencia'], true)) {
+            $corte = CorteCaja::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->where('terminal', $terminal)
+                ->where('estado', 'abierto')
+                ->latest('fecha_apertura')
+                ->first();
+
+            if (!$corte) {
+                return response()->json(['message' => 'No hay caja abierta para registrar la devolucion.'], 422);
+            }
+
+            if ($montoDevolucionSolicitado <= 0) {
+                return response()->json(['message' => 'Captura el monto a devolver.'], 422);
+            }
+        }
 
         if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
             return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
@@ -773,6 +804,28 @@ class PedidoController extends Controller
             // volver a acreditarlo aquí, o se duplica (ver bug: cancelar pedido parcial + cancelar la
             // venta que ya usó el anticipo dejaba doble saldo a favor).
             $anticipo = (float) $pedido->anticipo;
+            $montoDevuelto = 0.0;
+
+            if (in_array($destinoSaldo, ['efectivo', 'transferencia'], true)) {
+                $saldoDisponible = $this->saldoDisponibleCliente((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id);
+                $maximoDevolucion = round(min($anticipo, $saldoDisponible), 2);
+
+                if ($montoDevolucionSolicitado > $maximoDevolucion) {
+                    DB::rollBack();
+                    return response()->json([
+                        'message' => 'El monto a devolver supera el saldo disponible del anticipo. Disponible: $' . number_format($maximoDevolucion, 2),
+                    ], 422);
+                }
+
+                $this->registrarDevolucionSaldoPedido(
+                    $pedido,
+                    $corte,
+                    $destinoSaldo,
+                    $montoDevolucionSolicitado,
+                    $data['cuenta_bancaria_id'] ?? null
+                );
+                $montoDevuelto = $montoDevolucionSolicitado;
+            }
 
             // El estado de cabecera se recalcula a partir de los renglones: si alguno ya
             // se entregó (se vendió), el pedido queda 'parcial' en vez de 'cancelado', para
@@ -788,7 +841,11 @@ class PedidoController extends Controller
                 : 'Pedido cancelado.';
 
             if ($anticipo > 0) {
-                $mensaje .= ' La parte del anticipo de $' . number_format($anticipo, 2) . ' que no se haya usado en una venta queda disponible como saldo a favor del cliente.';
+                if ($montoDevuelto > 0) {
+                    $mensaje .= ' Se devolvieron $' . number_format($montoDevuelto, 2) . ' por ' . ($destinoSaldo === 'efectivo' ? 'efectivo' : 'transferencia') . '.';
+                } else {
+                    $mensaje .= ' El saldo no usado del anticipo queda disponible como saldo a favor del cliente.';
+                }
             }
 
             return response()->json([
@@ -799,6 +856,56 @@ class PedidoController extends Controller
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
         }
+    }
+
+    private function saldoDisponibleCliente(int $empresaId, int $sucursalId, int $clienteId): float
+    {
+        return round((float) ClienteSaldoMovimiento::where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->where('cliente_id', $clienteId)
+            ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END")), 2);
+    }
+
+    private function registrarDevolucionSaldoPedido(
+        Pedido $pedido,
+        CorteCaja $corte,
+        string $formaPago,
+        float $monto,
+        ?int $cuentaBancariaId = null
+    ): void {
+        $movimientoCaja = MovimientoCaja::create([
+            'corte_id' => $corte->id,
+            'user_id' => Auth::id(),
+            'tipo' => 'egreso',
+            'forma_pago' => $formaPago,
+            'cuenta_bancaria_id' => $formaPago === 'transferencia' ? $cuentaBancariaId : null,
+            'terminal_pago_id' => null,
+            'monto' => $monto,
+            'concepto' => "Devolucion saldo {$pedido->tipo} {$pedido->folio}",
+        ]);
+
+        $saldoAnterior = $this->saldoDisponibleCliente(
+            (int) $pedido->empresa_id,
+            (int) $pedido->sucursal_id,
+            (int) $pedido->cliente_id
+        );
+
+        ClienteSaldoMovimiento::create([
+            'empresa_id' => $pedido->empresa_id,
+            'sucursal_id' => $pedido->sucursal_id,
+            'cliente_id' => $pedido->cliente_id,
+            'pedido_id' => $pedido->id,
+            'corte_id' => $corte->id,
+            'movimiento_caja_id' => $movimientoCaja->id,
+            'user_id' => Auth::id(),
+            'tipo' => 'aplicacion',
+            'forma_pago' => $formaPago,
+            'monto' => $monto,
+            'saldo_resultante' => max(0, $saldoAnterior - $monto),
+            'concepto' => "Devolucion de saldo por cancelacion {$pedido->folio}",
+        ]);
+
+        $corte->recalcularMovimientos();
     }
 
     private function registrarAnticipo(

@@ -261,8 +261,8 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         }
     }
 
-    async function cancelarPedido(pedido) {
-        const { data } = await http.post(`/api/pedidos/${pedido.id}/cancelar`)
+    async function cancelarPedido(pedido, payload = {}) {
+        const { data } = await http.post(`/api/pedidos/${pedido.id}/cancelar`, payload)
         toastSuccess(data?.message || 'Cancelado correctamente')
         await cargarPedidos()
     }

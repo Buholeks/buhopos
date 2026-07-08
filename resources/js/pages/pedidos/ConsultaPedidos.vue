@@ -240,6 +240,7 @@
             :visible="modalCancelar.visible"
             :procesando="modalCancelar.procesando"
             :pedido="modalCancelar.pedido"
+            :cuentas-bancarias="cuentasBancarias"
             @close="cerrarCancelar"
             @confirm="ejecutarCancelacion"
         />
@@ -409,13 +410,13 @@ function cerrarCancelar() {
     modalCancelar.procesando = false;
 }
 
-async function ejecutarCancelacion() {
+async function ejecutarCancelacion(payload = {}) {
     if (!modalCancelar.pedido) return;
 
     modalCancelar.procesando = true;
 
     try {
-        await cancelarPedido(modalCancelar.pedido);
+        await cancelarPedido(modalCancelar.pedido, payload);
         cerrarCancelar();
     } finally {
         modalCancelar.procesando = false;

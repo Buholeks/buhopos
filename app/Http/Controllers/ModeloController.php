@@ -10,7 +10,6 @@ use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ModeloController extends Controller
@@ -200,9 +199,7 @@ class ModeloController extends Controller
     {
         $modelo = Modelo::deEmpresa($this->empresaId())->findOrFail($id);
 
-        if ($modelo->imagen) {
-            Storage::disk('public')->delete($modelo->imagen);
-        }
+        $this->quitarReferenciaMedia($modelo);
 
         $modelo->delete();
 

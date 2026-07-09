@@ -17,7 +17,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -294,6 +293,7 @@ class ProductoController extends Controller
             ], 422);
         }
 
+        $this->quitarReferenciaMedia($producto);
         $producto->delete();
 
         return response()->json([
@@ -751,9 +751,7 @@ class ProductoController extends Controller
             ], 422);
         }
 
-        if ($variante->imagen) {
-            Storage::disk('public')->delete($variante->imagen);
-        }
+        $this->quitarReferenciaMedia($variante);
 
         $variante->delete();
 

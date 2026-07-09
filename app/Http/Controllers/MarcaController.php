@@ -9,7 +9,6 @@ use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class MarcaController extends Controller
@@ -188,10 +187,7 @@ class MarcaController extends Controller
         abort_unless(Auth::user()->tienePermiso('productos.eliminar'), 403, 'Sin permiso: productos.eliminar');
         $marca = Marca::deEmpresa($this->empresaId())->findOrFail($id);
 
-        // Eliminar logo del storage
-        if ($marca->logo) {
-            Storage::disk('public')->delete($marca->logo);
-        }
+        $this->quitarReferenciaMedia($marca, 'logo');
 
         // Los modelos se eliminan en cascada por la FK cascadeOnDelete()
         $marca->delete();

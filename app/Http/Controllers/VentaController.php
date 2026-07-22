@@ -8,6 +8,7 @@ use App\Models\ClienteSaldoMovimiento;
 use App\Models\User;
 use App\Models\VentaDetalle;
 use App\Models\Inventario;
+use App\Models\InventarioExhibicion;
 use App\Models\InventarioReserva;
 use App\Models\Pedido;
 use App\Models\PedidoDetalle;
@@ -109,6 +110,7 @@ class VentaController extends Controller
             'detalles.*.lista_precio_usada' => ['nullable', 'string', 'max:30'],
             'detalles.*.motivo_precio' => ['nullable', 'string', 'max:255'],
             'detalles.*.era_exhibido'  => ['nullable', 'boolean'],
+            'detalles.*.inventario_exhibicion_id' => ['nullable', 'integer', 'exists:inventario_exhibiciones,id'],
             'detalles.*.serie_id'      => ['nullable', 'integer', 'exists:series,id'],
             'detalles.*.pedido_id'     => ['nullable', 'integer', 'exists:pedidos,id'],
             'detalles.*.pedido_detalle_id' => ['nullable', 'integer', 'exists:pedido_detalles,id'],
@@ -447,6 +449,7 @@ class VentaController extends Controller
                         $sucursalId,
                         $productoId,
                         $varianteId,
+                        $det['inventario_exhibicion_id'] ?? null,
                         true
                     );
 
@@ -463,7 +466,7 @@ class VentaController extends Controller
                 $inv->descontarVenta($cantidad, false);
 
                 if ($exhibicionVendida) {
-                    $exhibicionVendida->quitarExhibicion();
+                    $exhibicionVendida->vender($venta->id, $detalle->id);
                 }
 
                 app(KardexServicio::class)->registrar([
@@ -493,6 +496,7 @@ class VentaController extends Controller
                         'pedido_detalle_id' => $det['pedido_detalle_id'] ?? null,
                         'lista_precio_usada' => $listaPrecioUsada,
                         'era_exhibido' => (bool) ($det['era_exhibido'] ?? false),
+                        'inventario_exhibicion_id' => $det['inventario_exhibicion_id'] ?? null,
                     ],
                 ]);
 
@@ -855,7 +859,8 @@ class VentaController extends Controller
                 'imagen_url_resuelta' => $serieImagenUrl,
                 'stock'           => $stock,
                 'sin_stock'       => $stock <= 0,
-                'exhibido'        => (bool) $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $serie->producto_id, $serie->variante_id),
+                'exhibido'        => (bool) ($exhibicionSerie = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $serie->producto_id, $serie->variante_id)),
+                'inventario_exhibicion_id' => $exhibicionSerie?->id,
                 'tiene_series'    => true,
                 'serie_id'        => $serie->id,   // ← para venta directa por IMEI
                 'imei'            => $serie->imei,
@@ -914,7 +919,8 @@ class VentaController extends Controller
         $productos = $productos->map(function ($p) use ($empresaId, $sucursalId, $getStock, $stockComprometidoP) {
                 $inv      = $getStock($empresaId, $sucursalId, $p->id, null);
                 $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoP($p->id, null));
-                $exhibido = (bool) $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $p->id, null);
+                $exhibicion = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $p->id, null);
+                $exhibido = (bool) $exhibicion;
 
                 return [
                     'id'              => null,        // sin variante_id
@@ -928,6 +934,7 @@ class VentaController extends Controller
                     'stock'           => $stock,
                     'sin_stock'       => $stock <= 0,
                     'exhibido'        => $exhibido,
+                    'inventario_exhibicion_id' => $exhibicion?->id,
                     'tiene_series'    => (bool) $p->tiene_series,
                     'serie_id'        => null,
                     'precio_venta'    => (float) ($p->precio_venta ?? 0),
@@ -997,7 +1004,8 @@ class VentaController extends Controller
         $variantes = $variantes->map(function ($v) use ($empresaId, $sucursalId, $getStock, $resolverPrecio, $stockComprometidoV) {
                 $inv      = $getStock($empresaId, $sucursalId, $v->producto_id, $v->id);
                 $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoV($v->producto_id, $v->id));
-                $exhibido = (bool) $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $v->producto_id, $v->id);
+                $exhibicion = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $v->producto_id, $v->id);
+                $exhibido = (bool) $exhibicion;
 
                 return [
                     'id'              => $v->id,
@@ -1012,6 +1020,7 @@ class VentaController extends Controller
                     'stock'           => $stock,
                     'sin_stock'       => $stock <= 0,
                     'exhibido'        => $exhibido,
+                    'inventario_exhibicion_id' => $exhibicion?->id,
                     'tiene_series'    => (bool) $v->producto->tiene_series,
                     'serie_id'        => null,
                     'precio_venta'    => $resolverPrecio($v->precio_venta,  $v->producto->precio_venta)  ?? 0,
@@ -1100,11 +1109,34 @@ class VentaController extends Controller
             ->groupBy('pedidos.sucursal_id')
             ->pluck('total', 'pedidos.sucursal_id');
 
-        $items = $sucursales->map(function ($sucursal) use ($inventario, $reservas, $pedidosDisponibles, $sucursalActualId) {
+        $exhibiciones = InventarioExhibicion::where('empresa_id', $empresaId)
+            ->where('producto_id', $productoId)
+            ->whereIn('sucursal_id', $sucursalIds)
+            ->activas()
+            ->when(
+                $varianteId,
+                fn($q) => $q->where(fn($qq) => $qq
+                    ->where('variante_id', $varianteId)
+                    ->orWhere('tipo_cobertura', 'producto')
+                    ->orWhere(function ($color) use ($varianteId) {
+                        $color->where('tipo_cobertura', 'color')
+                            ->whereExists(fn($sub) => $sub
+                                ->selectRaw('1')
+                                ->from('variante_atributos as va_color')
+                                ->where('va_color.variante_id', $varianteId)
+                                ->whereColumn('va_color.atributo_id', 'inventario_exhibiciones.atributo_id'));
+                    })),
+                fn($q) => $q->where('tipo_cobertura', 'producto')
+            )
+            ->get()
+            ->keyBy('sucursal_id');
+
+        $items = $sucursales->map(function ($sucursal) use ($inventario, $reservas, $pedidosDisponibles, $sucursalActualId, $exhibiciones) {
             $inv = $inventario->get($sucursal->id);
             $stock = (float) ($inv?->stock ?? 0);
             $reservado = (float) ($reservas[$sucursal->id] ?? 0) + (float) ($pedidosDisponibles[$sucursal->id] ?? 0);
             $disponible = max(0, $stock - $reservado);
+            $exhibicion = $exhibiciones->get($sucursal->id);
 
             return [
                 'sucursal_id' => $sucursal->id,
@@ -1113,7 +1145,8 @@ class VentaController extends Controller
                 'stock' => $stock,
                 'reservado' => $reservado,
                 'disponible' => $disponible,
-                'exhibido' => (bool) ($inv?->exhibido ?? false),
+                'exhibido' => (bool) $exhibicion,
+                'inventario_exhibicion_id' => $exhibicion?->id,
             ];
         })->values();
 
@@ -1134,24 +1167,38 @@ class VentaController extends Controller
         int $sucursalId,
         int $productoId,
         ?int $varianteId,
+        ?int $exhibicionId = null,
         bool $lock = false
-    ): ?Inventario {
-        $query = Inventario::where('empresa_id', $empresaId)
-            ->where('sucursal_id', $sucursalId)
+    ): ?InventarioExhibicion {
+        $query = InventarioExhibicion::deSucursal($empresaId, $sucursalId)
+            ->activas()
             ->where('producto_id', $productoId)
-            ->where('exhibido', true);
+            ->when($exhibicionId, fn($q) => $q->where('id', $exhibicionId));
 
         if ($varianteId) {
-            $query->where('variante_exhibida_id', $varianteId);
+            $query->where(function ($q) use ($varianteId) {
+                $q->where('variante_id', $varianteId)
+                    ->orWhere('tipo_cobertura', 'producto')
+                    ->orWhere(function ($color) use ($varianteId) {
+                        $color->where('tipo_cobertura', 'color')
+                            ->whereExists(fn($sub) => $sub
+                                ->selectRaw('1')
+                                ->from('variante_atributos as va_color')
+                                ->where('va_color.variante_id', $varianteId)
+                                ->whereColumn('va_color.atributo_id', 'inventario_exhibiciones.atributo_id'));
+                    });
+            });
         } else {
-            $query->whereNull('variante_id')
-                ->whereNull('variante_exhibida_id');
+            $query->where('tipo_cobertura', 'producto');
         }
 
         if ($lock) {
             $query->lockForUpdate();
         }
 
-        return $query->first();
+        return $query
+            ->orderByRaw("CASE tipo_cobertura WHEN 'variante' THEN 0 WHEN 'color' THEN 1 ELSE 2 END")
+            ->oldest()
+            ->first();
     }
 }

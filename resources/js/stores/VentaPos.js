@@ -228,6 +228,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
             cantidad_fija: false,
             stock_disponible: r.stock ?? 0,
             inventario_exhibido: r.exhibido ?? false,
+            inventario_exhibicion_id: r.inventario_exhibicion_id ?? null,
             subtotal: 0,
             motivo_precio: null,
             era_exhibido: false,
@@ -267,6 +268,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
             cantidad_fija: true,
             stock_disponible: 1,
             inventario_exhibido: serieData.exhibido ?? false,
+            inventario_exhibicion_id: serieData.inventario_exhibicion_id ?? null,
             subtotal: 0,
             motivo_precio: null,
             era_exhibido: false,
@@ -425,6 +427,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
                     lista_precio_usada: d.precio_lista_sel ?? null,
                     motivo_precio: d.motivo_precio ?? null,
                     era_exhibido: d.era_exhibido ?? false,
+                    inventario_exhibicion_id: d.inventario_exhibicion_id ?? null,
                 })),
             };
 

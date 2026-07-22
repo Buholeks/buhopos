@@ -1068,6 +1068,7 @@ function seleccionarItem(r) {
             precio4: r.precio4 ?? null,
             precio5: r.precio5 ?? null,
             exhibido: r.exhibido ?? false,
+            inventario_exhibicion_id: r.inventario_exhibicion_id ?? null,
         });
 
         busqueda.value = "";
@@ -1189,6 +1190,7 @@ function seleccionarItemConSerie(serieData) {
         precio4: serieData.precio4 ?? null,
         precio5: serieData.precio5 ?? null,
         exhibido: serieData.exhibido ?? false,
+        inventario_exhibicion_id: serieData.inventario_exhibicion_id ?? null,
     });
 
     const idx = detalles.value.findIndex((x) => x._key === det?._key);
@@ -1223,6 +1225,8 @@ function onSerieSeleccionada(serie) {
         precio4: modalSerie.itemPendiente?.precio4,
         precio5: modalSerie.itemPendiente?.precio5,
         exhibido: modalSerie.itemPendiente?.exhibido ?? false,
+        inventario_exhibicion_id:
+            modalSerie.itemPendiente?.inventario_exhibicion_id ?? null,
     });
 }
 

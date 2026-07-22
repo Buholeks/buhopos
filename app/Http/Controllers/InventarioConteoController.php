@@ -7,6 +7,7 @@ use App\Models\Inventario;
 use App\Models\InventarioConteo;
 use App\Models\InventarioConteoDetalle;
 use App\Models\InventarioConteoEvento;
+use App\Models\InventarioExhibicion;
 use App\Models\InventarioMovimiento;
 use App\Servicios\KardexServicio;
 use App\Models\Categoria;
@@ -633,7 +634,9 @@ class InventarioConteoController extends Controller
 
                 $inv->stock = $nuevo;
                 $inv->save();
-                if ($nuevo <= 0 && $inv->exhibido) $inv->quitarExhibicion();
+                if ($nuevo <= 0) {
+                    $this->retirarExhibicionSinStock($inv);
+                }
 
                 InventarioMovimiento::create([
                     'empresa_id' => $conteo->empresa_id,
@@ -913,6 +916,21 @@ class InventarioConteoController extends Controller
             ->lockForUpdate()
             ->count() + 1;
         return 'CNT-' . now()->format('ymd') . '-' . str_pad((string) $total, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function retirarExhibicionSinStock(Inventario $inventario): void
+    {
+        $query = InventarioExhibicion::deSucursal($inventario->empresa_id, $inventario->sucursal_id)
+            ->activas()
+            ->where('producto_id', $inventario->producto_id);
+
+        if ($inventario->variante_id) {
+            $query->where('variante_id', $inventario->variante_id);
+        } else {
+            $query->where('tipo_cobertura', 'producto');
+        }
+
+        $query->get()->each->retirar();
     }
 
     private function autorizar(string $permiso): void

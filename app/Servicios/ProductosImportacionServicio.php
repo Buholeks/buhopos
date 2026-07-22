@@ -390,7 +390,6 @@ class ProductosImportacionServicio
             [
                 'stock' => 0,
                 'stock_minimo' => $stockMinimo,
-                'exhibido' => false,
             ],
         );
 

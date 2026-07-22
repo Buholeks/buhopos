@@ -267,6 +267,12 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         await cargarPedidos()
     }
 
+    async function cancelarDetalle(pedido, detalle, payload = {}) {
+        const { data } = await http.post(`/api/pedidos/${pedido.id}/detalles/${detalle.id}/cancelar`, payload)
+        toastSuccess(data?.message || 'Cancelado correctamente')
+        await cargarPedidos()
+    }
+
     async function eliminarAbono(pedido, abonoId) {
         const ok = await confirm({
             title: 'Eliminar abono',
@@ -330,6 +336,7 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         guardarEncargo,
         registrarAbono,
         cancelarPedido,
+        cancelarDetalle,
         eliminarAbono,
         limpiarFormulario,
     }

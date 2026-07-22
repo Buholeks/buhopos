@@ -57,10 +57,14 @@ class ReporteCajaController extends Controller
 
         if ($request->boolean('por_dia')) {
             $cortes = $query->get();
+            $this->recalcularCortesAbiertos($cortes);
 
             $agrupado = $cortes
                 ->groupBy(fn ($corte) => $corte->fecha_apertura->copy()->setTimezone('America/Mexico_City')->toDateString())
                 ->map(function ($grupo, $fecha) {
+                    $totalCobradoCaja = $this->sumarTotalCobradoCaja($grupo);
+                    $totalVendido = $this->sumarTotalVendido($grupo);
+
                     return [
                         'fecha'                => $fecha,
                         'num_cortes'           => $grupo->count(),
@@ -68,12 +72,10 @@ class ReporteCajaController extends Controller
                         'ventas_efectivo'      => round((float) $grupo->sum('ventas_efectivo'), 2),
                         'ventas_tarjeta'       => round((float) $grupo->sum('ventas_tarjeta'), 2),
                         'ventas_transferencia' => round((float) $grupo->sum('ventas_transferencia'), 2),
-                        'total_ventas'         => round(
-                            (float) $grupo->sum('ventas_efectivo') +
-                            (float) $grupo->sum('ventas_tarjeta') +
-                            (float) $grupo->sum('ventas_transferencia'),
-                            2
-                        ),
+                        'ventas_saldo_favor'   => round((float) $grupo->sum('ventas_saldo_favor'), 2),
+                        'total_cobrado_caja'   => $totalCobradoCaja,
+                        'total_vendido'        => $totalVendido,
+                        'total_ventas'         => $totalCobradoCaja,
                         'movs_efectivo'        => round((float) $grupo->sum('movs_efectivo'), 2),
                         'movs_tarjeta'         => round((float) $grupo->sum('movs_tarjeta'), 2),
                         'movs_transferencia'   => round((float) $grupo->sum('movs_transferencia'), 2),
@@ -97,8 +99,10 @@ class ReporteCajaController extends Controller
 
         $cortes = $query->paginate($porPagina);
 
+        $this->recalcularCortesAbiertos($cortes->getCollection());
+
         $cortes->getCollection()->transform(function ($corte) {
-            $corte->total_ventas = $this->sumarTotalVentas($corte);
+            $this->agregarTotalesVenta($corte);
             return $corte;
         });
 
@@ -153,7 +157,13 @@ class ReporteCajaController extends Controller
             ])
             ->findOrFail($id);
 
-        $corte->total_ventas = $this->sumarTotalVentas($corte);
+        if ($corte->estado === 'abierto') {
+            $corte->recalcularVentas();
+            $corte->recalcularMovimientos();
+            $corte->refresh();
+        }
+
+        $this->agregarTotalesVenta($corte);
 
         $movResumen = $corte->movimientos
             ->groupBy('forma_pago')
@@ -262,20 +272,27 @@ class ReporteCajaController extends Controller
             'ventas_efectivo'      => round((float) $cortes->sum('ventas_efectivo'), 2),
             'ventas_tarjeta'       => round((float) $cortes->sum('ventas_tarjeta'), 2),
             'ventas_transferencia' => round((float) $cortes->sum('ventas_transferencia'), 2),
-            'total_ventas'         => round(
-                (float) $cortes->sum('ventas_efectivo') +
-                (float) $cortes->sum('ventas_tarjeta') +
-                (float) $cortes->sum('ventas_transferencia'),
-                2
-            ),
+            'ventas_saldo_favor'   => round((float) $cortes->sum('ventas_saldo_favor'), 2),
+            'total_cobrado_caja'   => $this->sumarTotalCobradoCaja($cortes),
+            'total_vendido'        => $this->sumarTotalVendido($cortes),
+            'total_ventas'         => $this->sumarTotalCobradoCaja($cortes),
             'movs_efectivo'        => round((float) $cortes->sum('movs_efectivo'), 2),
+            'esperado_efectivo'    => round((float) $cortes->sum('esperado_efectivo'), 2),
+            'contado_efectivo'     => round((float) $cortes->sum('contado_efectivo'), 2),
             'dif_efectivo'         => round((float) $cortes->sum('dif_efectivo'), 2),
             'dif_tarjeta'          => round((float) $cortes->sum('dif_tarjeta'), 2),
             'dif_transferencia'    => round((float) $cortes->sum('dif_transferencia'), 2),
         ];
     }
 
-    private function sumarTotalVentas(CorteCaja $corte): float
+    private function agregarTotalesVenta(CorteCaja $corte): void
+    {
+        $corte->total_cobrado_caja = $this->sumarCobradoCajaCorte($corte);
+        $corte->total_vendido = round($corte->total_cobrado_caja + (float) $corte->ventas_saldo_favor, 2);
+        $corte->total_ventas = $corte->total_cobrado_caja;
+    }
+
+    private function sumarCobradoCajaCorte(CorteCaja $corte): float
     {
         return round(
             (float) $corte->ventas_efectivo +
@@ -283,5 +300,26 @@ class ReporteCajaController extends Controller
             (float) $corte->ventas_transferencia,
             2
         );
+    }
+
+    private function sumarTotalCobradoCaja($cortes): float
+    {
+        return round((float) $cortes->sum(fn (CorteCaja $corte) => $this->sumarCobradoCajaCorte($corte)), 2);
+    }
+
+    private function sumarTotalVendido($cortes): float
+    {
+        return round((float) $cortes->sum(
+            fn (CorteCaja $corte) => $this->sumarCobradoCajaCorte($corte) + (float) $corte->ventas_saldo_favor
+        ), 2);
+    }
+
+    private function recalcularCortesAbiertos($cortes): void
+    {
+        $cortes->where('estado', 'abierto')->each(function (CorteCaja $corte) {
+            $corte->recalcularVentas();
+            $corte->recalcularMovimientos();
+            $corte->refresh();
+        });
     }
 }

@@ -566,6 +566,13 @@ public function cerrar(Request $request, int $id): JsonResponse
             ->with(['user:id,name', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco'])
             ->findOrFail($id);
 
+        if ($corte->estado === 'abierto') {
+            $corte->recalcularVentas();
+            $corte->recalcularMovimientos();
+            $corte->refresh();
+            $corte->load(['user:id,name', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco']);
+        }
+
         $ventas = Venta::where('corte_id', $corte->id)
             ->where('estado', 'confirmada')
             ->with(['detalles.producto:id,nombre', 'user:id,name', 'pagos'])

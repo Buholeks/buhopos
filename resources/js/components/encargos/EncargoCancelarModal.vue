@@ -2,11 +2,17 @@
     <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
         <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div class="border-b border-slate-100 px-5 py-4">
-                <h2 class="text-lg font-black text-slate-900">Cancelar {{ pedido?.tipo || "pedido" }}</h2>
+                <h2 class="text-lg font-black text-slate-900">{{ titulo }}</h2>
                 <p class="text-sm text-slate-500">{{ pedido?.folio }} · {{ pedido?.cliente?.nombre }}</p>
             </div>
             <div class="space-y-3 p-5">
                 <p class="text-sm text-slate-700">¿Confirmas la cancelación? Esta acción actualizará el estado del encargo.</p>
+                <div v-if="detalle" class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                    <p class="font-bold text-slate-900">{{ detalle.descripcion }}</p>
+                    <p class="mt-1 text-xs text-slate-500">
+                        {{ Number(detalle.cantidad || 0) }} pza. - {{ money(detalle.subtotal) }}
+                    </p>
+                </div>
                 <div v-if="tieneAnticipo" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                     El cliente tiene un anticipo de <strong>{{ money(pedido?.anticipo) }}</strong>. Ese saldo ya existe como saldo a favor; al cancelar puedes mantenerlo o devolverlo.
                     <span v-if="cargandoSaldo">Calculando el disponible real para devolver…</span>
@@ -76,6 +82,7 @@ const props = defineProps({
     visible: { type: Boolean, default: false },
     procesando: { type: Boolean, default: false },
     pedido: { type: Object, default: null },
+    detalle: { type: Object, default: null },
     cuentasBancarias: { type: Array, default: () => [] },
     maximoDevolucion: { type: Number, default: 0 },
     cargandoSaldo: { type: Boolean, default: false },
@@ -89,6 +96,7 @@ const form = reactive({
 });
 
 const tieneAnticipo = computed(() => Number(props.pedido?.anticipo || 0) > 0);
+const titulo = computed(() => props.detalle ? 'Cancelar articulo' : `Cancelar ${props.pedido?.tipo || "pedido"}`);
 const requiereDevolucion = computed(() => ["efectivo", "transferencia"].includes(form.destino_saldo));
 const puedeConfirmar = computed(() => {
     if (!requiereDevolucion.value) return true;
@@ -106,7 +114,7 @@ const payload = computed(() => ({
 }));
 
 watch(
-    () => props.pedido?.id,
+    () => `${props.pedido?.id || ""}:${props.detalle?.id || ""}`,
     () => {
         form.destino_saldo = "mantener_saldo";
         form.monto_devolucion = Number(props.maximoDevolucion || 0);

@@ -60,24 +60,34 @@
 
         <div v-else-if="corte" class="mx-auto max-w-7xl space-y-6 px-3 sm:px-6 py-4 sm:py-6">
             <!-- RESUMEN TOTALES -->
-            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
                 <TarjetaResumen
-                    label="Efectivo"
+                    label="Total vendido"
+                    :valor="totalVendido"
+                    color="emerald"
+                />
+                <TarjetaResumen
+                    label="Cobrado caja"
+                    :valor="totalCobradoCaja"
+                    color="blue"
+                />
+                <TarjetaResumen
+                    label="Esperado efectivo"
                     :valor="corte.esperado_efectivo"
                     color="emerald"
                 />
                 <TarjetaResumen
-                    label="Tarjeta"
+                    label="Esperado tarjeta"
                     :valor="corte.esperado_tarjeta"
                     color="blue"
                 />
                 <TarjetaResumen
-                    label="Transferencia"
+                    label="Esperado transferencia"
                     :valor="corte.esperado_transferencia"
                     color="violet"
                 />
                 <TarjetaResumen
-                    label="Saldo a favor"
+                    label="Saldo aplicado"
                     :valor="corte.ventas_saldo_favor"
                     color="cyan"
                 />
@@ -445,6 +455,15 @@ const abiertos = ref(new Set());
 const totalVentas = computed(
     () => metaVentas.value.total ?? ventas.value.length,
 );
+
+const totalCobradoCaja = computed(() => {
+    if (!corte.value) return 0;
+    return Number(corte.value.ventas_efectivo || 0)
+        + Number(corte.value.ventas_tarjeta || 0)
+        + Number(corte.value.ventas_transferencia || 0);
+});
+
+const totalVendido = computed(() => totalCobradoCaja.value + Number(corte.value?.ventas_saldo_favor || 0));
 
 const arqueoDatos = computed(() => {
     if (!corte.value) return [];

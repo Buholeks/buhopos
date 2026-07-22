@@ -37,14 +37,16 @@
 
                 <div>
                     <h3 class="mb-2 text-sm font-black text-slate-900">Artículos</h3>
-                    <div class="overflow-hidden rounded-xl border border-slate-200">
-                        <table class="w-full text-sm">
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="min-w-full text-sm">
                             <thead class="bg-slate-50 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
                                 <tr>
                                     <th class="px-3 py-2">Descripción</th>
                                     <th class="px-3 py-2 text-center">Cant.</th>
                                     <th class="px-3 py-2 text-right">Precio</th>
                                     <th class="px-3 py-2 text-right">Subtotal</th>
+                                    <th class="px-3 py-2">Estado</th>
+                                    <th class="px-3 py-2 text-right">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
@@ -56,6 +58,20 @@
                                     <td class="px-3 py-2 text-center text-slate-700">{{ detalle.cantidad }}</td>
                                     <td class="px-3 py-2 text-right text-slate-700">{{ money(detalle.precio_acordado) }}</td>
                                     <td class="px-3 py-2 text-right font-black text-slate-900">{{ money(detalle.subtotal) }}</td>
+                                    <td class="px-3 py-2">
+                                        <EncargoEstadoBadge :estado="detalle.estado" />
+                                    </td>
+                                    <td class="px-3 py-2 text-right">
+                                        <button
+                                            v-if="puedeCancelarDetalle(detalle)"
+                                            type="button"
+                                            class="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                            title="Cancelar articulo"
+                                            @click="$emit('cancelar-detalle', detalle)"
+                                        >
+                                            <XCircle class="h-4 w-4" />
+                                        </button>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -63,7 +79,7 @@
                 </div>
 
                 <div class="rounded-2xl bg-slate-50 p-4">
-                    <div class="flex justify-between text-sm"><span class="text-slate-500">Total</span><span class="font-black text-slate-900">{{ money(data.subtotal) }}</span></div>
+                    <div class="flex justify-between text-sm"><span class="text-slate-500">Total</span><span class="font-black text-slate-900">{{ money(subtotalVigente) }}</span></div>
                     <div class="mt-1 flex justify-between text-sm"><span class="text-slate-500">Anticipo pagado</span><span class="font-bold text-emerald-700">{{ money(data.anticipo) }}</span></div>
                     <div class="mt-2 flex justify-between border-t border-slate-200 pt-2 text-sm"><span class="font-bold text-slate-700">Saldo pendiente</span><span class="font-black text-slate-900">{{ money(data.saldo_pendiente) }}</span></div>
                 </div>
@@ -112,7 +128,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { Loader2, Trash2, X } from 'lucide-vue-next'
+import { Loader2, Trash2, X, XCircle } from 'lucide-vue-next'
 import EncargoEstadoBadge from './EncargoEstadoBadge.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -126,12 +142,25 @@ const props = defineProps({
     eliminandoAbonoId: { type: [Number, String], default: null },
 })
 
-defineEmits(['close', 'eliminar-abono'])
+defineEmits(['close', 'eliminar-abono', 'cancelar-detalle'])
 
 const puedeEliminarAbono = computed(() => {
     if (!auth.can('pedidos.crear')) return false
     return !['entregado', 'devuelto', 'cancelado', 'vencido'].includes(props.data?.estado)
 })
+
+const subtotalVigente = computed(() => {
+    if (!Array.isArray(props.data?.detalles)) return props.data?.subtotal
+    return props.data.detalles
+        .filter((detalle) => detalle?.estado !== 'cancelado')
+        .reduce((total, detalle) => total + Number(detalle?.subtotal || 0), 0)
+})
+
+function puedeCancelarDetalle(detalle) {
+    if (!auth.can('pedidos.cancelar')) return false
+    if (['entregado', 'devuelto', 'cancelado'].includes(props.data?.estado)) return false
+    return !['entregado', 'devuelto', 'cancelado'].includes(detalle?.estado)
+}
 
 function money(value) {
     return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(value || 0))

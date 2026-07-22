@@ -55,7 +55,7 @@
                         </td>
 
                         <td class="px-4 py-3 text-right font-black text-slate-900">
-                            {{ money(pedido.subtotal) }}
+                            {{ money(subtotalVigente(pedido)) }}
                         </td>
 
                         <td class="px-4 py-3 text-right">
@@ -181,7 +181,19 @@ defineProps({
 defineEmits(['detalle', 'cancelar', 'abonar'])
 
 function pedidoCerrado(pedido) {
-    return ['entregado', 'devuelto', 'cancelado'].includes(pedido?.estado)
+    return ['entregado', 'devuelto', 'cancelado'].includes(pedido?.estado) || !tieneDetallesCancelables(pedido)
+}
+
+function tieneDetallesCancelables(pedido) {
+    if (!Array.isArray(pedido?.detalles)) return true
+    return pedido.detalles.some((detalle) => !['entregado', 'devuelto', 'cancelado'].includes(detalle?.estado))
+}
+
+function subtotalVigente(pedido) {
+    if (!Array.isArray(pedido?.detalles)) return pedido?.subtotal
+    return pedido.detalles
+        .filter((detalle) => detalle?.estado !== 'cancelado')
+        .reduce((total, detalle) => total + Number(detalle?.subtotal || 0), 0)
 }
 
 // Un pedido vencido ya no admite abonos, pero sigue pudiendo cancelarse para

@@ -41,11 +41,13 @@
             :eliminando-abono-id="eliminandoAbonoId"
             @close="cerrarDetalle"
             @eliminar-abono="eliminarAbonoDetalle"
+            @cancelar-detalle="abrirCancelarDetalle"
         />
         <EncargoCancelarModal
             :visible="modalCancelar.visible"
             :procesando="modalCancelar.procesando"
             :pedido="modalCancelar.pedido"
+            :detalle="modalCancelar.detalle"
             :cuentas-bancarias="cuentasBancarias"
             :maximo-devolucion="modalCancelar.maximoDevolucion"
             :cargando-saldo="modalCancelar.cargandoSaldo"
@@ -67,11 +69,11 @@ import { useEncargos } from '@/stores/useEncargos'
 
 let timer = null
 const modalDetalle = reactive({ visible: false, cargando: false, pedido: null, data: null })
-const modalCancelar = reactive({ visible: false, procesando: false, pedido: null, maximoDevolucion: 0, cargandoSaldo: false })
+const modalCancelar = reactive({ visible: false, procesando: false, pedido: null, detalle: null, maximoDevolucion: 0, cargandoSaldo: false })
 const eliminandoAbonoId = ref(null)
 const {
     pedidos, cargando, buscar, filtroEstado, filtroFechaDesde, filtroFechaHasta, abonos,
-    cargarPedidos, registrarAbono, cancelarPedido, eliminarAbono,
+    cargarPedidos, registrarAbono, cancelarPedido, cancelarDetalle, eliminarAbono,
     cuentasBancarias, terminalesPago, cargarCuentasBancarias, cargarTerminalesPago,
 } = useEncargos({ tipo: 'apartado' })
 
@@ -118,6 +120,7 @@ async function eliminarAbonoDetalle(abonoId) {
 async function abrirCancelar(pedido) {
     modalCancelar.visible = true
     modalCancelar.pedido = pedido
+    modalCancelar.detalle = null
     modalCancelar.maximoDevolucion = 0
     modalCancelar.cargandoSaldo = true
     try {
@@ -129,9 +132,26 @@ async function abrirCancelar(pedido) {
         modalCancelar.cargandoSaldo = false
     }
 }
+async function abrirCancelarDetalle(detalle) {
+    if (!modalDetalle.data) return
+    modalCancelar.visible = true
+    modalCancelar.pedido = modalDetalle.data
+    modalCancelar.detalle = detalle
+    modalCancelar.maximoDevolucion = 0
+    modalCancelar.cargandoSaldo = true
+    try {
+        const { data } = await http.get(`/api/pedidos/${modalDetalle.data.id}/detalles/${detalle.id}/saldo-cancelacion`)
+        modalCancelar.maximoDevolucion = Number(data?.maximo_devolucion ?? 0)
+    } catch {
+        modalCancelar.maximoDevolucion = 0
+    } finally {
+        modalCancelar.cargandoSaldo = false
+    }
+}
 function cerrarCancelar() {
     modalCancelar.visible = false
     modalCancelar.pedido = null
+    modalCancelar.detalle = null
     modalCancelar.procesando = false
     modalCancelar.maximoDevolucion = 0
     modalCancelar.cargandoSaldo = false
@@ -140,7 +160,14 @@ async function ejecutarCancelacion(payload = {}) {
     if (!modalCancelar.pedido) return
     modalCancelar.procesando = true
     try {
-        await cancelarPedido(modalCancelar.pedido, payload)
+        if (modalCancelar.detalle) {
+            await cancelarDetalle(modalCancelar.pedido, modalCancelar.detalle, payload)
+            if (modalDetalle.visible && modalDetalle.pedido) {
+                await abrirDetalle(modalDetalle.pedido)
+            }
+        } else {
+            await cancelarPedido(modalCancelar.pedido, payload)
+        }
         cerrarCancelar()
     } finally {
         modalCancelar.procesando = false

@@ -28,26 +28,6 @@
                         </p>
                     </div>
                 </div>
-
-                <div
-                    class="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1"
-                >
-                    <button
-                        v-for="t in tabs"
-                        :key="t.key"
-                        type="button"
-                        @click="vistaActiva = t.key"
-                        class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition"
-                        :class="
-                            vistaActiva === t.key
-                                ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200'
-                                : 'text-slate-500 hover:text-slate-700'
-                        "
-                    >
-                        <component :is="t.icon" class="h-4 w-4" />
-                        {{ t.label }}
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -68,23 +48,6 @@
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        @click="togglePorDia"
-                        class="inline-flex items-center gap-2 self-start rounded-xl border px-3 py-2 text-sm font-medium transition sm:self-auto"
-                        :class="
-                            filtros.por_dia
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        "
-                    >
-                        <CalendarDays class="h-4 w-4" />
-                        {{
-                            filtros.por_dia
-                                ? "Agrupado por día"
-                                : "Vista por corte"
-                        }}
-                    </button>
                 </div>
 
                 <div
@@ -199,161 +162,10 @@
             </section>
 
             <!-- VISTA COMPARATIVO -->
-            <section v-if="vistaActiva === 'comparativo'" class="space-y-4">
-                <!-- AGRUPADO POR DIA -->
-                <div
-                    v-if="filtros.por_dia && datosAgrupados.length"
-                    class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-                >
-                    <div class="border-b border-slate-100 px-5 py-4">
-                        <h2 class="text-sm font-semibold text-slate-900">
-                            Comparativo por día
-                        </h2>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full text-sm">
-                            <thead class="bg-slate-50">
-                                <tr class="text-left text-slate-500">
-                                    <th class="px-4 py-3 font-medium">Fecha</th>
-                                    <th class="px-4 py-3 font-medium">
-                                        Cortes
-                                    </th>
-                                    <th class="px-4 py-3 font-medium">
-                                        Ventas
-                                    </th>
-                                    <th
-                                        class="px-4 py-3 text-right font-medium"
-                                    >
-                                        Efectivo
-                                    </th>
-                                    <th
-                                        class="px-4 py-3 text-right font-medium"
-                                    >
-                                        Tarjeta
-                                    </th>
-                                    <th
-                                        class="px-4 py-3 text-right font-medium"
-                                    >
-                                        Transferencia
-                                    </th>
-                                    <th
-                                        class="px-4 py-3 text-right font-medium"
-                                    >
-                                        Total
-                                    </th>
-                                    <th
-                                        class="px-4 py-3 text-right font-medium"
-                                    >
-                                        Δ Ef.
-                                    </th>
-                                </tr>
-                            </thead>
-
-                            <tbody class="divide-y divide-slate-100">
-                                <tr
-                                    v-for="d in datosAgrupados"
-                                    :key="d.fecha"
-                                    class="transition hover:bg-slate-50"
-                                >
-                                    <td
-                                        class="whitespace-nowrap px-4 py-3 text-slate-700"
-                                    >
-                                        {{ fmtFecha(d.fecha) }}
-                                    </td>
-                                    <td class="px-4 py-3 text-slate-600">
-                                        {{ d.num_cortes }}
-                                    </td>
-                                    <td class="px-4 py-3 text-slate-600">
-                                        {{ d.num_ventas }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono text-slate-700"
-                                    >
-                                        {{ fmt(d.ventas_efectivo) }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono text-slate-700"
-                                    >
-                                        {{ fmt(d.ventas_tarjeta) }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono text-slate-700"
-                                    >
-                                        {{ fmt(d.ventas_transferencia) }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono font-semibold text-emerald-700"
-                                    >
-                                        {{ fmt(d.total_ventas) }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono font-semibold"
-                                        :class="
-                                            Number(d.dif_efectivo) < 0
-                                                ? 'text-red-600'
-                                                : 'text-emerald-600'
-                                        "
-                                    >
-                                        {{ fmtDif(d.dif_efectivo) }}
-                                    </td>
-                                </tr>
-                            </tbody>
-
-                            <tfoot
-                                v-if="totalesGlobales"
-                                class="border-t border-slate-200 bg-slate-50"
-                            >
-                                <tr class="font-semibold text-slate-900">
-                                    <td class="px-4 py-3" colspan="2">TOTAL</td>
-                                    <td class="px-4 py-3">
-                                        {{ totalesGlobales.num_ventas }}
-                                    </td>
-                                    <td class="px-4 py-3 text-right font-mono">
-                                        {{
-                                            fmt(totalesGlobales.ventas_efectivo)
-                                        }}
-                                    </td>
-                                    <td class="px-4 py-3 text-right font-mono">
-                                        {{
-                                            fmt(totalesGlobales.ventas_tarjeta)
-                                        }}
-                                    </td>
-                                    <td class="px-4 py-3 text-right font-mono">
-                                        {{
-                                            fmt(
-                                                totalesGlobales.ventas_transferencia,
-                                            )
-                                        }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono text-emerald-700"
-                                    >
-                                        {{ fmt(totalesGlobales.total_ventas) }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono"
-                                        :class="
-                                            Number(
-                                                totalesGlobales.dif_efectivo,
-                                            ) < 0
-                                                ? 'text-red-600'
-                                                : 'text-emerald-600'
-                                        "
-                                    >
-                                        {{
-                                            fmtDif(totalesGlobales.dif_efectivo)
-                                        }}
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-
+            <section v-if="!corteDetalle" class="space-y-4">
                 <!-- LISTADO DE CORTES -->
                 <div
-                    v-else-if="!filtros.por_dia"
+                    v-if="cortesData.length"
                     class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                 >
                     <div
@@ -391,32 +203,32 @@
                                     <th
                                         class="px-4 py-3 text-right font-medium"
                                     >
-                                        Efectivo
+                                        Esperado ef.
                                     </th>
                                     <th
                                         class="px-4 py-3 text-right font-medium"
                                     >
-                                        Tarjeta
+                                        &Delta; Ef.
                                     </th>
                                     <th
                                         class="px-4 py-3 text-right font-medium"
                                     >
-                                        Trans.
+                                        Contado ef.
                                     </th>
                                     <th
                                         class="px-4 py-3 text-right font-medium"
                                     >
-                                        Total
+                                        Cobrado caja
                                     </th>
                                     <th
                                         class="px-4 py-3 text-right font-medium"
                                     >
-                                        Δ Ef.
+                                        Total vendido
                                     </th>
                                     <th
                                         class="px-4 py-3 text-right font-medium"
                                     >
-                                        Acción
+                                        Acci&oacute;n
                                     </th>
                                 </tr>
                             </thead>
@@ -434,21 +246,28 @@
                                         {{ c.id }}
                                     </td>
                                     <td class="px-4 py-3 text-slate-700">
-                                        {{ c.user?.name || "—" }}
+                                        {{ c.user?.name || "Sin cajero" }}
                                     </td>
-                                    <td
-                                        class="whitespace-nowrap px-4 py-3 text-slate-500"
-                                    >
-                                        {{ fmtDatetime(c.fecha_apertura) }}
+                                    <td class="whitespace-nowrap px-4 py-3">
+                                        <div class="font-medium text-slate-700">
+                                            {{ fmtDate(fechaAperturaCorte(c)) }}
+                                        </div>
+                                        <div class="text-xs text-slate-500">
+                                            {{ fmtTime(fechaAperturaCorte(c)) }}
+                                        </div>
                                     </td>
-                                    <td
-                                        class="whitespace-nowrap px-4 py-3 text-slate-500"
-                                    >
-                                        {{
-                                            c.fecha_cierre
-                                                ? fmtDatetime(c.fecha_cierre)
-                                                : "—"
-                                        }}
+                                    <td class="whitespace-nowrap px-4 py-3">
+                                        <template v-if="c.fecha_cierre">
+                                            <div class="font-medium text-slate-700">
+                                                {{ fmtDate(c.fecha_cierre) }}
+                                            </div>
+                                            <div class="text-xs text-slate-500">
+                                                {{ fmtTime(c.fecha_cierre) }}
+                                            </div>
+                                        </template>
+                                        <span v-else class="text-slate-400">
+                                            Sin cierre
+                                        </span>
                                     </td>
                                     <td class="px-4 py-3">
                                         <span
@@ -461,32 +280,30 @@
                                     <td
                                         class="px-4 py-3 text-right font-mono text-slate-700"
                                     >
-                                        {{ fmt(c.ventas_efectivo) }}
+                                        {{ fmt(c.esperado_efectivo) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <span
+                                            class="inline-flex min-w-[104px] justify-end rounded-full px-2.5 py-1 font-mono text-xs font-semibold"
+                                            :class="diferenciaClass(c.dif_efectivo)"
+                                        >
+                                            {{ fmtDif(c.dif_efectivo) }}
+                                        </span>
                                     </td>
                                     <td
                                         class="px-4 py-3 text-right font-mono text-slate-700"
                                     >
-                                        {{ fmt(c.ventas_tarjeta) }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-right font-mono text-slate-700"
-                                    >
-                                        {{ fmt(c.ventas_transferencia) }}
+                                        {{ fmt(c.contado_efectivo) }}
                                     </td>
                                     <td
                                         class="px-4 py-3 text-right font-mono font-semibold text-emerald-700"
                                     >
-                                        {{ fmt(c.total_ventas) }}
+                                        {{ fmt(c.total_cobrado_caja ?? c.total_ventas) }}
                                     </td>
                                     <td
-                                        class="px-4 py-3 text-right font-mono font-semibold"
-                                        :class="
-                                            Number(c.dif_efectivo) < 0
-                                                ? 'text-red-600'
-                                                : 'text-emerald-600'
-                                        "
+                                        class="px-4 py-3 text-right font-mono font-semibold text-slate-900"
                                     >
-                                        {{ fmtDif(c.dif_efectivo) }}
+                                        {{ fmt(c.total_vendido ?? c.total_ventas) }}
                                     </td>
                                     <td class="px-4 py-3 text-right">
                                         <button
@@ -500,6 +317,37 @@
                                     </td>
                                 </tr>
                             </tbody>
+                            <tfoot
+                                v-if="cortesData.length"
+                                class="border-t-2 border-slate-300 bg-slate-100 font-semibold text-slate-900"
+                            >
+                                <tr>
+                                    <td class="px-4 py-3" colspan="5">
+                                        Totales del listado filtrado
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-mono">
+                                        {{ fmt(totalesListado.esperado_efectivo) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <span
+                                            class="inline-flex min-w-[104px] justify-end rounded-full px-2.5 py-1 font-mono text-xs font-semibold"
+                                            :class="diferenciaClass(totalesListado.dif_efectivo)"
+                                        >
+                                            {{ fmtDif(totalesListado.dif_efectivo) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-mono">
+                                        {{ fmt(totalesListado.contado_efectivo) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-mono text-emerald-700">
+                                        {{ fmt(totalesListado.total_cobrado_caja) }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-mono text-slate-900">
+                                        {{ fmt(totalesListado.total_vendido) }}
+                                    </td>
+                                    <td class="px-4 py-3"></td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
 
@@ -554,13 +402,13 @@
 
             <!-- VISTA DETALLE -->
             <section
-                v-if="vistaActiva === 'detalle' && corteDetalle"
+                v-if="corteDetalle"
                 class="space-y-6"
             >
                 <div class="flex items-center justify-between gap-3">
                     <button
                         type="button"
-                        @click="vistaActiva = 'comparativo'"
+                        @click="cerrarDetalle"
                         class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
                     >
                         <ArrowLeft class="h-4 w-4" />
@@ -600,11 +448,25 @@
                                         corteDetalle.corte.user?.name ||
                                         "Sin cajero"
                                     }}
-                                    ·
+                                </p>
+                                <p class="mt-1 text-xs text-slate-500">
+                                    Apertura:
                                     {{
                                         fmtDatetime(
-                                            corteDetalle.corte.fecha_apertura,
+                                            fechaAperturaCorte(
+                                                corteDetalle.corte,
+                                            ),
                                         )
+                                    }}
+                                    <span class="mx-1 text-slate-300">|</span>
+                                    Cierre:
+                                    {{
+                                        corteDetalle.corte.fecha_cierre
+                                            ? fmtDatetime(
+                                                  corteDetalle.corte
+                                                      .fecha_cierre,
+                                              )
+                                            : "Sin cierre"
                                     }}
                                 </p>
                             </div>
@@ -687,6 +549,37 @@
                                     />
                                 </div>
                             </div>
+                            <div class="space-y-2">
+                                <div
+                                    class="flex items-center justify-between gap-3"
+                                >
+                                    <span
+                                        class="text-sm font-medium text-slate-700"
+                                    >
+                                        Saldo a favor
+                                    </span>
+                                    <span
+                                        class="font-mono text-sm text-slate-600"
+                                    >
+                                        {{
+                                            fmt(
+                                                corteDetalle.corte.ventas_saldo_favor,
+                                            )
+                                        }}
+                                    </span>
+                                </div>
+
+                                <div
+                                    class="h-2.5 overflow-hidden rounded-full bg-slate-100"
+                                >
+                                    <div
+                                        class="h-full rounded-full bg-cyan-500 transition-all duration-500"
+                                        :style="{
+                                            width: pctVentas('saldo_favor') + '%',
+                                        }"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -720,12 +613,12 @@
                                         <th
                                             class="px-3 py-2 text-right font-medium"
                                         >
-                                            Contado
+                                            Dif.
                                         </th>
                                         <th
                                             class="px-3 py-2 text-right font-medium"
                                         >
-                                            Dif.
+                                            Contado
                                         </th>
                                     </tr>
                                 </thead>
@@ -746,17 +639,6 @@
                                             }}
                                         </td>
                                         <td
-                                            class="px-3 py-2 text-right font-mono text-slate-700"
-                                        >
-                                            {{
-                                                fmt(
-                                                    corteDetalle.corte[
-                                                        "contado_" + fp.key
-                                                    ],
-                                                )
-                                            }}
-                                        </td>
-                                        <td
                                             class="px-3 py-2 text-right font-mono font-semibold"
                                             :class="
                                                 Number(
@@ -772,6 +654,17 @@
                                                 fmtDif(
                                                     corteDetalle.corte[
                                                         "dif_" + fp.key
+                                                    ],
+                                                )
+                                            }}
+                                        </td>
+                                        <td
+                                            class="px-3 py-2 text-right font-mono text-slate-700"
+                                        >
+                                            {{
+                                                fmt(
+                                                    corteDetalle.corte[
+                                                        "contado_" + fp.key
                                                     ],
                                                 )
                                             }}
@@ -1245,7 +1138,6 @@ import axios from "axios";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import {
     ArrowLeft,
-    CalendarDays,
     ChevronLeft,
     ChevronRight,
     ClipboardList,
@@ -1254,14 +1146,12 @@ import {
     FileSpreadsheet,
     FileText,
     Inbox,
-    LayoutDashboard,
     Loader2,
     Receipt,
     RotateCcw,
     Rows3,
     ShieldCheck,
     ShoppingCart,
-    TableProperties,
     Users,
     Wallet,
 } from "lucide-vue-next";
@@ -1278,10 +1168,7 @@ const props = defineProps({
 
 // ── Estado ─────────────────────────────────────────────────────────────────
 const cargando = ref(false);
-const vistaActiva = ref("comparativo");
 const cortesData = ref([]);
-const datosAgrupados = ref([]);
-const totalesGlobales = ref(null);
 const paginacion = ref(null);
 const corteDetalle = ref(null);
 
@@ -1298,16 +1185,10 @@ const filtros = reactive({
     fecha_hasta: hoy(),
     user_id: "",
     estado: "",
-    por_dia: false,
     pagina: 1,
 });
 
 // ── Config ─────────────────────────────────────────────────────────────────
-const tabs = [
-    { key: "comparativo", label: "Comparativo", icon: LayoutDashboard },
-    { key: "detalle", label: "Detalle corte", icon: TableProperties },
-];
-
 const formasPago = [
     {
         key: "efectivo",
@@ -1341,27 +1222,17 @@ async function cargarCortes() {
             fecha_hasta: filtros.fecha_hasta || undefined,
             user_id: filtros.user_id || undefined,
             estado: filtros.estado || undefined,
-            por_dia: filtros.por_dia ? 1 : 0,
             page: filtros.pagina,
             por_pagina: 25,
         };
 
         const { data } = await axios.get(props.apiBase, { params });
 
-        if (filtros.por_dia) {
-            datosAgrupados.value = data.datos ?? [];
-            totalesGlobales.value = data.totales ?? null;
-            cortesData.value = [];
-            paginacion.value = null;
-        } else {
-            cortesData.value = data.data ?? [];
-            paginacion.value = {
-                current_page: data.current_page,
-                last_page: data.last_page,
-            };
-            datosAgrupados.value = [];
-            totalesGlobales.value = null;
-        }
+        cortesData.value = data.data ?? [];
+        paginacion.value = {
+            current_page: data.current_page,
+            last_page: data.last_page,
+        };
     } catch (e) {
         console.error(e);
     } finally {
@@ -1380,7 +1251,6 @@ async function abrirDetalle(id) {
     try {
         const { data } = await axios.get(`${props.apiBase}/${id}`);
         corteDetalle.value = data;
-        vistaActiva.value = "detalle";
         cargarVentasCorte(id);
     } catch (e) {
         console.error(e);
@@ -1415,6 +1285,14 @@ async function cargarVentasCorte(id, pagina = 1) {
     }
 }
 
+function cerrarDetalle() {
+    corteDetalle.value = null;
+    ventasCorte.value = [];
+    ventasPaginacion.value = null;
+    ventasFiltroFP.value = "";
+    ventasPagina.value = 1;
+}
+
 function cambiarPaginaVentas(p) {
     if (!corteDetalle.value?.corte?.id) return;
     cargarVentasCorte(corteDetalle.value.corte.id, p);
@@ -1430,18 +1308,11 @@ function reiniciarYCargar() {
     cargarCortes();
 }
 
-function togglePorDia() {
-    filtros.por_dia = !filtros.por_dia;
-    filtros.pagina = 1;
-    cargarCortes();
-}
-
 function limpiarFiltros() {
     filtros.fecha_desde = hoy();
     filtros.fecha_hasta = hoy();
     filtros.user_id = "";
     filtros.estado = "";
-    filtros.por_dia = false;
     filtros.pagina = 1;
     cargarCortes();
 }
@@ -1475,6 +1346,37 @@ async function exportar(formato) {
 }
 
 // ── Computed ───────────────────────────────────────────────────────────────
+const totalesListado = computed(() => {
+    const base = {
+        ventas_efectivo: 0,
+        ventas_tarjeta: 0,
+        ventas_transferencia: 0,
+        ventas_saldo_favor: 0,
+        total_cobrado_caja: 0,
+        total_vendido: 0,
+        esperado_efectivo: 0,
+        dif_efectivo: 0,
+        contado_efectivo: 0,
+    };
+
+    return cortesData.value.reduce((totales, corte) => {
+        const cobradoCaja = Number(corte.total_cobrado_caja ?? corte.total_ventas ?? 0);
+        const saldoFavor = Number(corte.ventas_saldo_favor || 0);
+
+        totales.ventas_efectivo += Number(corte.ventas_efectivo || 0);
+        totales.ventas_tarjeta += Number(corte.ventas_tarjeta || 0);
+        totales.ventas_transferencia += Number(corte.ventas_transferencia || 0);
+        totales.ventas_saldo_favor += saldoFavor;
+        totales.total_cobrado_caja += cobradoCaja;
+        totales.total_vendido += Number(corte.total_vendido ?? (cobradoCaja + saldoFavor) ?? 0);
+        totales.esperado_efectivo += Number(corte.esperado_efectivo || 0);
+        totales.dif_efectivo += Number(corte.dif_efectivo || 0);
+        totales.contado_efectivo += Number(corte.contado_efectivo || 0);
+
+        return totales;
+    }, { ...base });
+});
+
 const metricasDetalle = computed(() => {
     if (!corteDetalle.value) return [];
 
@@ -1482,11 +1384,14 @@ const metricasDetalle = computed(() => {
 
     return [
         {
-            label: "Total ventas",
+            label: "Total vendido",
+            valor: fmt(c.total_vendido ?? totalVendidoCorte(c)),
+            color: "",
+        },
+        {
+            label: "Cobrado caja",
             valor: fmt(
-                (+c.ventas_efectivo || 0) +
-                    (+c.ventas_tarjeta || 0) +
-                    (+c.ventas_transferencia || 0),
+                c.total_cobrado_caja ?? totalCobradoCajaCorte(c),
             ),
             color: "",
         },
@@ -1501,7 +1406,7 @@ const metricasDetalle = computed(() => {
             color: "",
         },
         {
-            label: "Esperado ef.",
+            label: "Esperado efectivo",
             valor: fmt(c.esperado_efectivo),
             color: "",
         },
@@ -1528,14 +1433,19 @@ function pctVentas(key) {
     if (!corteDetalle.value) return 0;
 
     const c = corteDetalle.value.corte;
-    const total =
-        (+c.ventas_efectivo || 0) +
-        (+c.ventas_tarjeta || 0) +
-        (+c.ventas_transferencia || 0);
+    const total = c.total_vendido ?? totalVendidoCorte(c);
 
     if (!total) return 0;
 
     return Math.round(((+c["ventas_" + key] || 0) / total) * 100);
+}
+
+function totalCobradoCajaCorte(c) {
+    return (+c.ventas_efectivo || 0) + (+c.ventas_tarjeta || 0) + (+c.ventas_transferencia || 0);
+}
+
+function totalVendidoCorte(c) {
+    return totalCobradoCajaCorte(c) + (+c.ventas_saldo_favor || 0);
 }
 
 function desgloseItems(d) {
@@ -1630,6 +1540,14 @@ function badgeFormaPagoClass(forma) {
     return "bg-slate-100 text-slate-700";
 }
 
+function diferenciaClass(valor) {
+    const n = Number(valor || 0);
+
+    if (n < 0) return "bg-red-50 text-red-700";
+    if (n > 0) return "bg-emerald-50 text-emerald-700";
+    return "bg-slate-100 text-slate-600";
+}
+
 const ETIQUETAS_FORMA_PAGO = {
     efectivo: "Efectivo",
     tarjeta: "Tarjeta",
@@ -1703,8 +1621,43 @@ function fmtFecha(str) {
     });
 }
 
+function fechaAperturaCorte(corte) {
+    if (
+        corte?.fecha_apertura &&
+        corte?.fecha_cierre &&
+        corte?.created_at &&
+        new Date(corte.fecha_apertura).getTime() ===
+            new Date(corte.fecha_cierre).getTime() &&
+        new Date(corte.created_at).getTime() !==
+            new Date(corte.fecha_cierre).getTime()
+    ) {
+        return corte.created_at;
+    }
+
+    return corte?.fecha_apertura;
+}
+
+function fmtDate(str) {
+    if (!str) return "Sin fecha";
+
+    return new Date(str).toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
+}
+
+function fmtTime(str) {
+    if (!str) return "";
+
+    return new Date(str).toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
 function fmtDatetime(str) {
-    if (!str) return "—";
+    if (!str) return "Sin fecha";
     return new Date(str).toLocaleString("es-MX", {
         day: "2-digit",
         month: "short",

@@ -772,6 +772,34 @@ class PedidoController extends Controller
         ]);
     }
 
+    public function saldoCancelacionDetalle(int $pedidoId, int $detalleId): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.cancelar'), 403, 'Sin permiso: pedidos.cancelar');
+        $user = Auth::user();
+
+        $pedido = Pedido::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->findOrFail($pedidoId);
+
+        $detalle = $pedido->detalles()->findOrFail($detalleId);
+        if (in_array($detalle->estado, ['entregado', 'devuelto', 'cancelado'], true)) {
+            return response()->json(['message' => 'Este renglón ya está cerrado y no se puede cancelar.'], 422);
+        }
+
+        $anticipo = round((float) $pedido->anticipo, 2);
+        $saldoDisponibleCliente = $this->saldoDisponibleCliente(
+            (int) $pedido->empresa_id,
+            (int) $pedido->sucursal_id,
+            (int) $pedido->cliente_id
+        );
+
+        return response()->json([
+            'anticipo' => $anticipo,
+            'saldo_disponible_cliente' => $saldoDisponibleCliente,
+            'maximo_devolucion' => $this->maximoDevolucionCancelacionDetalle($pedido, $detalle, $saldoDisponibleCliente),
+        ]);
+    }
+
     public function cancelar(Request $request, int $id): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.cancelar'), 403, 'Sin permiso: pedidos.cancelar');
@@ -818,6 +846,13 @@ class PedidoController extends Controller
             return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
         }
 
+        $detallesCancelables = $pedido->detalles()
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado']);
+
+        if (! $detallesCancelables->exists()) {
+            return response()->json(['message' => 'Este pedido no tiene renglones pendientes por cancelar.'], 422);
+        }
+
         DB::beginTransaction();
         try {
             // Liberar reservas de inventario activas
@@ -826,7 +861,7 @@ class PedidoController extends Controller
                 ->update(['estado' => 'liberada']);
 
             // Cancelar todos los detalles y limpiar vínculo con compra
-            PedidoDetalle::where('pedido_id', $pedido->id)
+            $pedido->detalles()
                 ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
                 ->update([
                     'estado' => 'cancelado',
@@ -896,12 +931,131 @@ class PedidoController extends Controller
         }
     }
 
+    public function cancelarDetalle(Request $request, int $pedidoId, int $detalleId): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.cancelar'), 403, 'Sin permiso: pedidos.cancelar');
+        $user = Auth::user();
+        $terminal = TerminalResolver::fromRequest($request);
+
+        $data = $request->validate([
+            'destino_saldo' => ['nullable', Rule::in(['mantener_saldo', 'efectivo', 'transferencia'])],
+            'monto_devolucion' => ['nullable', 'numeric', 'min:0'],
+            'cuenta_bancaria_id' => [
+                'required_if:destino_saldo,transferencia', 'nullable', 'integer',
+                Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
+            ],
+        ]);
+
+        $destinoSaldo = $data['destino_saldo'] ?? 'mantener_saldo';
+        $montoDevolucionSolicitado = round((float) ($data['monto_devolucion'] ?? 0), 2);
+
+        $pedido = Pedido::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->findOrFail($pedidoId);
+
+        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado'], true)) {
+            return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
+        }
+
+        $detalle = $pedido->detalles()->findOrFail($detalleId);
+        if (in_array($detalle->estado, ['entregado', 'devuelto', 'cancelado'], true)) {
+            return response()->json(['message' => 'Este renglón ya está cerrado y no se puede cancelar.'], 422);
+        }
+
+        $saldoDisponible = $this->saldoDisponibleCliente((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id);
+        $maximoDevolucion = $this->maximoDevolucionCancelacionDetalle($pedido, $detalle, $saldoDisponible);
+        $corte = null;
+
+        if (in_array($destinoSaldo, ['efectivo', 'transferencia'], true)) {
+            if ($montoDevolucionSolicitado <= 0) {
+                return response()->json(['message' => 'Captura el monto a devolver.'], 422);
+            }
+
+            if ($montoDevolucionSolicitado > $maximoDevolucion) {
+                return response()->json([
+                    'message' => 'El monto a devolver supera el saldo disponible por esta cancelación. Disponible: $' . number_format($maximoDevolucion, 2),
+                ], 422);
+            }
+
+            $corte = CorteCaja::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->where('terminal', $terminal)
+                ->where('estado', 'abierto')
+                ->latest('fecha_apertura')
+                ->first();
+
+            if (! $corte) {
+                return response()->json(['message' => 'No hay caja abierta para registrar la devolucion.'], 422);
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            InventarioReserva::where('pedido_detalle_id', $detalle->id)
+                ->where('estado', 'activa')
+                ->update(['estado' => 'liberada']);
+
+            $detalle->update([
+                'estado' => 'cancelado',
+                'compra_detalle_id' => null,
+                'disponible_desde' => null,
+            ]);
+
+            $montoDevuelto = 0.0;
+            if (in_array($destinoSaldo, ['efectivo', 'transferencia'], true)) {
+                $this->registrarDevolucionSaldoPedido(
+                    $pedido,
+                    $corte,
+                    $destinoSaldo,
+                    $montoDevolucionSolicitado,
+                    $data['cuenta_bancaria_id'] ?? null
+                );
+                $montoDevuelto = $montoDevolucionSolicitado;
+            }
+
+            $pedido->actualizarEstadoPorDetalles();
+            $pedido->recalcularSaldoPendiente();
+            $pedido->refresh();
+
+            DB::commit();
+
+            $mensaje = 'Renglón cancelado.';
+            if ((float) $pedido->anticipo > 0) {
+                if ($montoDevuelto > 0) {
+                    $mensaje .= ' Se devolvieron $' . number_format($montoDevuelto, 2) . ' por ' . ($destinoSaldo === 'efectivo' ? 'efectivo' : 'transferencia') . '.';
+                } else {
+                    $mensaje .= ' El saldo no usado del anticipo queda disponible como saldo a favor del cliente.';
+                }
+            }
+
+            return response()->json([
+                'message' => $mensaje,
+                'pedido' => $pedido->load(['cliente', 'detalles']),
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
     private function saldoDisponibleCliente(int $empresaId, int $sucursalId, int $clienteId): float
     {
         return round((float) ClienteSaldoMovimiento::where('empresa_id', $empresaId)
             ->where('sucursal_id', $sucursalId)
             ->where('cliente_id', $clienteId)
             ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END")), 2);
+    }
+
+    private function maximoDevolucionCancelacionDetalle(Pedido $pedido, PedidoDetalle $detalle, float $saldoDisponibleCliente): float
+    {
+        $subtotalPendienteDespues = round((float) $pedido->detalles()
+            ->where('id', '!=', $detalle->id)
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
+            ->sum('subtotal'), 2);
+
+        $excedenteAnticipo = max(0, round((float) $pedido->anticipo - $subtotalPendienteDespues, 2));
+
+        return max(0, round(min($excedenteAnticipo, $saldoDisponibleCliente), 2));
     }
 
     private function registrarDevolucionSaldoPedido(

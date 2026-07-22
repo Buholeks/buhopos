@@ -97,13 +97,16 @@ class Pedido extends Model
     }
 
     /**
-     * Recalcula saldo_pendiente y estado_pago a partir de los renglones que aun
-     * siguen pendientes (no entregados/devueltos/cancelados). El subtotal fijo del
-     * pedido no basta una vez que se entrega/devuelve parte por separado: usar ese
-     * total completo dejaba "Debe" inflado y permitia abonos por mas de lo real.
+     * Recalcula subtotal, saldo_pendiente y estado_pago a partir del estado actual
+     * de los renglones. El subtotal de cabecera debe dejar fuera cancelados, mientras
+     * que el saldo pendiente solo considera renglones que aun no se han cerrado.
      */
     public function recalcularSaldoPendiente(): void
     {
+        $subtotalVigente = round((float) $this->detalles()
+            ->where('estado', '!=', 'cancelado')
+            ->sum('subtotal'), 2);
+
         $subtotalPendiente = round((float) $this->detalles()
             ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
             ->sum('subtotal'), 2);
@@ -112,6 +115,7 @@ class Pedido extends Model
         $saldo = max(0, round($subtotalPendiente - $anticipo, 2));
 
         $this->update([
+            'subtotal' => $subtotalVigente,
             'saldo_pendiente' => $saldo,
             'estado_pago' => match (true) {
                 $saldo <= 0 => 'pagado',

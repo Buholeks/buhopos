@@ -273,6 +273,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/pedidos/{pedido}/abonos', [PedidoController::class, 'abonar']);
     Route::delete('/pedidos/{pedido}/abonos/{abono}', [PedidoController::class, 'eliminarAbono']);
     Route::get('/pedidos/{pedido}/saldo-cancelacion', [PedidoController::class, 'saldoCancelacion']);
+    Route::get('/pedidos/{pedido}/detalles/{detalle}/saldo-cancelacion', [PedidoController::class, 'saldoCancelacionDetalle']);
+    Route::post('/pedidos/{pedido}/detalles/{detalle}/cancelar', [PedidoController::class, 'cancelarDetalle']);
     Route::post('/pedidos/{pedido}/cancelar', [PedidoController::class, 'cancelar']);
 
     Route::prefix('cancelaciones-devoluciones')->group(function () {

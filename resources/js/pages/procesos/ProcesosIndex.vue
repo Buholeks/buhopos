@@ -23,6 +23,7 @@ import {
     Repeat2,
     Undo2,
     Upload,
+    PackageMinus,
 } from "lucide-vue-next";
 
 const procesos = [
@@ -74,6 +75,13 @@ const procesos = [
         to: { name: "conteo-inventario" },
         badge: "Disponible",
         permiso: "inventario.conteos.ver",
+    },
+    {
+        label: "Ajuste rapido",
+        icon: PackageMinus,
+        to: { name: "ajuste-rapido-inventario" },
+        badge: "Disponible",
+        permiso: "inventario.ajustes.crear",
     },
     {
         label: "Nuevo traspaso",

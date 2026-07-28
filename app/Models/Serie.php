@@ -38,6 +38,7 @@ class Serie extends Model
         'vendido'    => 'Vendido',
         'apartado'   => 'Apartado',
         'devuelto'   => 'Devuelto',
+        'baja'       => 'Baja por ajuste',
     ];
 
     // ── Relaciones ────────────────────────────────────────────────────────────

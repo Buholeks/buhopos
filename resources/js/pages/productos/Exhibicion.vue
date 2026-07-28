@@ -64,7 +64,7 @@
             </div>
         </header>
 
-        <main class="mx-auto max-w-7xl px-4 py-5 sm:px-6">
+        <main class="mx-auto max-w-7xl px-4 py-5">
             <!-- STATS -->
             <div class="grid gap-3 sm:grid-cols-2">
                 <button

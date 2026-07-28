@@ -17,6 +17,7 @@ import {
     FileSearch,
     ClipboardList,
     PackageSearch,
+    SlidersHorizontal,
 } from "lucide-vue-next";
 
 const consultas = [
@@ -96,6 +97,13 @@ const consultas = [
         to: { name: "conteos-inventario-consulta" },
         badge: "Disponible",
         permiso: "inventario.conteos.ver",
+    },
+    {
+        label: "Ajustes de inventario",
+        icon: SlidersHorizontal,
+        to: { name: "ajustes-inventario-consulta" },
+        badge: "Disponible",
+        permiso: "inventario.ajustes.crear",
     },
     {
         label: "Consulta pedidos",

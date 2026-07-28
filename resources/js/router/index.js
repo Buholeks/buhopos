@@ -28,6 +28,8 @@ import GestorProductos from "../pages/productos/GestorProductos.vue";
 import CatalogoPrecios from "../pages/productos/CatalogoPrecios.vue";
 import ConteoInventario from "../pages/productos/ConteoInventario.vue";
 import ConsultaConteosInventario from "../pages/productos/ConsultaConteosInventario.vue";
+import AjusteRapidoInventario from "../pages/productos/AjusteRapidoInventario.vue";
+import ConsultaAjustesInventario from "../pages/productos/ConsultaAjustesInventario.vue";
 import Traspasos from "../pages/productos/Traspasos.vue";
 import Exhibicion from "../pages/productos/Exhibicion.vue";
 import MediaLibrary from "../pages/media/MediaLibrary.vue";
@@ -99,6 +101,8 @@ const routes = [
       { path: "catalogo-precios",name: "catalogo-precios",component: CatalogoPrecios, meta: { title: "Catalogo de precios",permiso: "productos.precios" } },
       { path: "conteo-inventario",name: "conteo-inventario",component: ConteoInventario, meta: { title: "Conteo de inventario", permiso: "inventario.conteos.ver" } },
       { path: "conteos-inventario",name: "conteos-inventario-consulta",component: ConsultaConteosInventario, meta: { title: "Consulta de conteos", permiso: "inventario.conteos.ver" } },
+      { path: "ajuste-rapido-inventario",name: "ajuste-rapido-inventario",component: AjusteRapidoInventario, meta: { title: "Ajuste rapido de inventario", permiso: "inventario.ajustes.crear" } },
+      { path: "ajustes-inventario",name: "ajustes-inventario-consulta",component: ConsultaAjustesInventario, meta: { title: "Consulta de ajustes de inventario", permiso: "inventario.ajustes.crear" } },
       { path: "exhibicion",      name: "exhibicion",      component: Exhibicion,      meta: { title: "Exhibicion",        permiso: "inventario.ver" } },
 
       { path: "traspasos",         redirect: { name: "traspasos-nuevo" } },

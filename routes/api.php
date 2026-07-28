@@ -29,6 +29,7 @@ use App\Http\Controllers\CancelacionDevolucionController;
 use App\Http\Controllers\CorteCajaController;
 use App\Http\Controllers\ExhibicionController;
 use App\Http\Controllers\InventarioConteoController;
+use App\Http\Controllers\InventarioAjusteRapidoController;
 use App\Http\Controllers\SerieController;
 use App\Http\Controllers\TraspasoController;
 
@@ -340,6 +341,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/reabrir', [InventarioConteoController::class, 'reabrir']);
         Route::post('/{id}/ajustar', [InventarioConteoController::class, 'ajustar']);
         Route::post('/{id}/cancelar', [InventarioConteoController::class, 'cancelar']);
+    });
+
+    Route::prefix('inventario-ajustes-rapidos')->group(function () {
+        Route::get('/buscar', [InventarioAjusteRapidoController::class, 'buscar']);
+        Route::get('/series', [InventarioAjusteRapidoController::class, 'series']);
+        Route::get('/historial', [InventarioAjusteRapidoController::class, 'historial']);
+        Route::get('/consulta', [InventarioAjusteRapidoController::class, 'consulta']);
+        Route::get('/{id}', [InventarioAjusteRapidoController::class, 'show']);
+        Route::post('/', [InventarioAjusteRapidoController::class, 'store']);
     });
 
     /*

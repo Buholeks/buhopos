@@ -19,15 +19,15 @@
             <td class="w-2 bg-amber-400"></td>
             <td class="px-4 py-3 font-medium text-slate-700">Movimientos efectivo</td>
             <td class="px-4 py-3 text-right font-mono"
-                :class="Number(corte?.movs_efectivo ?? 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'">
+                :class="Number(corte?.movs_efectivo ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'">
               {{ Number(corte?.movs_efectivo ?? 0) >= 0 ? '+' : '' }}{{ fmt(corte?.movs_efectivo) }}
             </td>
           </tr>
 
-          <tr class="border-t border-slate-200 bg-cyan-50/60">
-            <td class="w-2 bg-cyan-500"></td>
-            <td class="px-4 py-3 font-semibold text-cyan-900">Esperado efectivo</td>
-            <td class="px-4 py-3 text-right font-mono text-lg font-bold text-cyan-700">{{ fmt(corte?.esperado_efectivo) }}</td>
+          <tr class="border-t border-slate-200 bg-sky-50/60">
+            <td class="w-2 bg-sky-500"></td>
+            <td class="px-4 py-3 font-semibold text-sky-900">Esperado efectivo</td>
+            <td class="px-4 py-3 text-right font-mono text-lg font-bold text-sky-700">{{ fmt(corte?.esperado_efectivo) }}</td>
           </tr>
         </tbody>
       </table>
@@ -49,7 +49,7 @@
 
         <div class="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
           <span class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-            <span class="h-2 w-2 rounded-full bg-violet-400"></span>
+            <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
             Transferencia
           </span>
           <span class="font-mono text-sm font-semibold text-slate-700">{{ fmt(corte?.esperado_transferencia) }}</span>
@@ -57,7 +57,7 @@
 
         <div class="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200">
           <span class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-            <span class="h-2 w-2 rounded-full bg-teal-400"></span>
+            <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
             Saldo a favor
           </span>
           <span class="font-mono text-sm font-semibold text-slate-700">{{ fmt(corte?.ventas_saldo_favor) }}</span>

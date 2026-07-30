@@ -320,7 +320,7 @@
                             type="button"
                             :disabled="exportando"
                             @click="exportar('pdf')"
-                            class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                            class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                         >
                             <Loader2 v-if="exportando === 'pdf'" class="h-4 w-4 animate-spin" />
                             <FileText v-else class="h-4 w-4" />

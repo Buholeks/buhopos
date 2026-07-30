@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 pl-12 last:border-b-0 hover:bg-indigo-50/40"
+    class="flex items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 pl-12 last:border-b-0 hover:bg-emerald-50/40"
   >
     <div class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
       <img
@@ -37,9 +37,9 @@
         type="button"
         @click="$emit('eliminar')"
         title="Eliminar modelo"
-        class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-rose-50"
+        class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-red-50"
       >
-        <Trash2 class="h-4 w-4 text-rose-600" />
+        <Trash2 class="h-4 w-4 text-red-600" />
       </button>
     </div>
   </div>

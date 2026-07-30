@@ -9,7 +9,7 @@
             >
                 <div class="flex items-center gap-3">
                     <div
-                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700"
+                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-700"
                     >
                         <Wallet class="h-5 w-5" />
                     </div>
@@ -88,7 +88,7 @@
                             type="button"
                             @click="abrirCaja"
                             :disabled="abriendo"
-                            class="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:opacity-50"
+                            class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:opacity-50"
                         >
                             <Loader2
                                 v-if="abriendo"
@@ -103,7 +103,7 @@
                             type="button"
                             @click="modalCerrar = true"
                             :disabled="cerrandoCaja"
-                            class="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                         >
                             <Loader2
                                 v-if="cerrandoCaja"
@@ -138,7 +138,7 @@
 
                 <div
                     v-if="cajasAbiertas.length"
-                    class="mx-auto mt-6 max-w-2xl rounded-xl border border-cyan-100 bg-cyan-50 p-4 text-left"
+                    class="mx-auto mt-6 max-w-2xl rounded-xl border border-sky-100 bg-sky-50 p-4 text-left"
                 >
                     <div class="mb-3 flex items-center justify-between gap-3">
                         <div>
@@ -151,7 +151,7 @@
                         </div>
                         <button
                             type="button"
-                            class="rounded-lg border border-cyan-200 bg-white px-3 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-50 disabled:opacity-50"
+                            class="rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-sky-50 disabled:opacity-50"
                             :disabled="cargandoCajas"
                             @click="cargarCajasAbiertas"
                         >
@@ -163,7 +163,7 @@
                         <div
                             v-for="c in cajasAbiertas"
                             :key="c.id"
-                            class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-cyan-100 bg-white px-3 py-2"
+                            class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-100 bg-white px-3 py-2"
                         >
                             <div>
                                 <p class="text-sm font-bold text-slate-900">
@@ -180,7 +180,7 @@
                                 </span>
                                 <button
                                     type="button"
-                                    class="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700"
+                                    class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700"
                                     @click="seleccionarTerminal(c.terminal)"
                                 >
                                     Usar esta caja
@@ -195,7 +195,7 @@
                     type="button"
                     @click="abrirCaja"
                     :disabled="abriendo"
-                    class="mt-5 inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:opacity-50"
+                    class="mt-5 inline-flex items-center gap-2 rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:opacity-50"
                 >
                     <Loader2 v-if="abriendo" class="h-4 w-4 animate-spin" />
                     <Plus v-else class="h-4 w-4" />
@@ -526,7 +526,7 @@ async function cerrarCaja(formCierre) {
         await Swal.fire({
             icon: "success",
             title: "¡Caja cerrada!",
-            confirmButtonColor: "#16a34a",
+            confirmButtonColor: "#059669",
         });
         modalCerrar.value = false;
         await cargarCajasAbiertas();

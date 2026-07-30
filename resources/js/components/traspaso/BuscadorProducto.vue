@@ -45,7 +45,7 @@
               <p class="truncate text-sm font-semibold text-slate-900">{{ item.nombre }}</p>
               <span
                 v-if="item.tiene_series"
-                class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-100"
+                class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100"
               >
                 Serie/IMEI
               </span>

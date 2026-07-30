@@ -5,8 +5,8 @@
       <!-- Header -->
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div class="flex items-start gap-3">
-          <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 ring-1 ring-indigo-100">
-            <svg class="h-5 w-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 ring-1 ring-emerald-100">
+            <svg class="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h12M3 17h6"/>
             </svg>
           </div>
@@ -18,7 +18,7 @@
 
         <button
           @click="abrirModalCrear(null)"
-          class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:translate-y-px"
+          class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:translate-y-px"
         >
           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -41,7 +41,7 @@
           </div>
           <p class="mt-4 text-sm text-slate-600">No hay categorías aún. Crea la primera para comenzar.</p>
           <button
-            class="mt-5 inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            class="mt-5 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
             @click="abrirModalCrear(null)"
           >
             Crear categoría
@@ -89,7 +89,7 @@
                   <div class="mt-1 text-sm text-slate-500">
                     <template v-if="modal.nombrePadre">
                       Subcategoría de:
-                      <span class="font-semibold text-indigo-700">{{ modal.nombrePadre }}</span>
+                      <span class="font-semibold text-emerald-700">{{ modal.nombrePadre }}</span>
                     </template>
                     <template v-else>
                       Categoría raíz (sin padre)
@@ -131,7 +131,7 @@
                     v-model.trim="form.descripcion"
                     rows="3"
                     placeholder="Descripción opcional…"
-                    class="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                    class="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
                   />
                 </div>
 
@@ -146,7 +146,7 @@
                     type="button"
                     @click="form.activo = !form.activo"
                     class="relative inline-flex h-7 w-12 items-center rounded-full transition"
-                    :class="form.activo ? 'bg-indigo-600' : 'bg-slate-300'"
+                    :class="form.activo ? 'bg-emerald-600' : 'bg-slate-300'"
                   >
                     <span
                       class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition"
@@ -169,7 +169,7 @@
                 <button
                   @click="enviarFormulario"
                   :disabled="cargando"
-                  class="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
                   type="button"
                 >
                   <svg v-if="cargando" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -329,7 +329,7 @@ async function confirmarEliminar(categoria) {
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#ef4444",
-    cancelButtonColor: "#6b7280",
+    cancelButtonColor: "#64748b",
     confirmButtonText: "Sí, eliminar",
     cancelButtonText: "Cancelar",
     reverseButtons: true,
@@ -374,10 +374,10 @@ const CategoriasNode = defineComponent({
     const tieneHijos = () => obtenerHijos().length > 0;
 
     const coloresBadge = [
-      "bg-indigo-50 text-indigo-700 ring-indigo-200",
-      "bg-violet-50 text-violet-700 ring-violet-200",
+      "bg-emerald-50 text-emerald-700 ring-emerald-200",
+      "bg-emerald-50 text-emerald-700 ring-emerald-200",
       "bg-sky-50 text-sky-700 ring-sky-200",
-      "bg-teal-50 text-teal-700 ring-teal-200",
+      "bg-emerald-50 text-emerald-700 ring-emerald-200",
       "bg-amber-50 text-amber-700 ring-amber-200",
     ];
     const colorBadge = coloresBadge[props.profundidad % coloresBadge.length];
@@ -515,13 +515,13 @@ const CategoriasNode = defineComponent({
                   {
                     title: "Agregar subcategoría",
                     class:
-                      "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-indigo-50",
+                      "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-emerald-50",
                     onClick: () => emit("agregar", props.categoria),
                   },
                   [
                     h(
                       "svg",
-                      { class: "h-4 w-4 text-indigo-600", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
+                      { class: "h-4 w-4 text-emerald-600", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                       [
                         h("path", {
                           "stroke-linecap": "round",
@@ -563,13 +563,13 @@ const CategoriasNode = defineComponent({
                   {
                     title: "Eliminar",
                     class:
-                      "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-rose-50",
+                      "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-red-50",
                     onClick: () => emit("eliminar", props.categoria),
                   },
                   [
                     h(
                       "svg",
-                      { class: "h-4 w-4 text-rose-600", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
+                      { class: "h-4 w-4 text-red-600", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24" },
                       [
                         h("path", {
                           "stroke-linecap": "round",

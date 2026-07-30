@@ -2,14 +2,14 @@
   <div class="fixed inset-0 z-/[500] flex items-center justify-center bg-slate-900/35 backdrop-blur-sm" @click.self="$emit('cancel')">
     <div class="w-/[360px] rounded-2xl bg-white p-6 shadow-[0_24px_64px_rgba(0,0,0,0.15)]" @click.stop>
       <div class="mb-4 flex items-center gap-3">
-        <div class="flex h-9 w-9 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-500">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-500">
           <AlertTriangle class="h-4 w-4" />
         </div>
         <div>
           <div class="text-[14px] font-semibold text-slate-900">Precio fuera de lista</div>
           <div class="text-[12px] text-slate-400">
             Nuevo precio:
-            <strong class="font-mono text-orange-500">{{ formatPrecio(precioNuevo) }}</strong>
+            <strong class="font-mono text-amber-500">{{ formatPrecio(precioNuevo) }}</strong>
           </div>
         </div>
       </div>
@@ -22,7 +22,7 @@
         :value="motivo"
         rows="3"
         placeholder="Ej: Precio especial, promoción, etc."
-        class="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-[13px] text-slate-700 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+        class="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-[13px] text-slate-700 outline-none transition focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
         @input="$emit('update:motivo', $event.target.value)"
         @keydown.enter.ctrl.prevent="confirmarSiTieneMotivo"
       />
@@ -41,7 +41,7 @@
         <button
           type="button"
           class="rounded-lg px-4 py-2 text-[13px] font-semibold text-white transition"
-          :class="motivoTrim ? 'bg-orange-500 hover:brightness-105' : 'cursor-not-allowed bg-orange-200'"
+          :class="motivoTrim ? 'bg-amber-500 hover:brightness-105' : 'cursor-not-allowed bg-amber-200'"
           :disabled="!motivoTrim"
           @click="$emit('confirm')"
         >

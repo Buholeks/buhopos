@@ -19,7 +19,7 @@
                     <!-- Header -->
                     <div class="relative flex items-start gap-3 px-6 pt-6">
                         <div
-                            class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600"
+                            class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-600"
                         >
                             <LayoutGrid class="h-5 w-5" />
                         </div>
@@ -51,7 +51,7 @@
                                 class="border-b-2 px-3 py-2 text-sm font-medium"
                                 :class="
                                     varTab === 'lista'
-                                        ? 'border-blue-600 text-blue-700'
+                                        ? 'border-sky-600 text-sky-700'
                                         : 'border-transparent text-slate-500 hover:text-slate-700'
                                 "
                             >

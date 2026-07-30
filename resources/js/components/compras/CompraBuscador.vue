@@ -112,7 +112,7 @@
                                     {{ row.item.nombre }}
                                     <span
                                         v-if="row.item.nombre_variante"
-                                        class="text-violet-600"
+                                        class="text-emerald-600"
                                     >
                                         - {{ row.item.nombre_variante }}
                                     </span>

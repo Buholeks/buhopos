@@ -249,7 +249,7 @@
 
                         <span
                             v-if="det.motivo_precio"
-                            class="flex items-center border-l border-orange-200 bg-orange-50 px-2 py-1.5 text-[10px] font-bold text-orange-700"
+                            class="flex items-center border-l border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] font-bold text-amber-700"
                             :title="'Motivo: ' + det.motivo_precio"
                         >
                             Manual
@@ -257,7 +257,7 @@
 
                         <span
                             v-else-if="det.precio_lista_sel"
-                            class="flex items-center border-l border-green-200 bg-green-50 px-2 py-1.5 text-[10px] font-bold tracking-wide text-green-600"
+                            class="flex items-center border-l border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[10px] font-bold tracking-wide text-emerald-600"
                         >
                             {{ det.precio_lista_sel }}
                         </span>

@@ -22,7 +22,7 @@
             No hay marcas aún. Crea la primera para comenzar.
           </p>
           <button
-            class="mt-5 inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            class="mt-5 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
             @click="abrirModalMarca()"
             type="button"
           >
@@ -257,11 +257,11 @@ async function enviarFormMarca() {
 async function confirmarEliminarMarca(marca) {
   const r = await Swal.fire({
     title: "¿Eliminar marca?",
-    html: `<span class="text-gray-600">Se eliminará <strong>${marca.nombre}</strong> y todos sus modelos.</span>`,
+    html: `<span class="text-slate-600">Se eliminará <strong>${marca.nombre}</strong> y todos sus modelos.</span>`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#ef4444",
-    cancelButtonColor: "#6b7280",
+    cancelButtonColor: "#64748b",
     confirmButtonText: "Sí, eliminar",
     cancelButtonText: "Cancelar",
     reverseButtons: true,
@@ -394,11 +394,11 @@ async function enviarFormModelo() {
 async function confirmarEliminarModelo(modelo) {
   const r = await Swal.fire({
     title: "¿Eliminar modelo?",
-    html: `<span class="text-gray-600">Se eliminará el modelo <strong>${modelo.nombre}</strong>.</span>`,
+    html: `<span class="text-slate-600">Se eliminará el modelo <strong>${modelo.nombre}</strong>.</span>`,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#ef4444",
-    cancelButtonColor: "#6b7280",
+    cancelButtonColor: "#64748b",
     confirmButtonText: "Sí, eliminar",
     cancelButtonText: "Cancelar",
     reverseButtons: true,

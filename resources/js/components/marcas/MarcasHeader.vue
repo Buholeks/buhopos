@@ -1,8 +1,8 @@
 <template>
   <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div class="flex items-start gap-3">
-      <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 ring-1 ring-indigo-100">
-        <List class="h-5 w-5 text-indigo-600" />
+      <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 ring-1 ring-emerald-100">
+        <List class="h-5 w-5 text-emerald-600" />
       </div>
       <div>
         <h1 class="text-xl font-semibold tracking-tight">Gestión de Marcas y Modelos</h1>
@@ -14,7 +14,7 @@
       <button
         type="button"
         @click="$emit('nueva-marca')"
-        class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:translate-y-px"
+        class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 active:translate-y-px"
       >
         <Plus class="h-4 w-4" />
         Nueva marca

@@ -67,7 +67,7 @@
                 type="button"
                 @click="form.activo = !form.activo"
                 class="relative inline-flex h-7 w-12 items-center rounded-full transition"
-                :class="form.activo ? 'bg-indigo-600' : 'bg-slate-300'"
+                :class="form.activo ? 'bg-emerald-600' : 'bg-slate-300'"
               >
                 <span
                   class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition"
@@ -90,7 +90,7 @@
               type="button"
               @click="$emit('submit')"
               :disabled="loading"
-              class="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+              class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
             >
               <Loader2 v-if="loading" class="h-4 w-4 animate-spin" />
               {{ editando ? "Guardar cambios" : "Crear marca" }}

@@ -140,7 +140,7 @@
                                             ? 'bg-red-100 text-red-500'
                                             : r.stock <= 5
                                               ? 'bg-amber-100 text-amber-600'
-                                              : 'bg-green-100 text-green-600'
+                                              : 'bg-emerald-100 text-emerald-600'
                                     "
                                 >
                                     {{

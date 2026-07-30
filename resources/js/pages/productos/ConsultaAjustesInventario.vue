@@ -132,6 +132,6 @@ function cerrarDetalle() { detalle.value = null; }
 const numero = valor => Number(valor || 0).toLocaleString("es-MX", { maximumFractionDigits: 3 });
 const fecha = valor => valor ? new Date(valor).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" }) : "Sin fecha";
 const tipoLabel = tipo => ({ entrada: "Entrada", salida: "Salida", mixto: "Mixto" })[tipo] || tipo;
-const tipoClass = tipo => tipo === "entrada" ? "bg-emerald-100 text-emerald-700" : tipo === "salida" ? "bg-rose-100 text-rose-700" : "bg-violet-100 text-violet-700";
+const tipoClass = tipo => tipo === "entrada" ? "bg-emerald-100 text-emerald-700" : tipo === "salida" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700";
 onMounted(() => consultar(1));
 </script>

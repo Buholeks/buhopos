@@ -89,7 +89,7 @@
               <button
                 v-if="['en_conteo', 'en_revision'].includes(conteo.estado) && auth.can('inventario.conteos.cancelar')"
                 type="button"
-                class="inline-flex h-9 items-center gap-2 rounded-lg border border-rose-200 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                class="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-700 hover:bg-red-50"
                 @click="cancelarConteo"
               >
                 <Ban class="h-4 w-4" />
@@ -97,7 +97,7 @@
               </button>
               <button
                 type="button"
-                class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                 :disabled="exportando"
                 @click="exportarPdf"
               >
@@ -233,7 +233,7 @@
                         <button
                           v-if="conteo.estado === 'en_conteo'"
                           type="button"
-                          class="hidden group-hover:inline-flex text-rose-500 hover:text-rose-700"
+                          class="hidden group-hover:inline-flex text-red-500 hover:text-red-700"
                           title="Quitar serie"
                           @click.stop="quitarSerie(d, s)"
                         >x</button>
@@ -264,7 +264,7 @@
                   <td v-if="conteo.estado === 'en_conteo'" class="px-4 py-3 text-right">
                     <button
                       type="button"
-                      class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      class="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600"
                       title="Eliminar línea"
                       @click="eliminarLinea(d)"
                     >
@@ -720,7 +720,7 @@ function estadoClass(estado) {
     en_conteo: "bg-sky-50 text-sky-700 ring-sky-200",
     en_revision: "bg-amber-50 text-amber-700 ring-amber-200",
     ajustado: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    cancelado: "bg-rose-50 text-rose-700 ring-rose-200",
+    cancelado: "bg-red-50 text-red-700 ring-red-200",
   }[estado] || "bg-slate-50 text-slate-700 ring-slate-200";
 }
 
@@ -739,16 +739,16 @@ function detalleClass(estado) {
   return {
     no_contado: "bg-slate-50 text-slate-700 ring-slate-200",
     completo: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    faltante: "bg-rose-50 text-rose-700 ring-rose-200",
+    faltante: "bg-red-50 text-red-700 ring-red-200",
     sobrante: "bg-amber-50 text-amber-700 ring-amber-200",
-    nuevo_encontrado: "bg-violet-50 text-violet-700 ring-violet-200",
+    nuevo_encontrado: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   }[estado] || "bg-slate-50 text-slate-700 ring-slate-200";
 }
 
 function diffClass(valor) {
   const n = Number(valor || 0);
   if (n > 0) return "text-amber-700";
-  if (n < 0) return "text-rose-700";
+  if (n < 0) return "text-red-700";
   return "text-emerald-700";
 }
 
@@ -812,7 +812,7 @@ export default {
           return {
             slate: "bg-slate-50 text-slate-900 ring-slate-200",
             amber: "bg-amber-50 text-amber-800 ring-amber-200",
-            rose: "bg-rose-50 text-rose-800 ring-rose-200",
+            rose: "bg-red-50 text-red-800 ring-red-200",
           }[this.tone] || "bg-slate-50 text-slate-900 ring-slate-200";
         },
       },

@@ -5,8 +5,8 @@
             <!-- Header -->
             <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex items-center gap-3">
-                    <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 ring-1 ring-indigo-100">
-                        <Images class="h-5 w-5 text-indigo-600" />
+                    <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 ring-1 ring-emerald-100">
+                        <Images class="h-5 w-5 text-emerald-600" />
                     </div>
                     <div>
                         <h1 class="text-xl font-semibold tracking-tight">Biblioteca de Imágenes</h1>
@@ -18,7 +18,7 @@
                     <button
                         v-if="resumen.huerfanas > 0"
                         type="button"
-                        class="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-700 hover:bg-orange-100"
+                        class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 hover:bg-amber-100"
                         :disabled="limpiando"
                         @click="limpiarHuerfanas"
                     >
@@ -28,7 +28,7 @@
 
                     <button
                         type="button"
-                        class="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        class="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
                         @click="inputRef?.click()"
                     >
                         <UploadCloud class="h-4 w-4" />
@@ -48,7 +48,7 @@
                             type="button"
                             class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors"
                             :class="filtroTipo === f.tipo
-                                ? 'bg-indigo-50 font-medium text-indigo-700'
+                                ? 'bg-emerald-50 font-medium text-emerald-700'
                                 : 'text-slate-600 hover:bg-slate-50'"
                             @click="filtroTipo = f.tipo; cargar(1)"
                         >
@@ -68,14 +68,14 @@
                                 v-model="buscar"
                                 type="text"
                                 placeholder="Buscar por nombre de archivo..."
-                                class="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm shadow-sm outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
+                                class="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm shadow-sm outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
                                 @input="buscarDebounced"
                             />
                         </div>
                     </div>
 
                     <!-- Subida en progreso -->
-                    <div v-if="subiendo" class="mb-3 flex items-center gap-2 rounded-lg bg-indigo-50 px-4 py-2.5 text-sm text-indigo-700">
+                    <div v-if="subiendo" class="mb-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
                         <Loader2 class="h-4 w-4 animate-spin" />
                         Subiendo imagen...
                     </div>
@@ -106,7 +106,7 @@
                             <p class="mt-1 truncate px-0.5 text-[10px] text-slate-500">{{ img.nombre_original }}</p>
                             <span
                                 v-if="img.usos === 0"
-                                class="absolute right-2 top-2 rounded-full bg-orange-400 px-1.5 py-0.5 text-[9px] font-bold text-white"
+                                class="absolute right-2 top-2 rounded-full bg-amber-400 px-1.5 py-0.5 text-[9px] font-bold text-white"
                             >sin uso</span>
                             <span
                                 v-else

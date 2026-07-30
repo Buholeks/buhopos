@@ -233,7 +233,7 @@
                                 </td>
                                 <td class="px-4 py-3 text-slate-600">{{ usuario.sucursal?.nombre ?? "Sin sucursal" }}</td>
                                 <td class="px-4 py-3">
-                                    <span v-if="usuario.rol_activo" class="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-violet-200">
+                                    <span v-if="usuario.rol_activo" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
                                         {{ usuario.rol_activo }}
                                     </span>
                                     <span v-else-if="!usuario.es_super_admin" class="text-xs text-slate-400">Sin rol</span>
@@ -280,7 +280,7 @@
                                             type="button"
                                             class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold"
                                             :class="usuario.es_super_admin
-                                                ? 'border-rose-200 text-rose-600 hover:bg-rose-50'
+                                                ? 'border-red-200 text-red-600 hover:bg-red-50'
                                                 : 'border-amber-200 text-amber-700 hover:bg-amber-50'"
                                             @click="toggleSuperAdmin(usuario)"
                                         >

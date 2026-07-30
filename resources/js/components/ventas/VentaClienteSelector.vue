@@ -5,7 +5,7 @@
         <button
             v-if="!asignado"
             type="button"
-            class="flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-700"
+            class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
             title="Seleccionar cliente (opcional)"
             @click="toggleDropdown"
         >
@@ -40,10 +40,10 @@
         <!-- Dropdown de búsqueda -->
         <div
             v-if="open"
-            class="absolute left-0 top-full z-50 mt-1 w-72 rounded-2xl border border-stone-200 bg-white p-3 shadow-xl"
+            class="absolute left-0 top-full z-50 mt-1 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl"
             @click.stop
         >
-            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Buscar cliente</p>
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Buscar cliente</p>
             <BaseSearchSelect
                 :model-value="cliente?.id ?? null"
                 label=""

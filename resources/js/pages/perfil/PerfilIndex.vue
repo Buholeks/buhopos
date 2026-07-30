@@ -181,7 +181,7 @@
                                                 type="button"
                                                 :disabled="eliminandoLogo"
                                                 @click="eliminarLogo"
-                                                class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+                                                class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
                                             >
                                                 <Loader2 v-if="eliminandoLogo" class="h-3.5 w-3.5 animate-spin" />
                                                 <Trash2 v-else class="h-3.5 w-3.5" />
@@ -436,9 +436,9 @@ async function guardarSucursal() {
 // ── StatCard ───────────────────────────────────────────────────────────────────
 const colorMap = {
     emerald: { bg: "bg-emerald-50", text: "text-emerald-600", ring: "ring-emerald-100" },
-    blue:    { bg: "bg-blue-50",    text: "text-blue-600",    ring: "ring-blue-100"    },
-    violet:  { bg: "bg-violet-50",  text: "text-violet-600",  ring: "ring-violet-100"  },
-    rose:    { bg: "bg-rose-50",    text: "text-rose-600",    ring: "ring-rose-100"    },
+    blue:    { bg: "bg-sky-50",    text: "text-sky-600",    ring: "ring-sky-100"    },
+    violet:  { bg: "bg-emerald-50",  text: "text-emerald-600",  ring: "ring-emerald-100"  },
+    rose:    { bg: "bg-red-50",    text: "text-red-600",    ring: "ring-red-100"    },
 };
 
 const StatCard = defineComponent({

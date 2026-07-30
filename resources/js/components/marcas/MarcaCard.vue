@@ -37,9 +37,9 @@
           type="button"
           @click="$emit('nuevo-modelo', marca)"
           title="Agregar modelo"
-          class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-indigo-50"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-emerald-50"
         >
-          <Plus class="h-4 w-4 text-indigo-600" />
+          <Plus class="h-4 w-4 text-emerald-600" />
         </button>
 
         <button
@@ -57,9 +57,9 @@
           type="button"
           @click="$emit('eliminar-marca', marca)"
           title="Eliminar marca"
-          class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-rose-50"
+          class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-red-50"
         >
-          <Trash2 class="h-4 w-4 text-rose-600" />
+          <Trash2 class="h-4 w-4 text-red-600" />
         </button>
       </div>
 
@@ -69,7 +69,7 @@
         type="button"
         @click="$emit('toggle', marca.id)"
         class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
-        :class="abierta ? 'ring-2 ring-indigo-100' : ''"
+        :class="abierta ? 'ring-2 ring-emerald-100' : ''"
         :aria-expanded="abierta"
         title="Mostrar modelos"
       >
@@ -93,9 +93,9 @@
         <button
           type="button"
           @click="$emit('nuevo-modelo', marca)"
-          class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-indigo-50"
+          class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50"
         >
-          <Plus class="h-4 w-4 text-indigo-600" />
+          <Plus class="h-4 w-4 text-emerald-600" />
           Modelo
         </button>
 
@@ -113,10 +113,10 @@
           v-if="auth.can('productos.eliminar')"
           type="button"
           @click="$emit('eliminar-marca', marca)"
-          class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-rose-50"
+          class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white transition hover:bg-red-50"
           title="Eliminar"
         >
-          <Trash2 class="h-4 w-4 text-rose-600" />
+          <Trash2 class="h-4 w-4 text-red-600" />
         </button>
       </div>
     </div>

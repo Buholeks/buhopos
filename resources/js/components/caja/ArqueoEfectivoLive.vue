@@ -22,7 +22,7 @@
                 <p
                     class="mt-1 text-xs font-semibold"
                     :class="
-                        difLocal >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                        difLocal >= 0 ? 'text-emerald-700' : 'text-red-700'
                     "
                 >
                     {{ difLocal >= 0 ? "Sobrante" : "Faltante" }}
@@ -97,7 +97,7 @@
 
         <p
             v-if="error"
-            class="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700"
+            class="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700"
         >
             {{ error }}
         </p>

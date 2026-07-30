@@ -424,9 +424,9 @@ const placeholderValor = computed(() => {
 
 function tipoPillClass(nombreTipo) {
     const n = (nombreTipo ?? "").toLowerCase();
-    if (n.includes("color")) return "bg-blue-50 text-blue-700 ring-blue-200";
+    if (n.includes("color")) return "bg-sky-50 text-sky-700 ring-sky-200";
     if (n.includes("talla"))
-        return "bg-violet-50 text-violet-700 ring-violet-200";
+        return "bg-emerald-50 text-emerald-700 ring-emerald-200";
     if (n.includes("material"))
         return "bg-amber-50 text-amber-800 ring-amber-200";
     return "bg-slate-100 text-slate-700 ring-slate-200";

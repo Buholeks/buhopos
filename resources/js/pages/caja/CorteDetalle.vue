@@ -29,7 +29,7 @@
                     type="button"
                     :disabled="exportando"
                     @click="exportarPdf"
-                    class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                    class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                 >
                     <Loader2 v-if="exportando" class="h-4 w-4 animate-spin" />
                     <FileText v-else class="h-4 w-4" />
@@ -125,7 +125,7 @@
                             :class="
                                 item.dif >= 0
                                     ? 'text-emerald-600'
-                                    : 'text-rose-600'
+                                    : 'text-red-600'
                             "
                         >
                             Diferencia: {{ fmt(item.dif) }}
@@ -167,7 +167,7 @@
                                     :class="
                                         m.tipo === 'ingreso'
                                             ? 'text-emerald-600'
-                                            : 'text-rose-600'
+                                            : 'text-red-600'
                                     "
                                 >
                                     {{ m.tipo }}
@@ -184,7 +184,7 @@
                                 :class="
                                     m.tipo === 'ingreso'
                                         ? 'text-emerald-700'
-                                        : 'text-rose-700'
+                                        : 'text-red-700'
                                 "
                             >
                                 {{ m.tipo === "egreso" ? "-" : ""
@@ -236,7 +236,7 @@
                         >
                             <div class="flex flex-wrap items-center gap-2">
                                 <span
-                                    class="rounded bg-cyan-50 px-2 py-0.5 text-xs font-mono font-semibold text-cyan-700"
+                                    class="rounded bg-sky-50 px-2 py-0.5 text-xs font-mono font-semibold text-sky-700"
                                 >
                                     {{ v.folio }}
                                 </span>
@@ -251,7 +251,7 @@
                                 </span>
                                 <span
                                     v-if="v.saldo_aplicado > 0"
-                                    class="rounded bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700"
+                                    class="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
                                 >
                                     Saldo: {{ fmt(v.saldo_aplicado) }}
                                 </span>
@@ -339,7 +339,7 @@
                                     class="text-slate-500"
                                 >
                                     Descuento:
-                                    <span class="font-medium text-rose-600"
+                                    <span class="font-medium text-red-600"
                                         >-{{ fmt(v.descuento) }}</span
                                     >
                                 </span>
@@ -348,7 +348,7 @@
                                 >
                                 <span
                                     v-if="v.saldo_aplicado > 0"
-                                    class="text-teal-600"
+                                    class="text-emerald-600"
                                 >
                                     Saldo a favor aplicado:
                                     <span class="font-semibold">-{{ fmt(v.saldo_aplicado) }}</span>
@@ -578,10 +578,10 @@ const ETIQUETAS_PAGO = {
 
 const CLASES_PAGO = {
     efectivo:      "bg-emerald-50 text-emerald-700",
-    tarjeta:       "bg-blue-50 text-blue-700",
-    transferencia: "bg-violet-50 text-violet-700",
-    mixto:         "bg-orange-50 text-orange-700",
-    saldo_favor:   "bg-teal-50 text-teal-700",
+    tarjeta:       "bg-sky-50 text-sky-700",
+    transferencia: "bg-emerald-50 text-emerald-700",
+    mixto:         "bg-amber-50 text-amber-700",
+    saldo_favor:   "bg-emerald-50 text-emerald-700",
 };
 
 const formaPagoClase = (fp) => CLASES_PAGO[fp] ?? "bg-slate-100 text-slate-600";

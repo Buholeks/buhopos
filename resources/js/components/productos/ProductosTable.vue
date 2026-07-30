@@ -67,7 +67,7 @@
                     <div class="mt-1 flex flex-wrap gap-1">
                         <span
                             v-if="p.tiene_variantes"
-                            class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700"
+                            class="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700"
                         >
                             <LayoutGrid class="h-2.5 w-2.5" />
                             {{ p.variantes_count > 0 ? p.variantes_count : '' }} variantes
@@ -146,7 +146,7 @@
                         <button
                             @click.stop="$emit('variantes', p)"
                             title="Variantes"
-                            class="rounded-md p-2 text-blue-600 hover:bg-blue-50"
+                            class="rounded-md p-2 text-sky-600 hover:bg-sky-50"
                         >
                             <LayoutGrid class="h-4 w-4" />
                         </button>

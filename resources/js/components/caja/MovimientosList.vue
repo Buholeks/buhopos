@@ -12,7 +12,7 @@
 
             <button
                 type="button"
-                class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-700"
+                class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700"
                 @click="$emit('nuevo')"
             >
                 <Plus class="h-4 w-4" />
@@ -49,7 +49,7 @@
                         :class="
                             m.tipo === 'ingreso'
                                 ? 'text-emerald-600'
-                                : 'text-rose-600'
+                                : 'text-red-600'
                         "
                     >
                         {{ m.tipo === "ingreso" ? "+" : "−" }}{{ fmt(m.monto) }}
@@ -57,7 +57,7 @@
 
                     <!-- <button
                         type="button"
-                        class="rounded-lg p-2 text-slate-300 hover:bg-rose-50 hover:text-rose-600"
+                        class="rounded-lg p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"
                         @click="$emit('eliminar', m.id)"
                         title="Eliminar"
                     >

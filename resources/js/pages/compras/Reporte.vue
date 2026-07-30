@@ -221,7 +221,7 @@
                                 type="button"
                                 :disabled="exportandoLista"
                                 @click="exportarLista('pdf')"
-                                class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                                class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                             >
                                 <Loader2 v-if="exportandoLista === 'pdf'" class="h-4 w-4 animate-spin" />
                                 <FileText v-else class="h-4 w-4" />
@@ -749,7 +749,7 @@
                             type="button"
                             :disabled="exportandoDetalle"
                             @click="exportarDetalleCompra"
-                            class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                            class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                         >
                             <Loader2 v-if="exportandoDetalle" class="h-4 w-4 animate-spin" />
                             <FileText v-else class="h-4 w-4" />
@@ -1574,9 +1574,9 @@ function badgePago(fp) {
     const tonos = {
         efectivo: "bg-emerald-50 text-emerald-700",
         transferencia: "bg-sky-50 text-sky-700",
-        tarjeta: "bg-indigo-50 text-indigo-700",
-        tarjeta_debito: "bg-indigo-50 text-indigo-700",
-        tarjeta_credito: "bg-purple-50 text-purple-700",
+        tarjeta: "bg-emerald-50 text-emerald-700",
+        tarjeta_debito: "bg-emerald-50 text-emerald-700",
+        tarjeta_credito: "bg-emerald-50 text-emerald-700",
         credito: "bg-amber-50 text-amber-700",
         cheque: "bg-slate-100 text-slate-700",
     };
@@ -1592,7 +1592,7 @@ function badgeEstado(e) {
         confirmada: "bg-emerald-50 text-emerald-700",
         borrador: "bg-slate-100 text-slate-600",
         devuelta_parcial: "bg-amber-50 text-amber-700",
-        devuelta: "bg-violet-50 text-violet-700",
+        devuelta: "bg-emerald-50 text-emerald-700",
         cancelada: "bg-red-50 text-red-700",
     };
 

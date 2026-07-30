@@ -34,11 +34,11 @@
                     <h2 class="mb-3 text-sm font-black">Campos arrastrables</h2>
                     <div class="mb-3 flex gap-1 rounded-xl bg-slate-100 p-1 text-xs font-bold">
                         <button
-                            :class="['flex-1 rounded-lg py-1.5 transition-all', zonaActiva === 'encabezado' ? 'bg-white shadow text-blue-700' : 'text-slate-500']"
+                            :class="['flex-1 rounded-lg py-1.5 transition-all', zonaActiva === 'encabezado' ? 'bg-white shadow text-sky-700' : 'text-slate-500']"
                             @click="zonaActiva = 'encabezado'"
                         >Encabezado</button>
                         <button
-                            :class="['flex-1 rounded-lg py-1.5 transition-all', zonaActiva === 'pie' ? 'bg-white shadow text-blue-700' : 'text-slate-500']"
+                            :class="['flex-1 rounded-lg py-1.5 transition-all', zonaActiva === 'pie' ? 'bg-white shadow text-sky-700' : 'text-slate-500']"
                             @click="zonaActiva = 'pie'"
                         >Pie</button>
                     </div>
@@ -140,10 +140,10 @@
                             <div
                                 :class="[
                                     'absolute -top-5 left-0 rounded px-2 py-0.5 text-xs font-bold',
-                                    zonaActiva === 'encabezado' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600',
+                                    zonaActiva === 'encabezado' ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-600',
                                 ]"
                             >Encabezado</div>
-                            <div :class="['rounded-sm', zonaActiva === 'encabezado' ? 'ring-2 ring-blue-400' : 'ring-1 ring-slate-200']">
+                            <div :class="['rounded-sm', zonaActiva === 'encabezado' ? 'ring-2 ring-sky-400' : 'ring-1 ring-slate-200']">
                                 <TicketCanvasVista
                                     :elementos="cfg.encabezado.elementos"
                                     :datos="muestra"
@@ -235,10 +235,10 @@
                             <div
                                 :class="[
                                     'absolute -top-5 left-0 rounded px-2 py-0.5 text-xs font-bold',
-                                    zonaActiva === 'pie' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600',
+                                    zonaActiva === 'pie' ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-600',
                                 ]"
                             >Pie</div>
-                            <div :class="['rounded-sm', zonaActiva === 'pie' ? 'ring-2 ring-blue-400' : 'ring-1 ring-slate-200']">
+                            <div :class="['rounded-sm', zonaActiva === 'pie' ? 'ring-2 ring-sky-400' : 'ring-1 ring-slate-200']">
                                 <TicketCanvasVista
                                     :elementos="cfg.pie.elementos"
                                     :datos="muestra"

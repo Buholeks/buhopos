@@ -164,11 +164,11 @@
                       </button>
 
                       <button
-                        class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-rose-50"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-red-50"
                         title="Eliminar"
                         @click="confirmarEliminar(c)"
                       >
-                        <svg class="h-4 w-4 text-rose-600" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                        <svg class="h-4 w-4 text-red-600" viewBox="0 0 16 16" fill="none" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
                             d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10"/>
                         </svg>
@@ -232,19 +232,19 @@
                 <!-- Nombre -->
                 <div>
                   <label class="text-sm font-semibold text-slate-700">
-                    Nombre <span class="text-rose-600">*</span>
+                    Nombre <span class="text-red-600">*</span>
                   </label>
                   <input
                     v-model.trim="form.nombre"
                     class="mt-2 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:ring-4"
                     :class="errores.nombre
-                      ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                      ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
                       : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'"
                     placeholder="Ej. Cuenta BBVA, Cuenta Azteca…"
                     @keyup.enter="enviarForm"
                     autofocus
                   />
-                  <p v-if="errores.nombre" class="mt-1 text-xs font-semibold text-rose-600">{{ errores.nombre }}</p>
+                  <p v-if="errores.nombre" class="mt-1 text-xs font-semibold text-red-600">{{ errores.nombre }}</p>
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

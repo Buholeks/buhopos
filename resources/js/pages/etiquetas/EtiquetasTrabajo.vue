@@ -68,7 +68,7 @@
                                         <div class="min-w-0 flex-1">
                                             <p class="truncate text-sm font-semibold text-slate-900">
                                                 {{ row.item.datos.producto.nombre }}
-                                                <span v-if="row.item.datos.variante.nombre" class="text-violet-600">- {{ row.item.datos.variante.nombre }}</span>
+                                                <span v-if="row.item.datos.variante.nombre" class="text-emerald-600">- {{ row.item.datos.variante.nombre }}</span>
                                             </p>
                                             <p class="mt-0.5 truncate font-mono text-xs text-slate-400">
                                                 {{ row.item.datos.producto.codigo }}

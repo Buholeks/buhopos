@@ -14,7 +14,7 @@
                 class="fixed right-5 top-5 z-[9999] flex max-w-md items-start gap-2 rounded-2xl border px-4 py-3 text-sm shadow-lg backdrop-blur"
                 :class="
                     toast.tipo === 'error'
-                        ? 'border-rose-200 bg-rose-50/90 text-rose-700'
+                        ? 'border-red-200 bg-red-50/90 text-red-700'
                         : 'border-emerald-200 bg-emerald-50/90 text-emerald-700'
                 "
             >
@@ -569,7 +569,7 @@
                                             :class="
                                                 item.exhibiciones_count > 1
                                                     ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-100'
-                                                    : 'bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-100'
+                                                    : 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-100'
                                             "
                                             :disabled="
                                                 procesando ===
@@ -701,7 +701,7 @@
                                                             </div>
                                                             <button
                                                                 type="button"
-                                                                class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-white px-2 py-1 font-semibold text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-white px-2 py-1 font-semibold text-red-700 ring-1 ring-red-200 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                                                                 :disabled="
                                                                     procesando ===
                                                                     exh.id
@@ -985,7 +985,7 @@
                                     class="flex h-10 w-10 items-center justify-center rounded-2xl"
                                     :class="
                                         modal.paso === 1
-                                            ? 'bg-violet-100 text-violet-700'
+                                            ? 'bg-emerald-100 text-emerald-700'
                                             : 'bg-amber-100 text-amber-700'
                                     "
                                 >
@@ -1034,7 +1034,7 @@
                                 class="inline-flex items-center gap-2 rounded-full px-3 py-1 font-semibold"
                                 :class="
                                     modal.paso >= 1
-                                        ? 'bg-violet-50 text-violet-700 ring-1 ring-violet-200'
+                                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
                                         : 'bg-slate-50 text-slate-500 ring-1 ring-slate-200'
                                 "
                             >
@@ -1042,7 +1042,7 @@
                                     class="h-2 w-2 rounded-full"
                                     :class="
                                         modal.paso >= 1
-                                            ? 'bg-violet-500'
+                                            ? 'bg-emerald-500'
                                             : 'bg-slate-300'
                                     "
                                 />
@@ -1272,7 +1272,7 @@
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
                             <div
-                                class="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-100 text-rose-700"
+                                class="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-100 text-red-700"
                             >
                                 <EyeOff class="h-5 w-5" />
                             </div>
@@ -1326,7 +1326,7 @@
                         </button>
                         <button
                             type="button"
-                            class="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-100"
+                            class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-100"
                             @click="ejecutarQuitar"
                         >
                             Quitar
@@ -1813,8 +1813,8 @@ const tarjetas = computed(() => [
         valor: stats.value.sinExhibicion,
         icon: Warehouse,
         active: "border-amber-300 bg-amber-50/50 ring-4 ring-amber-100",
-        num: "text-orange-700",
-        iconBox: "bg-orange-100 text-orange-700",
+        num: "text-amber-700",
+        iconBox: "bg-amber-100 text-amber-700",
     },
 ]);
 
@@ -1828,8 +1828,8 @@ const estadoUI = {
         dot: "bg-amber-500",
     },
     con_detalles: {
-        badge: "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
-        dot: "bg-rose-500",
+        badge: "bg-red-50 text-red-700 ring-1 ring-red-200",
+        dot: "bg-red-500",
     },
     mixto: {
         badge: "bg-slate-100 text-slate-700 ring-1 ring-slate-300",

@@ -149,7 +149,7 @@
                         type="button"
                         @click="exportar('pdf')"
                         :disabled="exportando"
-                        class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                        class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                     >
                         <Loader2
                             v-if="exportando === 'pdf'"
@@ -573,7 +573,7 @@
                                     class="h-2.5 overflow-hidden rounded-full bg-slate-100"
                                 >
                                     <div
-                                        class="h-full rounded-full bg-cyan-500 transition-all duration-500"
+                                        class="h-full rounded-full bg-sky-500 transition-all duration-500"
                                         :style="{
                                             width: pctVentas('saldo_favor') + '%',
                                         }"
@@ -1203,7 +1203,7 @@ const formasPago = [
     {
         key: "transferencia",
         label: "Transferencia",
-        barClass: "bg-violet-500",
+        barClass: "bg-emerald-500",
     },
 ];
 
@@ -1535,7 +1535,7 @@ function badgeEstadoClass(estado) {
 function badgeFormaPagoClass(forma) {
     if (forma === "efectivo") return "bg-emerald-50 text-emerald-700";
     if (forma === "tarjeta") return "bg-sky-50 text-sky-700";
-    if (forma === "transferencia") return "bg-violet-50 text-violet-700";
+    if (forma === "transferencia") return "bg-emerald-50 text-emerald-700";
     if (forma === "mixto") return "bg-amber-50 text-amber-700";
     return "bg-slate-100 text-slate-700";
 }

@@ -26,7 +26,7 @@
 
                     <button
                         type="button"
-                        class="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
+                        class="inline-flex h-10 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50"
                         :disabled="!producto || exportando"
                         @click="exportar('pdf')"
                     >
@@ -189,7 +189,7 @@
                 <div v-if="producto" class="grid grid-cols-1 gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm sm:grid-cols-3">
                     <p class="font-semibold text-emerald-700">Total entradas: {{ fmtCantidad(resumen?.total_entradas) }}</p>
                     <p class="font-semibold text-red-700">Total salidas: {{ fmtCantidad(resumen?.total_salidas) }}</p>
-                    <p class="font-semibold text-indigo-700">Diferencia: {{ fmtCantidad(resumen?.diferencia) }}</p>
+                    <p class="font-semibold text-emerald-700">Diferencia: {{ fmtCantidad(resumen?.diferencia) }}</p>
                 </div>
             </section>
         </main>
@@ -400,9 +400,9 @@ function primerDiaMes() {
 function toneText(tone) {
     return {
         emerald: "text-emerald-700",
-        green: "text-green-700",
+        green: "text-emerald-700",
         red: "text-red-700",
-        indigo: "text-indigo-700",
+        indigo: "text-emerald-700",
         slate: "text-slate-900",
     }[tone] ?? "text-slate-900";
 }

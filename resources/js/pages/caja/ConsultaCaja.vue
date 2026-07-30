@@ -9,7 +9,7 @@
             >
                 <div class="flex items-center gap-3">
                     <div
-                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700"
+                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-700"
                     >
                         <ClipboardList class="h-5 w-5" />
                     </div>
@@ -101,7 +101,7 @@
                         type="button"
                         @click="buscar()"
                         :disabled="cargando"
-                        class="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-100 disabled:opacity-50"
+                        class="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:opacity-50"
                     >
                         <Loader2 v-if="cargando" class="h-4 w-4 animate-spin" />
                         <Search v-else class="h-4 w-4" />
@@ -134,7 +134,7 @@
                             type="button"
                             @click="exportar('pdf')"
                             :disabled="exportando"
-                            class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                            class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                         >
                             <Loader2
                                 v-if="exportando === 'pdf'"
@@ -171,10 +171,10 @@
                     </p>
                 </div>
                 <div
-                    class="rounded-xl border border-rose-100 bg-rose-50 p-4 shadow-sm"
+                    class="rounded-xl border border-red-100 bg-red-50 p-4 shadow-sm"
                 >
-                    <p class="text-xs font-medium text-rose-600">Egresos</p>
-                    <p class="mt-1 text-xl font-bold text-rose-700">
+                    <p class="text-xs font-medium text-red-600">Egresos</p>
+                    <p class="mt-1 text-xl font-bold text-red-700">
                         {{ fmt(resumen.egresos) }}
                     </p>
                 </div>
@@ -187,7 +187,7 @@
                         :class="
                             resumen.neto >= 0
                                 ? 'text-emerald-700'
-                                : 'text-rose-700'
+                                : 'text-red-700'
                         "
                     >
                         {{ fmt(resumen.neto) }}
@@ -246,7 +246,7 @@
                                 :class="
                                     mov.tipo === 'ingreso'
                                         ? 'bg-emerald-50/20'
-                                        : 'bg-rose-50/20'
+                                        : 'bg-red-50/20'
                                 "
                             >
                                 <td
@@ -269,7 +269,7 @@
                                         class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
                                         :class="
                                             mov.origen === 'venta'
-                                                ? 'bg-cyan-100 text-cyan-700'
+                                                ? 'bg-sky-100 text-sky-700'
                                                 : 'bg-slate-100 text-slate-600'
                                         "
                                     >
@@ -294,7 +294,7 @@
                                         :class="
                                             mov.tipo === 'ingreso'
                                                 ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-rose-100 text-rose-700'
+                                                : 'bg-red-100 text-red-700'
                                         "
                                     >
                                         <TrendingUp
@@ -315,9 +315,9 @@
                                         :class="{
                                             'bg-slate-100 text-slate-700':
                                                 mov.forma_pago === 'efectivo',
-                                            'bg-blue-50 text-blue-700':
+                                            'bg-sky-50 text-sky-700':
                                                 mov.forma_pago === 'tarjeta',
-                                            'bg-violet-50 text-violet-700':
+                                            'bg-emerald-50 text-emerald-700':
                                                 mov.forma_pago ===
                                                 'transferencia',
                                             'bg-amber-50 text-amber-700':
@@ -355,7 +355,7 @@
                                     :class="
                                         mov.tipo === 'ingreso'
                                             ? 'text-emerald-700'
-                                            : 'text-rose-700'
+                                            : 'text-red-700'
                                     "
                                 >
                                     {{ mov.tipo === "ingreso" ? "+" : "-"
@@ -398,7 +398,7 @@
                                 class="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-semibold transition"
                                 :class="
                                     p === paginacion.current_page
-                                        ? 'border-cyan-500 bg-cyan-600 text-white'
+                                        ? 'border-sky-500 bg-sky-600 text-white'
                                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                 "
                             >
@@ -536,7 +536,7 @@ async function buscar(pagina = 1) {
             text:
                 e.response?.data?.message ??
                 "No se pudieron cargar los registros.",
-            confirmButtonColor: "#0891b2",
+            confirmButtonColor: "#0284c7",
         });
     } finally {
         cargando.value = false;
@@ -562,7 +562,7 @@ async function exportar(formato) {
             icon: "error",
             title: "Error",
             text: "No se pudo generar el archivo.",
-            confirmButtonColor: "#0891b2",
+            confirmButtonColor: "#0284c7",
         });
     } finally {
         exportando.value = null;

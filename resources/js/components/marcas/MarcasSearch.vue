@@ -9,7 +9,7 @@
       <div v-if="modelValue" class="mt-2 flex items-center justify-between text-xs text-slate-500">
         <span v-if="count === 0">Sin resultados</span>
         <span v-else>
-          <span class="font-semibold text-indigo-700">{{ count }}</span> marca(s) encontrada(s)
+          <span class="font-semibold text-emerald-700">{{ count }}</span> marca(s) encontrada(s)
         </span>
 
         <button

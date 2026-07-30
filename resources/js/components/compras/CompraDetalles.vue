@@ -90,7 +90,7 @@
 
                                                 <span
                                                     v-if="det.tiene_series"
-                                                    class="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+                                                    class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700"
                                                 >
                                                     <Smartphone
                                                         class="h-3 w-3"
@@ -114,7 +114,7 @@
                                                 }}</span>
                                                 <span
                                                     v-if="det.nombre_variante"
-                                                    class="text-violet-600"
+                                                    class="text-emerald-600"
                                                 >
                                                     — {{ det.nombre_variante }}
                                                 </span>
@@ -137,7 +137,7 @@
                                         <button
                                             type="button"
                                             @click="emit('editar-imeis', idx)"
-                                            class="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50"
+                                            class="rounded-lg p-1.5 text-sky-600 hover:bg-sky-50"
                                             title="Editar IMEIs y cantidad"
                                         >
                                             <Pencil class="h-4 w-4" />
@@ -152,7 +152,7 @@
                                         step="1"
                                         inputmode="numeric"
                                         @input="emit('recalcular', idx)"
-                                        class="w-full rounded-lg border border-slate-200 px-2 py-2 text-right font-mono text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                                        class="w-full rounded-lg border border-slate-200 px-2 py-2 text-right font-mono text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                     />
                                 </td>
 
@@ -171,7 +171,7 @@
                                             inputmode="decimal"
                                             placeholder="0.00"
                                             @input="onPrecioCompra($event, idx)"
-                                            class="w-full rounded-lg border border-slate-200 bg-white py-2 pl-7 pr-3 text-right font-mono text-sm tabular-nums outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                                            class="w-full rounded-lg border border-slate-200 bg-white py-2 pl-7 pr-3 text-right font-mono text-sm tabular-nums outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                         />
                                     </div>
                                 </td>
@@ -226,7 +226,7 @@
                                     Total
                                 </td>
                                 <td
-                                    class="px-3 py-3 text-right font-mono text-base font-extrabold text-violet-700"
+                                    class="px-3 py-3 text-right font-mono text-base font-extrabold text-emerald-700"
                                 >
                                     {{ formatPrecio(total) }}
                                 </td>
@@ -270,7 +270,7 @@
                                     </p>
                                     <span
                                         v-if="det.tiene_series"
-                                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+                                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700"
                                     >
                                         <Smartphone class="h-3 w-3" />
                                         {{ det.imeis?.length ?? 0 }} IMEI
@@ -289,7 +289,7 @@
                                     }}</span>
                                     <span
                                         v-if="det.nombre_variante"
-                                        class="text-violet-600"
+                                        class="text-emerald-600"
                                     >
                                         — {{ det.nombre_variante }}
                                     </span>
@@ -318,7 +318,7 @@
                                                 @click="
                                                     emit('editar-imeis', idx)
                                                 "
-                                                class="rounded-lg p-1.5 text-blue-600 hover:bg-blue-50"
+                                                class="rounded-lg p-1.5 text-sky-600 hover:bg-sky-50"
                                                 title="Editar IMEIs y cantidad"
                                             >
                                                 <Pencil class="h-4 w-4" />
@@ -333,7 +333,7 @@
                                             step="1"
                                             inputmode="numeric"
                                             @input="emit('recalcular', idx)"
-                                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-right font-mono text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-right font-mono text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                         />
                                     </div>
 
@@ -359,7 +359,7 @@
                                             Compra
                                         </p>
                                         <div
-                                            class="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-100"
+                                            class="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100"
                                         >
                                             <span
                                                 class="border-r border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-500"
@@ -422,7 +422,7 @@
                                             Total
                                         </p>
                                         <p
-                                            class="font-mono text-base font-extrabold text-violet-700"
+                                            class="font-mono text-base font-extrabold text-emerald-700"
                                         >
                                             {{ formatPrecio(total) }}
                                         </p>
@@ -439,7 +439,7 @@
                             >Total</span
                         >
                         <span
-                            class="font-mono text-lg font-extrabold text-violet-700"
+                            class="font-mono text-lg font-extrabold text-emerald-700"
                         >
                             {{ formatPrecio(total) }}
                         </span>

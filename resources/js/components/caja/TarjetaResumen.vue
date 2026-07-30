@@ -18,10 +18,10 @@ const props = defineProps({
 
 const colores = {
   emerald: "text-emerald-700",
-  blue:    "text-blue-700",
-  violet:  "text-violet-700",
-  orange:  "text-orange-700",
-  cyan:    "text-teal-700",
+  blue:    "text-sky-700",
+  violet:  "text-emerald-700",
+  orange:  "text-amber-700",
+  cyan:    "text-emerald-700",
 };
 
 const cls = computed(() => colores[props.color] ?? colores.emerald);

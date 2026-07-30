@@ -16,18 +16,18 @@
 
           <!-- Header -->
           <div class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
               <Smartphone class="h-4 w-4" />
             </div>
             <div class="flex-1">
               <p class="text-sm font-semibold text-slate-900">Captura de IMEI / Serie</p>
               <p class="text-xs text-slate-400">
                 {{ item?.nombre }}
-                <span v-if="item?.nombre_variante" class="text-violet-600"> — {{ item.nombre_variante }}</span>
+                <span v-if="item?.nombre_variante" class="text-emerald-600"> — {{ item.nombre_variante }}</span>
               </p>
             </div>
             <div class="text-right">
-              <span class="text-lg font-bold" :class="capturados >= cantidad ? 'text-emerald-600' : 'text-blue-600'">
+              <span class="text-lg font-bold" :class="capturados >= cantidad ? 'text-emerald-600' : 'text-sky-600'">
                 {{ capturados }}
               </span>
               <span class="text-sm text-slate-400"> / {{ cantidad }}</span>
@@ -38,7 +38,7 @@
           <div class="h-1.5 bg-slate-100">
             <div
               class="h-full transition-all duration-300"
-              :class="capturados >= cantidad ? 'bg-emerald-500' : 'bg-blue-500'"
+              :class="capturados >= cantidad ? 'bg-emerald-500' : 'bg-sky-500'"
               :style="{ width: `${Math.min((capturados / cantidad) * 100, 100)}%` }"
             />
           </div>
@@ -61,12 +61,12 @@
                 class="flex-1 rounded-xl border px-4 py-3 font-mono text-sm outline-none transition focus:ring-4"
                 :class="errorImei
                   ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
-                  : 'border-slate-200 focus:border-blue-500 focus:ring-blue-100'"
+                  : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'"
               />
               <button
                 @click="agregarImei"
                 :disabled="capturados >= cantidad || verificando"
-                class="rounded-xl bg-blue-600 px-4 text-white hover:bg-blue-700 disabled:opacity-40"
+                class="rounded-xl bg-sky-600 px-4 text-white hover:bg-sky-700 disabled:opacity-40"
               >
                 <Loader2 v-if="verificando" class="h-4 w-4 animate-spin" />
                 <Plus v-else class="h-4 w-4" />
@@ -122,7 +122,7 @@
               @click="confirmar"
               :disabled="capturados < cantidad"
               class="flex-1 rounded-xl py-2.5 text-sm font-medium text-white transition"
-              :class="capturados >= cantidad ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-300 cursor-not-allowed'"
+              :class="capturados >= cantidad ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-300 cursor-not-allowed'"
             >
               Confirmar {{ capturados }} IMEI{{ capturados !== 1 ? 's' : '' }}
             </button>

@@ -9,8 +9,8 @@
             :key="el.id"
             class="absolute flex overflow-hidden"
             :class="{
-                'ring-2 ring-blue-500': editable && seleccionado === el.id,
-                'cursor-move hover:ring-1 hover:ring-blue-400': editable,
+                'ring-2 ring-sky-500': editable && seleccionado === el.id,
+                'cursor-move hover:ring-1 hover:ring-sky-400': editable,
             }"
             :style="estiloEl(el)"
             @pointerdown.prevent="editable && iniciarMovimiento($event, el)"
@@ -27,7 +27,7 @@
             <button
                 v-if="editable && seleccionado === el.id"
                 type="button"
-                class="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize bg-blue-600"
+                class="absolute bottom-0 right-0 h-3 w-3 cursor-se-resize bg-sky-600"
                 @pointerdown.stop.prevent="iniciarRedimension($event, el)"
             />
         </div>

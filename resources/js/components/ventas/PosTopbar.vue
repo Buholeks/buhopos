@@ -162,7 +162,7 @@
                     :disabled="disableAccionesVenta"
                     @click="$emit('descuentoGlobal')"
                 >
-                    <Percent class="h-3.5 w-3.5 text-violet-600" />
+                    <Percent class="h-3.5 w-3.5 text-emerald-600" />
                     Desc. global
                     <span class="hidden text-[11px] text-slate-400 md:inline">
                         Alt+D

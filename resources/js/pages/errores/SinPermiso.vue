@@ -1,6 +1,6 @@
 <template>
     <main class="flex min-h-[60vh] flex-col items-center justify-center gap-6 p-6 text-center">
-        <div class="flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 text-rose-500">
+        <div class="flex h-20 w-20 items-center justify-center rounded-3xl bg-red-50 text-red-500">
             <ShieldOff class="h-10 w-10" />
         </div>
 

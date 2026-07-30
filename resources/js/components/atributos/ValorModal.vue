@@ -23,10 +23,10 @@
                     >
                         <div class="flex items-start gap-3">
                             <div
-                                class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 ring-1 ring-blue-100"
+                                class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 ring-1 ring-sky-100"
                             >
                                 <svg
-                                    class="h-5 w-5 text-blue-600"
+                                    class="h-5 w-5 text-sky-600"
                                     viewBox="0 0 20 20"
                                     fill="none"
                                     stroke="currentColor"

@@ -21,11 +21,11 @@
 }
 
 .ui-input--normal {
-    @apply border-slate-200 focus:border-blue-600 focus:ring-slate-300;
+    @apply border-slate-200 focus:border-sky-600 focus:ring-slate-300;
 }
 
 .ui-input--error {
-    @apply border-rose-500 focus:border-rose-500 focus:ring-rose-400;
+    @apply border-red-500 focus:border-red-500 focus:ring-red-400;
 }
 
 .ui-label {
@@ -33,9 +33,9 @@
 }
 
 .ui-required {
-    @apply text-rose-500;
+    @apply text-red-500;
 }
 
 .ui-error-text {
-    @apply text-xs text-rose-600;
+    @apply text-xs text-red-600;
 } */

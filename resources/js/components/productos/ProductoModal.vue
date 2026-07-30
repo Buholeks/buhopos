@@ -244,7 +244,7 @@
                                     class="flex items-center gap-3 rounded-xl border px-4 py-3 transition"
                                     :class="
                                         formProxy.tiene_series
-                                            ? 'border-blue-200 bg-blue-50'
+                                            ? 'border-sky-200 bg-sky-50'
                                             : 'border-slate-200 bg-slate-50'
                                     "
                                 >
@@ -257,7 +257,7 @@
                                         class="relative h-6 w-11 flex-shrink-0 rounded-full transition"
                                         :class="
                                             formProxy.tiene_series
-                                                ? 'bg-blue-600'
+                                                ? 'bg-sky-600'
                                                 : 'bg-slate-300'
                                         "
                                     >
@@ -273,7 +273,7 @@
                                     <div>
                                         <div class="flex items-center gap-1.5">
                                             <Smartphone
-                                                class="h-3.5 w-3.5 text-blue-500"
+                                                class="h-3.5 w-3.5 text-sky-500"
                                             />
                                             <p
                                                 class="text-sm font-medium text-slate-700"
@@ -295,12 +295,12 @@
                             <!-- Aviso cuando tiene_series está activo -->
                             <div
                                 v-if="formProxy.tiene_series"
-                                class="md:col-span-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3"
+                                class="md:col-span-2 flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3"
                             >
                                 <AlertTriangle
-                                    class="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-400"
+                                    class="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-400"
                                 />
-                                <p class="text-xs text-blue-700">
+                                <p class="text-xs text-sky-700">
                                     Al vender este producto en el POS se
                                     requerirá seleccionar o escanear el IMEI /
                                     número de serie de cada unidad. Registra las

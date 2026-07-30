@@ -180,11 +180,11 @@
 
                                         <button
                                             type="button"
-                                            class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-100"
+                                            class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-100"
                                             title="Eliminar atributo"
                                             @click="confirmarEliminarTipo(tipo)"
                                         >
-                                            <Trash2 class="h-4 w-4 text-rose-600" />
+                                            <Trash2 class="h-4 w-4 text-red-600" />
                                         </button>
                                     </div>
                                 </td>

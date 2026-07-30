@@ -35,7 +35,7 @@
 
                 <p
                   class="mt-0.5 text-[11px] font-semibold"
-                  :class="difLocal >= 0 ? 'text-emerald-700' : 'text-rose-700'"
+                  :class="difLocal >= 0 ? 'text-emerald-700' : 'text-red-700'"
                 >
                   {{ difLocal >= 0 ? "Sobrante" : "Faltante" }}
                   {{ fmt(Math.abs(difLocal)) }}
@@ -89,7 +89,7 @@
             type="button"
             @click="modo = 'arqueo'"
             :class="modo === 'arqueo'
-              ? 'bg-cyan-600 text-white ring-cyan-200'
+              ? 'bg-sky-600 text-white ring-sky-200'
               : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'"
             class="rounded-xl px-3 py-2 text-xs font-semibold ring-1"
           >
@@ -100,7 +100,7 @@
             type="button"
             @click="modo = 'manual'"
             :class="modo === 'manual'
-              ? 'bg-cyan-600 text-white ring-cyan-200'
+              ? 'bg-sky-600 text-white ring-sky-200'
               : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'"
             class="rounded-xl px-3 py-2 text-xs font-semibold ring-1"
           >
@@ -144,7 +144,7 @@
               <div class="lg:col-span-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Efectivo contado (manual)</p>
 
-                <div class="mt-3 flex overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-cyan-500 focus-within:ring-4 focus-within:ring-cyan-100">
+                <div class="mt-3 flex overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-sky-500 focus-within:ring-4 focus-within:ring-sky-100">
                   <span class="border-r border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">$</span>
                   <input
                     v-model.number="contadoManual"
@@ -161,7 +161,7 @@
                   <span class="font-mono font-semibold text-slate-700">{{ fmt(corte?.esperado_efectivo) }}</span>
                 </p>
 
-                <p class="mt-1 text-xs font-semibold" :class="difLocal >= 0 ? 'text-emerald-700' : 'text-rose-700'">
+                <p class="mt-1 text-xs font-semibold" :class="difLocal >= 0 ? 'text-emerald-700' : 'text-red-700'">
                   {{ difLocal >= 0 ? "Sobrante" : "Faltante" }} {{ fmt(Math.abs(difLocal)) }}
                 </p>
               </div>
@@ -211,7 +211,7 @@
                     :value="form[d.key]"
                     @focus="focusedKey = d.key"
                     @input="setVal(d.key, $event.target.value)"
-                    class="h-9 w-full rounded-xl border border-slate-200 bg-white px-2 text-center font-mono text-sm font-semibold text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                    class="h-9 w-full rounded-xl border border-slate-200 bg-white px-2 text-center font-mono text-sm font-semibold text-slate-900 outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
                   />
 
                   <button
@@ -228,7 +228,7 @@
 
             <p
               v-if="errorArqueo"
-              class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700"
+              class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700"
             >
               {{ errorArqueo }}
             </p>
@@ -248,7 +248,7 @@
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label class="text-xs font-semibold uppercase tracking-wider text-slate-500">Tarjeta reportada</label>
-                <div class="mt-2 flex overflow-hidden rounded-xl border border-slate-200 focus-within:border-cyan-500 focus-within:ring-4 focus-within:ring-cyan-100">
+                <div class="mt-2 flex overflow-hidden rounded-xl border border-slate-200 focus-within:border-sky-500 focus-within:ring-4 focus-within:ring-sky-100">
                   <span class="border-r border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">$</span>
                   <input
                     v-model.number="formCierre.contado_tarjeta"
@@ -267,7 +267,7 @@
 
               <div>
                 <label class="text-xs font-semibold uppercase tracking-wider text-slate-500">Transferencia reportada</label>
-                <div class="mt-2 flex overflow-hidden rounded-xl border border-slate-200 focus-within:border-cyan-500 focus-within:ring-4 focus-within:ring-cyan-100">
+                <div class="mt-2 flex overflow-hidden rounded-xl border border-slate-200 focus-within:border-sky-500 focus-within:ring-4 focus-within:ring-sky-100">
                   <span class="border-r border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">$</span>
                   <input
                     v-model.number="formCierre.contado_transferencia"
@@ -292,7 +292,7 @@
               <textarea
                 v-model="formCierre.notas_cierre"
                 rows="2"
-                class="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                class="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
                 placeholder="Observaciones…"
               />
             </div>
@@ -309,14 +309,14 @@
               <button
                 type="button"
                 :disabled="loading || (modo === 'manual' && !manualValido)"
-                class="rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                 @click="submit"
               >
                 {{ loading ? "Cerrando..." : "Cerrar caja" }}
               </button>
             </div>
 
-            <p v-if="modo === 'manual' && !manualValido" class="mt-3 text-xs font-medium text-rose-700">
+            <p v-if="modo === 'manual' && !manualValido" class="mt-3 text-xs font-medium text-red-700">
               En modo manual debes capturar el efectivo contado.
             </p>
           </div>

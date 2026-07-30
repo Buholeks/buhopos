@@ -4,7 +4,7 @@
             <div class="mx-auto max-w-5xl px-4 py-5 sm:px-6">
                 <div class="flex items-start gap-3">
                     <div
-                        class="grid h-11 w-11 place-items-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100"
+                        class="grid h-11 w-11 place-items-center rounded-2xl bg-red-50 text-red-600 ring-1 ring-red-100"
                     >
                         <RotateCcw class="h-5 w-5" />
                     </div>
@@ -73,7 +73,7 @@
                                 </h2>
                                 <button
                                     type="button"
-                                    class="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                                    class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                                     :disabled="exportando"
                                     @click="exportarPdf"
                                 >

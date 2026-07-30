@@ -47,7 +47,7 @@
                   <ImageOff v-else class="h-5 w-5 text-slate-300" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="truncate font-bold text-slate-900">{{ item.nombre }}<span v-if="item.variante" class="text-violet-600"> · {{ item.variante }}</span></p>
+                  <p class="truncate font-bold text-slate-900">{{ item.nombre }}<span v-if="item.variante" class="text-emerald-600"> · {{ item.variante }}</span></p>
                   <p class="mt-0.5 truncate font-mono text-xs text-slate-400">{{ item.codigo }}<span v-if="item.sku"> · {{ item.sku }}</span></p>
                 </div>
                 <div class="shrink-0 text-right"><span class="block text-xs text-slate-400">Existencia</span><strong>{{ numero(item.stock) }}</strong></div>
@@ -76,14 +76,14 @@
               <td class="p-3 font-bold">{{ numero(partida.stock) }}</td>
               <td class="p-3 font-black">{{ numero(partida.nueva_existencia) }}</td>
               <td class="p-3">
-                <span class="rounded-full px-2.5 py-1 text-xs font-bold" :class="movimiento(partida).tipo === 'entrada' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
+                <span class="rounded-full px-2.5 py-1 text-xs font-bold" :class="movimiento(partida).tipo === 'entrada' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
                   {{ movimiento(partida).texto }}
                 </span>
                 <span v-if="partida.tiene_series" class="ml-2 text-xs text-slate-500">{{ partida.serie_ids.length }} series</span>
               </td>
               <td class="p-3 text-right">
-                <button type="button" class="mr-3 text-indigo-600" @click="abrirCantidad(partida)">Editar</button>
-                <button type="button" class="text-rose-600" @click="partidas.splice(index, 1)">Quitar</button>
+                <button type="button" class="mr-3 text-emerald-600" @click="abrirCantidad(partida)">Editar</button>
+                <button type="button" class="text-red-600" @click="partidas.splice(index, 1)">Quitar</button>
               </td>
             </tr>
           </tbody>
@@ -117,7 +117,7 @@
             <span class="block text-xs font-bold uppercase text-slate-500">Existencia actual</span>
             <strong class="mt-1 block text-3xl text-slate-900">{{ numero(editor.stock) }}</strong>
           </div>
-          <div class="rounded-xl border-2 border-indigo-200 p-3">
+          <div class="rounded-xl border-2 border-emerald-200 p-3">
             <BaseInput
               v-model="editor.nueva_existencia"
               label="Nueva existencia"
@@ -127,12 +127,12 @@
               input-class="text-2xl font-black"
               @input="cambioCantidad"
             >
-              <template #icon><Package class="h-4 w-4 text-indigo-600" /></template>
+              <template #icon><Package class="h-4 w-4 text-emerald-600" /></template>
             </BaseInput>
           </div>
         </div>
 
-        <div v-if="editorValido" class="mt-4 rounded-xl p-3 text-center font-bold" :class="deltaEditor > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">
+        <div v-if="editorValido" class="mt-4 rounded-xl p-3 text-center font-bold" :class="deltaEditor > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'">
           {{ deltaEditor > 0 ? `Entrada de ${numero(deltaEditor)}` : `Salida de ${numero(Math.abs(deltaEditor))}` }}
         </div>
         <p v-else-if="Number(editor.nueva_existencia) === Number(editor.stock)" class="mt-4 text-center text-sm text-amber-700">La nueva existencia debe ser diferente a la actual.</p>

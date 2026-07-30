@@ -9,7 +9,7 @@
             >
                 <div class="flex items-center gap-3">
                     <div
-                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700"
+                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-700"
                     >
                         <History class="h-5 w-5" />
                     </div>
@@ -50,7 +50,7 @@
                     <select
                         v-model="filtroEstado"
                         @change="onChangeFiltro"
-                        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100"
+                        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-500 focus:ring-4 focus:ring-sky-100"
                     >
                         <option value="">Todos</option>
                         <option value="abierto">Abierto</option>
@@ -131,13 +131,13 @@
                             </td>
 
                             <td
-                                class="px-4 py-3 text-right font-medium text-blue-700"
+                                class="px-4 py-3 text-right font-medium text-sky-700"
                             >
                                 {{ fmt(c.esperado_tarjeta) }}
                             </td>
 
                             <td
-                                class="px-4 py-3 text-right font-medium text-violet-700"
+                                class="px-4 py-3 text-right font-medium text-emerald-700"
                             >
                                 {{ fmt(c.esperado_transferencia) }}
                             </td>
@@ -165,7 +165,7 @@
                                         type="button"
                                         :disabled="exportandoPdf === c.id"
                                         @click="exportarPdf(c)"
-                                        class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:opacity-50"
+                                        class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
                                     >
                                         <Loader2 v-if="exportandoPdf === c.id" class="h-3.5 w-3.5 animate-spin" />
                                         <FileText v-else class="h-3.5 w-3.5" />

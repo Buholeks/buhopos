@@ -59,7 +59,7 @@
                         </select>
                     </div>
                 </div>
-                <div v-if="pedido?.tipo === 'apartado'" class="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+                <div v-if="pedido?.tipo === 'apartado'" class="rounded-xl border border-sky-100 bg-sky-50 p-3 text-sm text-sky-800">
                     Se liberará el inventario reservado para este apartado.
                 </div>
             </div>

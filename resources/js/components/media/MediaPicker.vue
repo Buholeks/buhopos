@@ -20,7 +20,7 @@
             <button
                 v-if="!disabled"
                 type="button"
-                class="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700"
+                class="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700"
                 @click="abrir"
             >
                 <ImageIcon class="h-4 w-4" />
@@ -69,7 +69,7 @@
                                     type="button"
                                     class="px-5 py-3 text-sm font-medium transition-colors"
                                     :class="tab === t.key
-                                        ? 'border-b-2 border-indigo-600 text-indigo-700'
+                                        ? 'border-b-2 border-emerald-600 text-emerald-700'
                                         : 'text-slate-500 hover:text-slate-700'"
                                     @click="tab = t.key"
                                 >
@@ -87,13 +87,13 @@
                                             v-model="buscar"
                                             type="text"
                                             placeholder="Buscar por nombre..."
-                                            class="w-full rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
+                                            class="w-full rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
                                             @input="buscarDebounced"
                                         />
                                     </div>
                                     <select
                                         v-model="filtroTipo"
-                                        class="rounded-lg border border-slate-200 py-1.5 pl-2 pr-7 text-sm outline-none focus:border-indigo-400"
+                                        class="rounded-lg border border-slate-200 py-1.5 pl-2 pr-7 text-sm outline-none focus:border-emerald-400"
                                         @change="cargar(1)"
                                     >
                                         <option value="todos">Todas las carpetas</option>
@@ -122,17 +122,17 @@
                                             type="button"
                                             class="group relative aspect-square overflow-hidden rounded-lg border-2 transition-all"
                                             :class="seleccionada?.id === img.id
-                                                ? 'border-indigo-500 ring-2 ring-indigo-200'
-                                                : 'border-slate-200 hover:border-indigo-300'"
+                                                ? 'border-emerald-500 ring-2 ring-emerald-200'
+                                                : 'border-slate-200 hover:border-emerald-300'"
                                             @click="seleccionada = img"
                                             @dblclick="elegir(img)"
                                         >
                                             <img :src="img.url" class="h-full w-full object-cover" />
                                             <div
                                                 v-if="seleccionada?.id === img.id"
-                                                class="absolute inset-0 flex items-center justify-center bg-indigo-500/20"
+                                                class="absolute inset-0 flex items-center justify-center bg-emerald-500/20"
                                             >
-                                                <CheckCircle2 class="h-6 w-6 text-indigo-600 drop-shadow" />
+                                                <CheckCircle2 class="h-6 w-6 text-emerald-600 drop-shadow" />
                                             </div>
                                             <div
                                                 class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 p-1 text-[9px] leading-tight text-white opacity-0 transition-opacity group-hover:opacity-100"
@@ -173,7 +173,7 @@
                                         <button
                                             type="button"
                                             :disabled="!seleccionada"
-                                            class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+                                            class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
                                             @click="elegir(seleccionada)"
                                         >
                                             Usar esta imagen
@@ -186,7 +186,7 @@
                             <div v-if="tab === 'subir'" class="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
                                 <div
                                     class="flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 transition-colors"
-                                    :class="arrastrandoArchivo ? 'border-indigo-400 bg-indigo-50' : 'border-slate-300 bg-slate-50'"
+                                    :class="arrastrandoArchivo ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 bg-slate-50'"
                                     @dragover.prevent="arrastrandoArchivo = true"
                                     @dragleave="arrastrandoArchivo = false"
                                     @drop.prevent="onDrop"
@@ -196,7 +196,7 @@
                                     <p class="mt-1 text-xs text-slate-400">o</p>
                                     <button
                                         type="button"
-                                        class="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                                        class="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
                                         @click="inputRef?.click()"
                                     >
                                         Seleccionar archivo
@@ -226,7 +226,7 @@
                                     <button
                                         type="button"
                                         :disabled="!archivoNuevo || subiendo"
-                                        class="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
+                                        class="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40"
                                         @click="subirArchivo"
                                     >
                                         <Loader2 v-if="subiendo" class="h-4 w-4 animate-spin" />

@@ -207,11 +207,11 @@
                         </button>
 
                         <button
-                          class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-rose-50"
+                          class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-red-50"
                           title="Eliminar"
                           @click="confirmarEliminar(u)"
                         >
-                          <svg class="h-4 w-4 text-rose-600" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                          <svg class="h-4 w-4 text-red-600" viewBox="0 0 16 16" fill="none" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
                               d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10"/>
                           </svg>
@@ -276,56 +276,56 @@
                 <!-- Nombre -->
                 <div>
                   <label class="text-sm font-semibold text-slate-700">
-                    Nombre <span class="text-rose-600">*</span>
+                    Nombre <span class="text-red-600">*</span>
                   </label>
                   <input
                     v-model.trim="form.nombre"
                     class="mt-2 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:ring-4"
                     :class="errores.nombre
-                      ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                      ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
                       : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'"
                     placeholder="Ej. Pieza, Caja, Kilogramo…"
                     @keyup.enter="enviarForm"
                     autofocus
                   />
-                  <p v-if="errores.nombre" class="mt-1 text-xs font-semibold text-rose-600">{{ errores.nombre }}</p>
+                  <p v-if="errores.nombre" class="mt-1 text-xs font-semibold text-red-600">{{ errores.nombre }}</p>
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <!-- Abreviatura -->
                   <div>
                     <label class="text-sm font-semibold text-slate-700">
-                      Abreviatura <span class="text-rose-600">*</span>
+                      Abreviatura <span class="text-red-600">*</span>
                     </label>
                     <input
                       v-model.trim="form.abreviatura"
                       maxlength="20"
                       class="mt-2 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:ring-4"
                       :class="errores.abreviatura
-                        ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                        ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
                         : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'"
                       placeholder="pza, kg, lt…"
                       @keyup.enter="enviarForm"
                     />
-                    <p v-if="errores.abreviatura" class="mt-1 text-xs font-semibold text-rose-600">{{ errores.abreviatura }}</p>
+                    <p v-if="errores.abreviatura" class="mt-1 text-xs font-semibold text-red-600">{{ errores.abreviatura }}</p>
                   </div>
 
                   <!-- Tipo -->
                   <div>
                     <label class="text-sm font-semibold text-slate-700">
-                      Tipo <span class="text-rose-600">*</span>
+                      Tipo <span class="text-red-600">*</span>
                     </label>
                     <select
                       v-model="form.tipo"
                       class="mt-2 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none transition focus:ring-4"
                       :class="errores.tipo
-                        ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                        ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
                         : 'border-slate-200 focus:border-emerald-400 focus:ring-emerald-100'"
                     >
                       <option value="" disabled>Seleccionar…</option>
                       <option v-for="t in TIPOS" :key="t.valor" :value="t.valor">{{ t.label }}</option>
                     </select>
-                    <p v-if="errores.tipo" class="mt-1 text-xs font-semibold text-rose-600">{{ errores.tipo }}</p>
+                    <p v-if="errores.tipo" class="mt-1 text-xs font-semibold text-red-600">{{ errores.tipo }}</p>
                   </div>
                 </div>
 
@@ -425,9 +425,9 @@ function iconoTipo(valor) { return TIPOS.find(t => t.valor === valor)?.icono ?? 
 
 function tipoPillClass(tipo) {
   switch (tipo) {
-    case 'cantidad': return 'bg-blue-50 text-blue-700 ring-blue-200'
-    case 'peso':     return 'bg-violet-50 text-violet-700 ring-violet-200'
-    case 'volumen':  return 'bg-cyan-50 text-cyan-700 ring-cyan-200'
+    case 'cantidad': return 'bg-sky-50 text-sky-700 ring-sky-200'
+    case 'peso':     return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+    case 'volumen':  return 'bg-sky-50 text-sky-700 ring-sky-200'
     case 'longitud': return 'bg-amber-50 text-amber-800 ring-amber-200'
     default:         return 'bg-slate-100 text-slate-700 ring-slate-200'
   }
@@ -435,9 +435,9 @@ function tipoPillClass(tipo) {
 function grupoPillClass(tipo) {
   // similar al de tipo, pero un pelín más marcado
   switch (tipo) {
-    case 'cantidad': return 'bg-blue-100/60 text-blue-800 ring-blue-200'
-    case 'peso':     return 'bg-violet-100/60 text-violet-800 ring-violet-200'
-    case 'volumen':  return 'bg-cyan-100/60 text-cyan-800 ring-cyan-200'
+    case 'cantidad': return 'bg-sky-100/60 text-sky-800 ring-sky-200'
+    case 'peso':     return 'bg-emerald-100/60 text-emerald-800 ring-emerald-200'
+    case 'volumen':  return 'bg-sky-100/60 text-sky-800 ring-sky-200'
     case 'longitud': return 'bg-amber-100/60 text-amber-900 ring-amber-200'
     default:         return 'bg-slate-100 text-slate-800 ring-slate-200'
   }

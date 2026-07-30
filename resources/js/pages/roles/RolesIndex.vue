@@ -3,7 +3,7 @@
         <!-- Header -->
         <section class="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">
-                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                     <ShieldCheck class="h-5 w-5" />
                 </div>
                 <div>
@@ -23,7 +23,7 @@
                     <h2 class="text-sm font-semibold">Roles</h2>
                     <button
                         type="button"
-                        class="flex items-center gap-1 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700"
+                        class="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
                         @click="nuevoRol"
                     >
                         <Plus class="h-3.5 w-3.5" />
@@ -44,11 +44,11 @@
                         v-for="rol in roles"
                         :key="rol.id"
                         class="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 hover:bg-slate-50"
-                        :class="rolSeleccionado?.id === rol.id ? 'bg-violet-50 hover:bg-violet-50' : ''"
+                        :class="rolSeleccionado?.id === rol.id ? 'bg-emerald-50 hover:bg-emerald-50' : ''"
                         @click="seleccionarRol(rol)"
                     >
                         <div class="min-w-0">
-                            <p class="truncate text-sm font-semibold" :class="rolSeleccionado?.id === rol.id ? 'text-violet-700' : 'text-slate-800'">
+                            <p class="truncate text-sm font-semibold" :class="rolSeleccionado?.id === rol.id ? 'text-emerald-700' : 'text-slate-800'">
                                 {{ rol.nombre }}
                             </p>
                             <p class="text-xs text-slate-400">{{ rol.permisos_count }} permiso(s)</p>
@@ -75,7 +75,7 @@
                         <button
                             v-if="!creandoNuevo"
                             type="button"
-                            class="flex items-center gap-1.5 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                            class="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
                             :disabled="guardando"
                             @click="eliminarRol"
                         >
@@ -92,11 +92,11 @@
                                 v-model="form.nombre"
                                 type="text"
                                 placeholder="Ej. Cajero, Gerente, Supervisor…"
-                                class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
-                                :class="errores.nombre ? 'border-rose-400' : ''"
+                                class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                                :class="errores.nombre ? 'border-red-400' : ''"
                                 required
                             />
-                            <p v-if="errores.nombre" class="mt-1 text-xs text-rose-600">{{ errores.nombre }}</p>
+                            <p v-if="errores.nombre" class="mt-1 text-xs text-red-600">{{ errores.nombre }}</p>
                         </div>
 
                         <!-- Descripción -->
@@ -106,7 +106,7 @@
                                 v-model="form.descripcion"
                                 type="text"
                                 placeholder="Para qué sirve este rol…"
-                                class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                                class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                             />
                         </div>
 
@@ -115,7 +115,7 @@
                             <div class="mb-3 flex items-center justify-between">
                                 <label class="text-xs font-semibold uppercase tracking-wider text-slate-500">Permisos</label>
                                 <div class="flex gap-2">
-                                    <button type="button" class="text-xs text-violet-600 hover:underline" @click="seleccionarTodos">Todos</button>
+                                    <button type="button" class="text-xs text-emerald-600 hover:underline" @click="seleccionarTodos">Todos</button>
                                     <span class="text-slate-300">·</span>
                                     <button type="button" class="text-xs text-slate-400 hover:underline" @click="deseleccionarTodos">Ninguno</button>
                                 </div>
@@ -133,7 +133,7 @@
                                         <div class="h-px flex-1 bg-slate-100"></div>
                                         <button
                                             type="button"
-                                            class="text-[10px] text-violet-500 hover:underline"
+                                            class="text-[10px] text-emerald-500 hover:underline"
                                             @click="toggleModulo(grupo)"
                                         >
                                             {{ moduloCompleto(grupo) ? 'Quitar todos' : 'Seleccionar todos' }}
@@ -145,14 +145,14 @@
                                         <label
                                             v-for="permiso in grupo"
                                             :key="permiso.id"
-                                            class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-100 p-3 hover:border-violet-200 hover:bg-violet-50"
-                                            :class="form.permisos.includes(permiso.id) ? 'border-violet-200 bg-violet-50' : ''"
+                                            class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-100 p-3 hover:border-emerald-200 hover:bg-emerald-50"
+                                            :class="form.permisos.includes(permiso.id) ? 'border-emerald-200 bg-emerald-50' : ''"
                                         >
                                             <input
                                                 type="checkbox"
                                                 :value="permiso.id"
                                                 v-model="form.permisos"
-                                                class="mt-0.5 accent-violet-600"
+                                                class="mt-0.5 accent-emerald-600"
                                             />
                                             <span class="text-xs leading-relaxed text-slate-700">{{ permiso.descripcion }}</span>
                                         </label>
@@ -173,7 +173,7 @@
                         </button>
                         <button
                             type="submit"
-                            class="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                            class="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                             :disabled="guardando || !form.nombre.trim()"
                         >
                             <Loader2 v-if="guardando" class="h-4 w-4 animate-spin" />

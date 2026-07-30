@@ -11,7 +11,7 @@
                 />
                 <p
                     v-if="errors?.nombre_comercial"
-                    class="text-xs text-rose-600 mt-1"
+                    class="text-xs text-red-600 mt-1"
                 >
                     {{ errors.nombre_comercial[0] }}
                 </p>
@@ -26,7 +26,7 @@
                 />
                 <p
                     v-if="errors?.razon_social"
-                    class="text-xs text-rose-600 mt-1"
+                    class="text-xs text-red-600 mt-1"
                 >
                     {{ errors.razon_social[0] }}
                 </p>
@@ -40,7 +40,7 @@
                     placeholder="Ej. Juan Pérez"
                     required
                 />
-                <p v-if="errors?.contacto" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.contacto" class="text-xs text-red-600 mt-1">
                     {{ errors.contacto[0] }}
                 </p>
             </div>
@@ -52,7 +52,7 @@
                     placeholder="Ej. BUHO800101XXX"
                     required
                 />
-                <p v-if="errors?.rfc" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.rfc" class="text-xs text-red-600 mt-1">
                     {{ errors.rfc[0] }}
                 </p>
             </div>
@@ -64,7 +64,7 @@
                     placeholder="Ej. 9671344072"
                     required
                 />
-                <p v-if="errors?.telefono" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.telefono" class="text-xs text-red-600 mt-1">
                     {{ errors.telefono[0] }}
                 </p>
             </div>
@@ -75,7 +75,7 @@
                     type="text"
                     placeholder="Ej. email@ejemplo.com"
                 />
-                <p v-if="errors?.email" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.email" class="text-xs text-red-600 mt-1">
                     {{ errors.email[0] }}
                 </p>
             </div>
@@ -89,13 +89,13 @@
                     type="text"
                     placeholder="Ej: honduras"
                 />
-                <p v-if="errors?.calle" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.calle" class="text-xs text-red-600 mt-1">
                     {{ errors.calle[0] }}
                 </p>
             </div>
             <div class="sm:col-span-1">
                 <BaseInput v-model="model.numero" label="numero" type="text" placeholder="Ej: 10" />
-                <p v-if="errors?.numero" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.numero" class="text-xs text-red-600 mt-1">
                     {{ errors.numero[0] }}
                 </p>
             </div>
@@ -106,25 +106,25 @@
                     type="text"
                     placeholder="Ej: Mexicanos"
                 />
-                <p v-if="errors?.colonia" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.colonia" class="text-xs text-red-600 mt-1">
                     {{ errors.colonia[0] }}
                 </p>
             </div>
             <div class="sm:col-span-2">
                 <BaseInput v-model="model.ciudad" label="ciudad" type="text" placeholder="Ej: San Cristobal" />
-                <p v-if="errors?.ciudad" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.ciudad" class="text-xs text-red-600 mt-1">
                     {{ errors.ciudad[0] }}
                 </p>
             </div>
             <div class="sm:col-span-2">
                 <BaseInput v-model="model.estado" label="estado" type="text" placeholder="Ej: Chiapas"/>
-                <p v-if="errors?.estado" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.estado" class="text-xs text-red-600 mt-1">
                     {{ errors.estado[0] }}
                 </p>
             </div>
             <div class="sm:col-span-1">
                 <BaseInput v-model="model.cp" label="CP" type="text" placeholder="Ej:29200"/>
-                <p v-if="errors?.cp" class="text-xs text-rose-600 mt-1">
+                <p v-if="errors?.cp" class="text-xs text-red-600 mt-1">
                     {{ errors.cp[0] }}
                 </p>
             </div>

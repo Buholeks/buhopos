@@ -62,7 +62,7 @@
             <td class="px-3 py-2 text-right font-semibold text-slate-900">{{ money(item.cantidad * item.precio_costo) }}</td>
             <td class="px-3 py-2 text-right font-semibold text-slate-900">{{ money(item.cantidad * item.precio_venta) }}</td>
             <td class="px-3 py-2 text-right">
-              <button type="button" class="rounded-lg p-2 text-rose-600 hover:bg-rose-50" @click="emit('eliminar', idx)">
+              <button type="button" class="rounded-lg p-2 text-red-600 hover:bg-red-50" @click="emit('eliminar', idx)">
                 <Trash2 class="h-4 w-4" />
               </button>
             </td>

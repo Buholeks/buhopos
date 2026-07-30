@@ -151,7 +151,7 @@
               <button v-if="puedeRecibir(t)" type="button" class="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50" @click="rechazarTraspaso(t)">
                 Rechazar
               </button>
-              <button v-if="puedeCancelar(t)" type="button" class="rounded-xl border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50" @click="cancelarTraspaso(t)">
+              <button v-if="puedeCancelar(t)" type="button" class="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50" @click="cancelarTraspaso(t)">
                 Cancelar
               </button>
             </div>
@@ -275,7 +275,7 @@ function estadoClass(estado) {
     pendiente: "bg-amber-50 text-amber-700 ring-amber-100",
     recibido: "bg-emerald-50 text-emerald-700 ring-emerald-100",
     rechazado: "bg-slate-100 text-slate-700 ring-slate-200",
-    cancelado: "bg-rose-50 text-rose-700 ring-rose-100",
+    cancelado: "bg-red-50 text-red-700 ring-red-100",
   }[estado] ?? "bg-slate-100 text-slate-700 ring-slate-200";
 }
 

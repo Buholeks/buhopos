@@ -89,11 +89,15 @@ class VentaController extends Controller
             'pagos.*.forma_pago'       => ['required', 'in:efectivo,tarjeta,transferencia'],
             'pagos.*.monto'            => ['required', 'numeric', 'min:0'],
             'pagos.*.cuenta_bancaria_id' => [
-                'required_if:pagos.*.forma_pago,transferencia', 'nullable', 'integer',
+                'required_if:pagos.*.forma_pago,transferencia',
+                'nullable',
+                'integer',
                 Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $empresaId)->where('activo', true)),
             ],
             'pagos.*.terminal_pago_id' => [
-                'required_if:pagos.*.forma_pago,tarjeta', 'nullable', 'integer',
+                'required_if:pagos.*.forma_pago,tarjeta',
+                'nullable',
+                'integer',
                 Rule::exists('terminales_pago', 'id')->where(fn($q) => $q->where('empresa_id', $empresaId)->where('activo', true)),
             ],
             'pagos.*.monto_recibido'   => ['nullable', 'numeric', 'min:0'],
@@ -917,35 +921,35 @@ class VentaController extends Controller
             : fn($p, $v) => 0.0;
 
         $productos = $productos->map(function ($p) use ($empresaId, $sucursalId, $getStock, $stockComprometidoP) {
-                $inv      = $getStock($empresaId, $sucursalId, $p->id, null);
-                $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoP($p->id, null));
-                $exhibicion = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $p->id, null);
-                $exhibido = (bool) $exhibicion;
+            $inv      = $getStock($empresaId, $sucursalId, $p->id, null);
+            $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoP($p->id, null));
+            $exhibicion = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $p->id, null);
+            $exhibido = (bool) $exhibicion;
 
-                return [
-                    'id'              => null,        // sin variante_id
-                    'producto_id'     => $p->id,
-                    'nombre'          => $p->nombre,
-                    'codigo'          => $p->codigo,
-                    'sku'             => null,
-                    'codigo_barras'   => null,
-                    'nombre_variante' => null,
-                    'imagen_url'      => $p->imagen_url,
-                    'stock'           => $stock,
-                    'sin_stock'       => $stock <= 0,
-                    'exhibido'        => $exhibido,
-                    'inventario_exhibicion_id' => $exhibicion?->id,
-                    'tiene_series'    => (bool) $p->tiene_series,
-                    'serie_id'        => null,
-                    'precio_venta'    => (float) ($p->precio_venta ?? 0),
-                    'precio_costo'    => (float) ($p->precio_costo ?? 0),
-                    'precio1'         => $p->precio1 ? (float)$p->precio1 : null,
-                    'precio2'         => $p->precio2 ? (float)$p->precio2 : null,
-                    'precio3'         => $p->precio3 ? (float)$p->precio3 : null,
-                    'precio4'         => $p->precio4 ? (float)$p->precio4 : null,
-                    'precio5'         => $p->precio5 ? (float)$p->precio5 : null,
-                ];
-            });
+            return [
+                'id'              => null,        // sin variante_id
+                'producto_id'     => $p->id,
+                'nombre'          => $p->nombre,
+                'codigo'          => $p->codigo,
+                'sku'             => null,
+                'codigo_barras'   => null,
+                'nombre_variante' => null,
+                'imagen_url'      => $p->imagen_url,
+                'stock'           => $stock,
+                'sin_stock'       => $stock <= 0,
+                'exhibido'        => $exhibido,
+                'inventario_exhibicion_id' => $exhibicion?->id,
+                'tiene_series'    => (bool) $p->tiene_series,
+                'serie_id'        => null,
+                'precio_venta'    => (float) ($p->precio_venta ?? 0),
+                'precio_costo'    => (float) ($p->precio_costo ?? 0),
+                'precio1'         => $p->precio1 ? (float)$p->precio1 : null,
+                'precio2'         => $p->precio2 ? (float)$p->precio2 : null,
+                'precio3'         => $p->precio3 ? (float)$p->precio3 : null,
+                'precio4'         => $p->precio4 ? (float)$p->precio4 : null,
+                'precio5'         => $p->precio5 ? (float)$p->precio5 : null,
+            ];
+        });
 
         $resultados = $resultados->merge($productos);
 
@@ -1002,36 +1006,36 @@ class VentaController extends Controller
             : fn($p, $v) => 0.0;
 
         $variantes = $variantes->map(function ($v) use ($empresaId, $sucursalId, $getStock, $resolverPrecio, $stockComprometidoV) {
-                $inv      = $getStock($empresaId, $sucursalId, $v->producto_id, $v->id);
-                $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoV($v->producto_id, $v->id));
-                $exhibicion = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $v->producto_id, $v->id);
-                $exhibido = (bool) $exhibicion;
+            $inv      = $getStock($empresaId, $sucursalId, $v->producto_id, $v->id);
+            $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoV($v->producto_id, $v->id));
+            $exhibicion = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $v->producto_id, $v->id);
+            $exhibido = (bool) $exhibicion;
 
-                return [
-                    'id'              => $v->id,
-                    'producto_id'     => $v->producto_id,
-                    'nombre'          => $v->producto->nombre,
-                    'codigo'          => $v->producto->codigo,
-                    'sku'             => $v->sku,
-                    'codigo_barras'   => $v->codigo_barras,
-                    'nombre_variante' => $v->nombreVariante(),
-                    'imagen_url'      => $v->imagen_url_resuelta ?? $v->imagen_url,
-                    'imagen_url_resuelta' => $v->imagen_url_resuelta ?? $v->imagen_url,
-                    'stock'           => $stock,
-                    'sin_stock'       => $stock <= 0,
-                    'exhibido'        => $exhibido,
-                    'inventario_exhibicion_id' => $exhibicion?->id,
-                    'tiene_series'    => (bool) $v->producto->tiene_series,
-                    'serie_id'        => null,
-                    'precio_venta'    => $resolverPrecio($v->precio_venta,  $v->producto->precio_venta)  ?? 0,
-                    'precio_costo'    => $resolverPrecio($v->precio_costo,  $v->producto->precio_costo)  ?? 0,
-                    'precio1'         => $resolverPrecio($v->precio1, $v->producto->precio1),
-                    'precio2'         => $resolverPrecio($v->precio2, $v->producto->precio2),
-                    'precio3'         => $resolverPrecio($v->precio3, $v->producto->precio3),
-                    'precio4'         => $resolverPrecio($v->precio4, $v->producto->precio4),
-                    'precio5'         => $resolverPrecio($v->precio5, $v->producto->precio5),
-                ];
-            });
+            return [
+                'id'              => $v->id,
+                'producto_id'     => $v->producto_id,
+                'nombre'          => $v->producto->nombre,
+                'codigo'          => $v->producto->codigo,
+                'sku'             => $v->sku,
+                'codigo_barras'   => $v->codigo_barras,
+                'nombre_variante' => $v->nombreVariante(),
+                'imagen_url'      => $v->imagen_url_resuelta ?? $v->imagen_url,
+                'imagen_url_resuelta' => $v->imagen_url_resuelta ?? $v->imagen_url,
+                'stock'           => $stock,
+                'sin_stock'       => $stock <= 0,
+                'exhibido'        => $exhibido,
+                'inventario_exhibicion_id' => $exhibicion?->id,
+                'tiene_series'    => (bool) $v->producto->tiene_series,
+                'serie_id'        => null,
+                'precio_venta'    => $resolverPrecio($v->precio_venta,  $v->producto->precio_venta)  ?? 0,
+                'precio_costo'    => $resolverPrecio($v->precio_costo,  $v->producto->precio_costo)  ?? 0,
+                'precio1'         => $resolverPrecio($v->precio1, $v->producto->precio1),
+                'precio2'         => $resolverPrecio($v->precio2, $v->producto->precio2),
+                'precio3'         => $resolverPrecio($v->precio3, $v->producto->precio3),
+                'precio4'         => $resolverPrecio($v->precio4, $v->producto->precio4),
+                'precio5'         => $resolverPrecio($v->precio5, $v->producto->precio5),
+            ];
+        });
 
         $resultados = $resultados->merge($variantes)->values();
 

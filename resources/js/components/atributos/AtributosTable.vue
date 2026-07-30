@@ -139,11 +139,11 @@
 
                   <button
                     type="button"
-                    class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-100"
+                    class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-100"
                     title="Eliminar tipo"
                     @click="$emit('eliminar-tipo', tipo)"
                   >
-                    <svg class="h-4 w-4 text-rose-600" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                    <svg class="h-4 w-4 text-red-600" viewBox="0 0 16 16" fill="none" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
                         d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10" />
                     </svg>
@@ -201,11 +201,11 @@
 
                     <button
                       type="button"
-                      class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-rose-50 focus:outline-none focus:ring-4 focus:ring-rose-100"
+                      class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-red-50 focus:outline-none focus:ring-4 focus:ring-red-100"
                       title="Eliminar valor"
                       @click="$emit('eliminar-valor', atributo)"
                     >
-                      <svg class="h-4 w-4 text-rose-600" viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                      <svg class="h-4 w-4 text-red-600" viewBox="0 0 16 16" fill="none" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"
                           d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10" />
                       </svg>

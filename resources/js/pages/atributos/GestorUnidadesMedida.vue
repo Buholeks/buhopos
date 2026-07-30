@@ -402,7 +402,7 @@
 <script setup>
 import { ref, reactive, computed, nextTick } from 'vue'
 import axios from 'axios'
-import Swal from 'sweetalert2'
+import { alertColors, swal as Swal } from '@/lib/alert'
 import { ofrecerRecuperacion } from '@/helpers/recuperar'
 
 const Toast = Swal.mixin({
@@ -577,8 +577,8 @@ async function confirmarEliminar(u) {
     html: `<p style="color:#475569;font-size:.9rem">Se eliminará <strong>${u.nombre} (${u.abreviatura})</strong>.</p>`,
     icon: 'warning',
     showCancelButton: true,
-    confirmButtonColor: '#ef4444',
-    cancelButtonColor: '#64748b',
+    confirmButtonColor: alertColors.danger,
+    cancelButtonColor: alertColors.neutral,
     confirmButtonText: 'Eliminar',
     cancelButtonText: 'Cancelar',
     reverseButtons: true,

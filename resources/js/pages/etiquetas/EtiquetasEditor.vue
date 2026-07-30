@@ -143,7 +143,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
 import EtiquetaVista from "@/components/etiquetas/EtiquetaVista.vue";
 import QzImpresoraSelector from "@/components/etiquetas/QzImpresoraSelector.vue";
@@ -239,7 +239,7 @@ async function eliminarPlantilla() {
         text: `Se eliminará "${edicion.nombre}" permanentemente.`,
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#ef4444",
+        confirmButtonColor: alertColors.danger,
         confirmButtonText: "Sí, eliminar",
         cancelButtonText: "Cancelar",
     });

@@ -1,4 +1,4 @@
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
 
 /**
@@ -21,7 +21,7 @@ export async function ofrecerRecuperacion(err, apiBase, onRestored) {
         showCancelButton: true,
         confirmButtonText: "Recuperar",
         cancelButtonText: "Cancelar",
-        confirmButtonColor: "#059669",
+        confirmButtonColor: alertColors.primary,
     });
 
     if (!result.isConfirmed) return true;

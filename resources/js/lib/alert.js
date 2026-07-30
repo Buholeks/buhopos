@@ -1,18 +1,28 @@
 import Swal from "sweetalert2";
 
-/* ======================================================
-   BASES
-====================================================== */
+export const alertColors = Object.freeze({
+  primary: "#059669",
+  danger: "#dc2626",
+  warning: "#d97706",
+  info: "#0284c7",
+  neutral: "#64748b",
+});
 
-/* Base para modales */
-const modal = Swal.mixin({
+/*
+ * Instancia compartida para alertas simples y flujos avanzados.
+ * Los módulos que necesiten preConfirm, inputs o HTML personalizado deben
+ * importar `swal` en lugar de importar SweetAlert2 directamente.
+ */
+export const swal = Swal.mixin({
   confirmButtonText: "Aceptar",
   cancelButtonText: "Cancelar",
+  confirmButtonColor: alertColors.primary,
+  cancelButtonColor: alertColors.neutral,
+  denyButtonColor: alertColors.info,
   reverseButtons: true,
 });
 
-/* Base para toasts */
-const baseToast = Swal.mixin({
+const baseToast = swal.mixin({
   toast: true,
   position: "top-end",
   showConfirmButton: false,
@@ -20,23 +30,22 @@ const baseToast = Swal.mixin({
   timerProgressBar: true,
 });
 
-/* ======================================================
-   MODALES
-====================================================== */
-
-/* ❓ Confirmación */
 export const confirm = async ({
   title = "¿Estás seguro?",
   text = "Esta acción no se puede deshacer",
   confirmText = "Sí, eliminar",
   cancelText = "Cancelar",
   icon = "warning",
+  tone = "danger",
+  html,
 } = {}) => {
-  const result = await modal.fire({
+  const result = await swal.fire({
     title,
     text,
+    html,
     icon,
     showCancelButton: true,
+    confirmButtonColor: alertColors[tone] ?? alertColors.primary,
     confirmButtonText: confirmText,
     cancelButtonText: cancelText,
   });
@@ -44,47 +53,46 @@ export const confirm = async ({
   return result.isConfirmed;
 };
 
-/* ❌ Error (modal) */
 export const error = (title = "Error", text = "Algo salió mal") => {
-  return modal.fire({
+  return swal.fire({
     icon: "error",
     title,
     text,
+    confirmButtonColor: alertColors.danger,
   });
 };
 
-/* ⏳ Loader */
 export const loading = (title = "Procesando...") => {
-  Swal.fire({
+  return swal.fire({
     title,
     allowOutsideClick: false,
-    didOpen: () => Swal.showLoading(),
+    allowEscapeKey: false,
+    didOpen: () => swal.showLoading(),
   });
 };
 
-export const close = () => Swal.close();
+export const close = () => swal.close();
 
-/* ======================================================
-   TOASTS (ÉXITOS Y MENSAJES RÁPIDOS)
-====================================================== */
-
-/* ✅ Éxito */
 export const toastSuccess = (title) =>
   baseToast.fire({
     icon: "success",
     title,
   });
 
-/* ❌ Error */
 export const toastError = (title) =>
   baseToast.fire({
     icon: "error",
     title,
   });
 
-/* ⚠️ Warning */
 export const toastWarning = (title) =>
   baseToast.fire({
     icon: "warning",
+    title,
+  });
+
+export const toastInfo = (title) =>
+  baseToast.fire({
+    icon: "info",
     title,
   });

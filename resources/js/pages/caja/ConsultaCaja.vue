@@ -426,7 +426,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import http from "@/lib/http";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import {
@@ -536,7 +536,7 @@ async function buscar(pagina = 1) {
             text:
                 e.response?.data?.message ??
                 "No se pudieron cargar los registros.",
-            confirmButtonColor: "#0284c7",
+            confirmButtonColor: alertColors.info,
         });
     } finally {
         cargando.value = false;
@@ -562,7 +562,7 @@ async function exportar(formato) {
             icon: "error",
             title: "Error",
             text: "No se pudo generar el archivo.",
-            confirmButtonColor: "#0284c7",
+            confirmButtonColor: alertColors.info,
         });
     } finally {
         exportando.value = null;

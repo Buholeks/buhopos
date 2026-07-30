@@ -186,7 +186,7 @@ import { ofrecerRecuperacion } from "@/helpers/recuperar";
 import { useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import { toastSuccess, toastError } from "@/lib/alert";
 
 import ProductosTable from "@/components/productos/ProductosTable.vue";
@@ -666,8 +666,8 @@ async function confirmarEliminar(p) {
         icon: "warning",
         html: '<p class="text-sm text-slate-500">Esta acción no se puede deshacer.</p>',
         showCancelButton: true,
-        confirmButtonColor: "#ef4444",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.danger,
+        cancelButtonColor: alertColors.neutral,
         confirmButtonText: "Eliminar",
         cancelButtonText: "Cancelar",
         reverseButtons: true,
@@ -774,7 +774,7 @@ async function agregarVariantesMasivas(items) {
         showCancelButton: true,
         confirmButtonText: "Crear variantes",
         cancelButtonText: "Cancelar",
-        confirmButtonColor: "#059669",
+        confirmButtonColor: alertColors.primary,
         reverseButtons: true,
     });
 
@@ -873,8 +873,8 @@ async function confirmarEliminarVariante(v) {
         title: `Eliminar variante "${v.nombre_variante || v.sku}"`,
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#ef4444",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.danger,
+        cancelButtonColor: alertColors.neutral,
         confirmButtonText: "Eliminar",
         cancelButtonText: "Cancelar",
         reverseButtons: true,
@@ -900,8 +900,8 @@ async function restablecerPreciosVariantes() {
         text: `Se borrará el precio propio de las ${variantes.value.length} variantes de este producto. Todas volverán a usar los precios del producto padre.`,
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#d97706",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.warning,
+        cancelButtonColor: alertColors.neutral,
         confirmButtonText: "Ajustar precios",
         cancelButtonText: "Cancelar",
         reverseButtons: true,

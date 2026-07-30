@@ -310,7 +310,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from "vue";
 import axios from "axios";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import { ofrecerRecuperacion } from "@/helpers/recuperar";
 
 import AtributosTable from "@/components/atributos/AtributosTable.vue";
@@ -516,8 +516,8 @@ async function confirmarEliminarTipo(tipo) {
                 : `<p style="color:#475569;font-size:.9rem">No tiene valores asociados.</p>`,
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#ef4444",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.danger,
+        cancelButtonColor: alertColors.neutral,
         confirmButtonText: "Eliminar",
         cancelButtonText: "Cancelar",
         reverseButtons: true,
@@ -599,8 +599,8 @@ async function confirmarEliminarValor(atributo) {
         html: `<p style="color:#475569;font-size:.9rem">Esta acción no se puede deshacer.</p>`,
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#ef4444",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.danger,
+        cancelButtonColor: alertColors.neutral,
         confirmButtonText: "Eliminar",
         cancelButtonText: "Cancelar",
         reverseButtons: true,

@@ -364,7 +364,7 @@
 
 <script setup>
 import { computed, reactive, ref } from "vue";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
 import {
     Ban,
@@ -469,8 +469,8 @@ async function cancelarVenta() {
         showCancelButton: true,
         confirmButtonText: "Si, cancelar venta",
         cancelButtonText: "Volver",
-        confirmButtonColor: "#dc2626",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.danger,
+        cancelButtonColor: alertColors.neutral,
         reverseButtons: true,
     });
 
@@ -513,8 +513,8 @@ async function registrarDevolucion() {
         showCancelButton: true,
         confirmButtonText: "Registrar devolucion",
         cancelButtonText: "Volver",
-        confirmButtonColor: "#d97706",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.warning,
+        cancelButtonColor: alertColors.neutral,
         reverseButtons: true,
     });
 
@@ -590,7 +590,7 @@ function mostrarOk(texto) {
         icon: "success",
         title: "Listo",
         text: texto,
-        confirmButtonColor: "#059669",
+        confirmButtonColor: alertColors.primary,
     });
 }
 
@@ -601,7 +601,7 @@ function mostrarError(texto) {
         icon: "error",
         title: "Error",
         text: texto,
-        confirmButtonColor: "#dc2626",
+        confirmButtonColor: alertColors.danger,
     });
 }
 

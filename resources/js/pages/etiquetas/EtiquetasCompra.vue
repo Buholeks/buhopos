@@ -76,7 +76,7 @@
 <script setup>
 import { computed, onErrorCaptured, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import Swal from "sweetalert2";
+import { swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
 import EtiquetaVista from "@/components/etiquetas/EtiquetaVista.vue";
 import QzImpresoraSelector from "@/components/etiquetas/QzImpresoraSelector.vue";

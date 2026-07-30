@@ -169,7 +169,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import http from "@/lib/http";
 import BaseInput from "@/components/ui/BaseInput.vue";
-import Swal from "sweetalert2";
+import { swal as Swal } from "@/lib/alert";
 import { toastSuccess } from "@/lib/alert";
 import { CornerDownLeft, FileText, ImageOff, Loader2, Package, Search, X } from "lucide-vue-next";
 

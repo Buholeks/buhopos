@@ -148,7 +148,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw } from "vue";
-import Swal from "sweetalert2";
+import { swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
 import EtiquetaVista from "@/components/etiquetas/EtiquetaVista.vue";
 import QzImpresoraSelector from "@/components/etiquetas/QzImpresoraSelector.vue";

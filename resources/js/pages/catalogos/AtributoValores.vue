@@ -183,7 +183,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import axios from "axios";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import {
     ArrowLeft,
     Loader2,
@@ -307,8 +307,8 @@ async function confirmarEliminarValor(atributo) {
         html: `<p style="color:#475569;font-size:.9rem">Esta accion no se puede deshacer.</p>`,
         icon: "warning",
         showCancelButton: true,
-        confirmButtonColor: "#ef4444",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.danger,
+        cancelButtonColor: alertColors.neutral,
         confirmButtonText: "Eliminar",
         cancelButtonText: "Cancelar",
         reverseButtons: true,

@@ -202,7 +202,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import http from "@/lib/http";
-import Swal from "sweetalert2";
+import { swal as Swal } from "@/lib/alert";
 import { toastError } from "@/lib/alert";
 // ✅ Lucide icons
 import { Search, X, Loader2, ImageOff, CornerDownLeft } from "lucide-vue-next";

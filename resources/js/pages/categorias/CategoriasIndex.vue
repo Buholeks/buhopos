@@ -193,7 +193,7 @@
 import { ref, reactive, defineComponent, h } from "vue";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import { ofrecerRecuperacion } from "@/helpers/recuperar";
 import BaseInput from "../../components/ui/BaseInput.vue";
 
@@ -328,8 +328,8 @@ async function confirmarEliminar(categoria) {
     html: `<span class="text-slate-600">Se eliminará <strong>${categoria.nombre}</strong> y todas sus subcategorías.</span>`,
     icon: "warning",
     showCancelButton: true,
-    confirmButtonColor: "#ef4444",
-    cancelButtonColor: "#64748b",
+    confirmButtonColor: alertColors.danger,
+    cancelButtonColor: alertColors.neutral,
     confirmButtonText: "Sí, eliminar",
     cancelButtonText: "Cancelar",
     reverseButtons: true,

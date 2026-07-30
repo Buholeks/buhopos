@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, nextTick, reactive, ref } from "vue";
 import http from "@/lib/http";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import { toastSuccess, toastError, toastWarning } from "@/lib/alert";
 
 export const useCompraStore = defineStore("compra", () => {
@@ -393,8 +393,8 @@ export const useCompraStore = defineStore("compra", () => {
                 `,
             icon: "question",
             showCancelButton: true,
-            confirmButtonColor: "#059669",
-            cancelButtonColor: "#64748b",
+            confirmButtonColor: alertColors.primary,
+            cancelButtonColor: alertColors.neutral,
             confirmButtonText: "Confirmar compra",
             cancelButtonText: "Revisar",
             reverseButtons: true,
@@ -431,7 +431,7 @@ export const useCompraStore = defineStore("compra", () => {
                 input: "checkbox",
                 inputValue: 1,
                 inputPlaceholder: "Mostrar etiquetas de esta compra",
-                confirmButtonColor: "#059669",
+                confirmButtonColor: alertColors.primary,
                 confirmButtonText: "Continuar",
             });
 

@@ -305,7 +305,7 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import http from "@/lib/http";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import { toastSuccess } from "@/lib/alert";
 
 import MovimientosList from "@/components/caja/MovimientosList.vue";
@@ -510,7 +510,7 @@ async function cerrarCaja(formCierre) {
     </p>`,
         icon: "question",
         showCancelButton: true,
-        confirmButtonColor: "#dc2626",
+        confirmButtonColor: alertColors.danger,
         confirmButtonText: "Cerrar caja",
         cancelButtonText: "Cancelar",
         reverseButtons: true,
@@ -526,7 +526,7 @@ async function cerrarCaja(formCierre) {
         await Swal.fire({
             icon: "success",
             title: "¡Caja cerrada!",
-            confirmButtonColor: "#059669",
+            confirmButtonColor: alertColors.primary,
         });
         modalCerrar.value = false;
         await cargarCajasAbiertas();

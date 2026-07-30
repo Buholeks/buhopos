@@ -295,7 +295,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref } from "vue";
-import Swal from "sweetalert2";
+import { swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
 import { confirm, toastError, toastSuccess, toastWarning } from "@/lib/alert";
 import { useAuthStore } from "@/stores/auth";

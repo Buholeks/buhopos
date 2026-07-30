@@ -356,7 +356,7 @@ import {
     watch,
 } from "vue";
 import { storeToRefs } from "pinia";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
 import { toastSuccess, toastError, toastWarning } from "@/lib/alert";
 
@@ -581,8 +581,8 @@ async function abrirCaja() {
                 confirmButtonText: "Usar caja",
                 denyButtonText: "Abrir nueva",
                 cancelButtonText: "Cancelar",
-                confirmButtonColor: "#0891b2",
-                denyButtonColor: "#059669",
+                confirmButtonColor: alertColors.info,
+                denyButtonColor: alertColors.primary,
                 reverseButtons: true,
             });
 
@@ -604,7 +604,7 @@ async function abrirCaja() {
             showCancelButton: true,
             confirmButtonText: "Abrir caja",
             cancelButtonText: "Cancelar",
-            confirmButtonColor: "#059669",
+            confirmButtonColor: alertColors.primary,
             reverseButtons: true,
         });
 
@@ -1273,7 +1273,7 @@ async function abrirModalDescuento() {
         showCancelButton: true,
         confirmButtonText: "Aplicar",
         cancelButtonText: "Cancelar",
-        confirmButtonColor: "#059669",
+        confirmButtonColor: alertColors.primary,
         reverseButtons: true,
         preConfirm: (raw) => {
             const monto = Number(String(raw || "0").replace(",", "."));
@@ -1486,8 +1486,8 @@ async function guardarVentaFinal() {
         `,
         icon: "question",
         showCancelButton: true,
-        confirmButtonColor: "#059669",
-        cancelButtonColor: "#64748b",
+        confirmButtonColor: alertColors.primary,
+        cancelButtonColor: alertColors.neutral,
         confirmButtonText: "Confirmar venta",
         cancelButtonText: "Revisar",
         reverseButtons: true,
@@ -1536,7 +1536,7 @@ async function guardarVentaFinal() {
             <p style="font-size:14px;color:#475569;">Stock actualizado correctamente.</p>
             ${cambioHtml}
         `,
-        confirmButtonColor: "#059669",
+        confirmButtonColor: alertColors.primary,
         showCancelButton: true,
         confirmButtonText: "Imprimir ticket",
         cancelButtonText: "Nueva venta",

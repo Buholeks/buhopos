@@ -92,7 +92,7 @@
 <script setup>
 import { ref, reactive, computed } from "vue";
 import axios from "axios";
-import Swal from "sweetalert2";
+import { alertColors, swal as Swal } from "@/lib/alert";
 import { ofrecerRecuperacion } from "@/helpers/recuperar";
 
 import MarcasHeader from "@/components/marcas/MarcasHeader.vue";
@@ -260,8 +260,8 @@ async function confirmarEliminarMarca(marca) {
     html: `<span class="text-slate-600">Se eliminará <strong>${marca.nombre}</strong> y todos sus modelos.</span>`,
     icon: "warning",
     showCancelButton: true,
-    confirmButtonColor: "#ef4444",
-    cancelButtonColor: "#64748b",
+    confirmButtonColor: alertColors.danger,
+    cancelButtonColor: alertColors.neutral,
     confirmButtonText: "Sí, eliminar",
     cancelButtonText: "Cancelar",
     reverseButtons: true,
@@ -397,8 +397,8 @@ async function confirmarEliminarModelo(modelo) {
     html: `<span class="text-slate-600">Se eliminará el modelo <strong>${modelo.nombre}</strong>.</span>`,
     icon: "warning",
     showCancelButton: true,
-    confirmButtonColor: "#ef4444",
-    cancelButtonColor: "#64748b",
+    confirmButtonColor: alertColors.danger,
+    cancelButtonColor: alertColors.neutral,
     confirmButtonText: "Sí, eliminar",
     cancelButtonText: "Cancelar",
     reverseButtons: true,

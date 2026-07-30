@@ -329,7 +329,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
-import Swal from "sweetalert2";
+import { swal as Swal } from "@/lib/alert";
 import { conectar, isConectado, listarImpresoras, obtenerImpresoraTicket, guardarImpresoraTicket } from "@/helpers/qzTray";
 import { obtenerConfigTicket, guardarConfigTicket, cargarConfigTicketDesdeServidor, imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";

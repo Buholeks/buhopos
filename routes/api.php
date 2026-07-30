@@ -271,6 +271,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pedidos', [PedidoController::class, 'index']);
     Route::post('/pedidos', [PedidoController::class, 'store']);
     Route::get('/pedidos/{pedido}', [PedidoController::class, 'show']);
+    Route::put('/pedidos/{pedido}/detalles/{detalle}/precio', [PedidoController::class, 'actualizarPrecioDetalle']);
     Route::post('/pedidos/{pedido}/abonos', [PedidoController::class, 'abonar']);
     Route::delete('/pedidos/{pedido}/abonos/{abono}', [PedidoController::class, 'eliminarAbono']);
     Route::get('/pedidos/{pedido}/saldo-cancelacion', [PedidoController::class, 'saldoCancelacion']);

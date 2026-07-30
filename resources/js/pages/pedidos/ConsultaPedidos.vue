@@ -234,9 +234,11 @@
             :pedido="modalDetalle.pedido"
             :data="modalDetalle.data"
             :eliminando-abono-id="eliminandoAbonoId"
+            :guardando-precio-id="guardandoPrecioId"
             @close="cerrarDetalle"
             @eliminar-abono="eliminarAbonoDetalle"
             @cancelar-detalle="abrirCancelarDetalle"
+            @editar-precio="actualizarPrecioDetalle"
         />
 
         <EncargoCancelarModal
@@ -258,7 +260,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { ChevronDown, Search, ShoppingBag } from "lucide-vue-next";
 import http from "@/lib/http";
-import { toastError } from "@/lib/alert";
+import { toastError, toastSuccess } from "@/lib/alert";
 import { guardarCompraDesdePedidos } from "@/helpers/compraDesdePedidos";
 import EncargosTable from "@/components/encargos/EncargosTable.vue";
 import EncargoDetalleModal from "@/components/encargos/EncargoDetalleModal.vue";
@@ -291,6 +293,7 @@ const modalCancelar = reactive({
 });
 
 const eliminandoAbonoId = ref(null);
+const guardandoPrecioId = ref(null);
 
 const {
     pedidos,
@@ -420,6 +423,26 @@ async function eliminarAbonoDetalle(abonoId) {
         if (ok) await abrirDetalle(modalDetalle.pedido);
     } finally {
         eliminandoAbonoId.value = null;
+    }
+}
+
+async function actualizarPrecioDetalle({ detalle, precio }) {
+    if (!modalDetalle.pedido || guardandoPrecioId.value) return;
+    guardandoPrecioId.value = detalle.id;
+
+    try {
+        const { data } = await http.put(
+            `/api/pedidos/${modalDetalle.pedido.id}/detalles/${detalle.id}/precio`,
+            { precio_acordado: precio },
+        );
+        modalDetalle.data = data;
+        await cargarPedidos();
+        await cargarPendientesCompra();
+        toastSuccess("Precio acordado actualizado");
+    } catch (error) {
+        toastError(error?.response?.data?.message || "No se pudo actualizar el precio");
+    } finally {
+        guardandoPrecioId.value = null;
     }
 }
 

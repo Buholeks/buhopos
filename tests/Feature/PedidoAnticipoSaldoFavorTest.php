@@ -20,6 +20,70 @@ class PedidoAnticipoSaldoFavorTest extends TestCase
 {
     use DatabaseTransactions;
 
+    public function test_actualizar_precio_acordado_recalcula_el_pedido_sin_modificar_el_producto(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'pedido',
+            'cliente_id' => $cliente->id,
+            'detalles' => [
+                [
+                    'producto_id' => $producto->id,
+                    'descripcion' => 'Producto pedido',
+                    'cantidad' => 2,
+                    'precio_acordado' => 100,
+                ],
+            ],
+        ])->assertCreated();
+
+        $productoPrecioOriginal = (float) $producto->precio_venta;
+        $pedidoId = $pedido->json('id');
+        $detalleId = $pedido->json('detalles.0.id');
+
+        $this->putJson("/api/pedidos/{$pedidoId}/detalles/{$detalleId}/precio", [
+            'precio_acordado' => 125.50,
+        ])->assertOk()
+            ->assertJsonPath('detalles.0.precio_acordado', '125.50')
+            ->assertJsonPath('detalles.0.subtotal', '251.00')
+            ->assertJsonPath('subtotal', '251.00')
+            ->assertJsonPath('saldo_pendiente', '251.00');
+
+        $this->assertSame($productoPrecioOriginal, (float) $producto->fresh()->precio_venta);
+    }
+
+    public function test_actualizar_precio_no_permite_dejar_total_debajo_del_anticipo(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'pedido',
+            'cliente_id' => $cliente->id,
+            'detalles' => [
+                [
+                    'producto_id' => $producto->id,
+                    'descripcion' => 'Producto pedido',
+                    'cantidad' => 1,
+                    'precio_acordado' => 100,
+                ],
+            ],
+        ])->assertCreated();
+
+        Pedido::findOrFail($pedido->json('id'))->update([
+            'anticipo' => 80,
+            'saldo_pendiente' => 20,
+            'estado_pago' => 'con_anticipo',
+        ]);
+
+        $this->putJson(
+            "/api/pedidos/{$pedido->json('id')}/detalles/{$pedido->json('detalles.0.id')}/precio",
+            ['precio_acordado' => 50],
+        )->assertStatus(422)
+            ->assertJsonFragment(['message' => 'El nuevo total no puede quedar por debajo del anticipo pagado.']);
+    }
+
     public function test_cancelar_pedido_parcial_y_su_venta_no_duplica_el_saldo_a_favor(): void
     {
         [$user, $cliente, $producto] = $this->crearContexto();

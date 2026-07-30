@@ -56,12 +56,48 @@
                                         <p v-if="detalle.producto?.nombre" class="text-xs text-slate-400">{{ detalle.producto.nombre }}</p>
                                     </td>
                                     <td class="px-3 py-2 text-center text-slate-700">{{ detalle.cantidad }}</td>
-                                    <td class="px-3 py-2 text-right text-slate-700">{{ money(detalle.precio_acordado) }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-700">
+                                        <div v-if="editandoPrecioId === detalle.id" class="flex min-w-40 items-center justify-end gap-1">
+                                            <span class="text-slate-400">$</span>
+                                            <input
+                                                v-model="precioEditado"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                class="w-24 rounded-lg border border-emerald-300 px-2 py-1 text-right outline-none focus:ring-2 focus:ring-emerald-100"
+                                                @keyup.enter="guardarPrecio(detalle)"
+                                                @keyup.esc="cancelarEdicionPrecio"
+                                            />
+                                            <button
+                                                type="button"
+                                                class="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                                                title="Guardar precio"
+                                                :disabled="guardandoPrecioId === detalle.id"
+                                                @click="guardarPrecio(detalle)"
+                                            >
+                                                <Loader2 v-if="guardandoPrecioId === detalle.id" class="h-4 w-4 animate-spin" />
+                                                <Check v-else class="h-4 w-4" />
+                                            </button>
+                                            <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" title="Cancelar edición" @click="cancelarEdicionPrecio">
+                                                <X class="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                        <span v-else>{{ money(detalle.precio_acordado) }}</span>
+                                    </td>
                                     <td class="px-3 py-2 text-right font-black text-slate-900">{{ money(detalle.subtotal) }}</td>
                                     <td class="px-3 py-2">
                                         <EncargoEstadoBadge :estado="detalle.estado" />
                                     </td>
                                     <td class="px-3 py-2 text-right">
+                                        <button
+                                            v-if="puedeEditarPrecio(detalle)"
+                                            type="button"
+                                            class="rounded-lg p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600"
+                                            title="Editar precio acordado"
+                                            @click="iniciarEdicionPrecio(detalle)"
+                                        >
+                                            <Pencil class="h-4 w-4" />
+                                        </button>
                                         <button
                                             v-if="puedeCancelarDetalle(detalle)"
                                             type="button"
@@ -127,8 +163,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Loader2, Trash2, X, XCircle } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { Check, Loader2, Pencil, Trash2, X, XCircle } from 'lucide-vue-next'
 import EncargoEstadoBadge from './EncargoEstadoBadge.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -140,9 +176,14 @@ const props = defineProps({
     pedido: { type: Object, default: null },
     data: { type: Object, default: null },
     eliminandoAbonoId: { type: [Number, String], default: null },
+    guardandoPrecioId: { type: [Number, String], default: null },
 })
 
-defineEmits(['close', 'eliminar-abono', 'cancelar-detalle'])
+const emit = defineEmits(['close', 'eliminar-abono', 'cancelar-detalle', 'editar-precio'])
+const editandoPrecioId = ref(null)
+const precioEditado = ref('')
+
+watch(() => props.data, () => cancelarEdicionPrecio())
 
 const puedeEliminarAbono = computed(() => {
     if (!auth.can('pedidos.crear')) return false
@@ -160,6 +201,28 @@ function puedeCancelarDetalle(detalle) {
     if (!auth.can('pedidos.cancelar')) return false
     if (['entregado', 'devuelto', 'cancelado'].includes(props.data?.estado)) return false
     return !['entregado', 'devuelto', 'cancelado'].includes(detalle?.estado)
+}
+
+function puedeEditarPrecio(detalle) {
+    if (!auth.can('pedidos.crear') || props.data?.tipo !== 'pedido') return false
+    if (['entregado', 'devuelto', 'cancelado', 'vencido', 'parcial'].includes(props.data?.estado)) return false
+    return !['entregado', 'devuelto', 'cancelado'].includes(detalle?.estado)
+}
+
+function iniciarEdicionPrecio(detalle) {
+    editandoPrecioId.value = detalle.id
+    precioEditado.value = Number(detalle.precio_acordado || 0).toFixed(2)
+}
+
+function cancelarEdicionPrecio() {
+    editandoPrecioId.value = null
+    precioEditado.value = ''
+}
+
+function guardarPrecio(detalle) {
+    const precio = Number(precioEditado.value)
+    if (!Number.isFinite(precio) || precio < 0) return
+    emit('editar-precio', { detalle, precio })
 }
 
 function money(value) {

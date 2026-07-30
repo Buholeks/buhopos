@@ -264,6 +264,82 @@ class PedidoController extends Controller
         }
     }
 
+    public function actualizarPrecioDetalle(Request $request, int $pedidoId, int $detalleId): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
+
+        $data = $request->validate([
+            'precio_acordado' => ['required', 'numeric', 'min:0', 'max:999999999999.99'],
+        ]);
+
+        $user = Auth::user();
+
+        return DB::transaction(function () use ($data, $detalleId, $pedidoId, $user) {
+            $pedido = Pedido::query()
+                ->where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->lockForUpdate()
+                ->findOrFail($pedidoId);
+
+            if ($pedido->tipo !== 'pedido') {
+                return response()->json([
+                    'message' => 'La edición de precio sólo está disponible para pedidos.',
+                ], 422);
+            }
+
+            if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido', 'parcial'], true)) {
+                return response()->json([
+                    'message' => 'No se puede cambiar el precio de un pedido cerrado o parcialmente entregado.',
+                ], 422);
+            }
+
+            $detalle = $pedido->detalles()->lockForUpdate()->findOrFail($detalleId);
+
+            if (in_array($detalle->estado, ['entregado', 'devuelto', 'cancelado'], true)) {
+                return response()->json([
+                    'message' => 'No se puede cambiar el precio de un artículo cerrado.',
+                ], 422);
+            }
+
+            $nuevoPrecio = round((float) $data['precio_acordado'], 2);
+            $nuevoSubtotal = round($nuevoPrecio * (int) $detalle->cantidad, 2);
+            $subtotalVigente = round(
+                (float) $pedido->detalles()
+                    ->where('estado', '!=', 'cancelado')
+                    ->whereKeyNot($detalle->id)
+                    ->sum('subtotal') + $nuevoSubtotal,
+                2
+            );
+
+            if ((float) $pedido->anticipo > $subtotalVigente) {
+                return response()->json([
+                    'message' => 'El nuevo total no puede quedar por debajo del anticipo pagado.',
+                    'errors' => [
+                        'precio_acordado' => ['Aumenta el precio o ajusta primero los pagos del pedido.'],
+                    ],
+                ], 422);
+            }
+
+            $detalle->update([
+                'precio_acordado' => $nuevoPrecio,
+                'subtotal' => $nuevoSubtotal,
+            ]);
+
+            $pedido->recalcularSaldoPendiente();
+
+            return response()->json($pedido->fresh()->load([
+                'cliente:id,nombre,telefono',
+                'detalles.producto:id,nombre,codigo',
+                'detalles.variante:id,sku',
+                'saldos' => fn($q) => $q->with([
+                    'user:id,name',
+                    'movimientoCaja.cuentaBancaria:id,nombre,banco',
+                    'movimientoCaja.terminalPago:id,nombre,banco',
+                ])->orderBy('created_at'),
+            ]));
+        });
+    }
+
     public function buscarCatalogo(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.ver'), 403, 'Sin permiso: pedidos.ver');

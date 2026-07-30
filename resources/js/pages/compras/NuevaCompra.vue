@@ -1,103 +1,16 @@
 <template>
     <div class="min-h-screen">
         <!-- CONTENT -->
-        <main class="mx-auto max-w-7xl space-y-4 sm:space-y-5">
+        <main class="mx-auto max-w-7xl space-y-3 sm:space-y-3">
             <!-- RESUMEN SUPERIOR -->
             <section
-                class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px_200px]"
+                class="grid grid-cols-1 gap-3 sm:grid-cols-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
             >
-                <!-- Proveedor / pago -->
-                <div
-                    class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                >
-                    <div class="flex items-center justify-between gap-4">
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-2">
-                                <div
-                                    class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"
-                                >
-                                    <Building2 class="h-4 w-4" />
-                                </div>
-
-                                <div class="min-w-0">
-                                    <p
-                                        class="text-xs font-bold uppercase tracking-wide text-slate-400"
-                                    >
-                                        Proveedor
-                                    </p>
-                                    <p
-                                        class="truncate text-sm font-bold text-slate-900"
-                                    >
-                                        {{ proveedorNombre }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div
-                                class="mt-2 flex flex-wrap items-center gap-1.5"
-                            >
-                                <span
-                                    class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600"
-                                >
-                                    <CalendarDays class="h-3.5 w-3.5" />
-                                    {{ compra.form.fecha || "Sin fecha" }}
-                                </span>
-
-                                <span
-                                    class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                                    :class="
-                                        ['credito', 'tarjeta_credito'].includes(
-                                            compra.form.forma_pago,
-                                        )
-                                            ? 'bg-amber-50 text-amber-700'
-                                            : 'bg-emerald-50 text-emerald-700'
-                                    "
-                                >
-                                    <CreditCard class="h-3.5 w-3.5" />
-                                    {{ formaPagoLabel }}
-                                </span>
-
-                                <span
-                                    v-if="
-                                        ['credito', 'tarjeta_credito'].includes(
-                                            compra.form.forma_pago,
-                                        )
-                                    "
-                                    class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700"
-                                >
-                                    Vence:
-                                    {{
-                                        compra.form.fecha_vencimiento ||
-                                        "pendiente"
-                                    }}
-                                </span>
-
-                                <span
-                                    v-if="compra.form.folio"
-                                    class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600"
-                                >
-                                    Folio: {{ compra.form.folio }}
-                                </span>
-                            </div>
-                        </div>
-
-                        <button
-                            type="button"
-                            @click="panelDatos = true"
-                            class="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-                        >
-                            Editar datos
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Mercancía -->
-                <div
-                    class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                >
-                    <div class="mt-2 grid grid-cols-2 gap-3">
+                <div>
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <p class="text-[11px] font-semibold text-slate-400">
+                            <p class="text-xs font-semibold text-slate-400">
                                 Artículos
                             </p>
                             <p class="text-2xl font-black text-slate-950">
@@ -105,7 +18,7 @@
                             </p>
                         </div>
                         <div class="border-l border-slate-100 pl-3">
-                            <p class="text-[11px] font-semibold text-slate-400">
+                            <p class="text-xs font-semibold text-slate-400">
                                 Piezas
                             </p>
                             <p class="text-2xl font-black text-emerald-700">
@@ -116,12 +29,8 @@
                 </div>
 
                 <!-- Total -->
-                <div
-                    class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm"
-                >
-                    <p
-                        class="text-xs font-bold uppercase tracking-wide text-emerald-600"
-                    >
+                <div>
+                    <p class="text-xs font-bold uppercase text-emerald-600">
                         Total compra
                     </p>
                     <p
@@ -130,17 +39,52 @@
                         {{ compra.formatPrecio(compra.totalCompra) }}
                     </p>
                 </div>
+                <!-- botones -->
+                <div class="flex flex-wrap items-center justify-end gap-5">
+                    <button
+                        type="button"
+                        @click="compra.resetear"
+                        class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                        <RotateCcw class="h-4 w-4" />
+                        Limpiar
+                    </button>
+
+                    <button
+                        v-if="auth.can('compras.crear')"
+                        type="button"
+                        @click="panelDatos = true"
+                        :disabled="
+                            compra.guardando || compra.detalles.length === 0
+                        "
+                        class="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-xs font-black text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <Loader2
+                            v-if="compra.guardando"
+                            class="h-4 w-4 animate-spin"
+                        />
+                        <CheckCircle2 v-else class="h-4 w-4" />
+                        Guardar compra
+                    </button>
+                </div>
             </section>
 
             <!-- BUSCADOR PRINCIPAL -->
-            <section
-                class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-            >
-                <div
-                    class="mb-4 flex flex-wrap items-center justify-between gap-3"
-                >
+            <section class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <!-- Buscador -->
+                    <div class="min-w-0 flex-1">
+                        <CompraBuscador
+                            :ref="compra.setBuscadorRef"
+                            :formatPrecio="compra.formatPrecio"
+                            :escaneoRapido="escaneoRapido"
+                            @seleccionar="compra.seleccionarItem"
+                        />
+                    </div>
+
+                    <!-- Botones -->
                     <div
-                        class="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1"
+                        class="inline-flex shrink-0 self-start rounded-xl border border-slate-200 bg-slate-50 p-1 sm:self-auto"
                     >
                         <button
                             type="button"
@@ -156,6 +100,7 @@
                             <Barcode class="h-3.5 w-3.5" />
                             Lector
                         </button>
+
                         <button
                             type="button"
                             @click="escaneoRapido = false"
@@ -171,44 +116,8 @@
                             Manual
                         </button>
                     </div>
-
-                    <div class="flex shrink-0 items-center gap-2">
-                        <button
-                            type="button"
-                            @click="compra.resetear"
-                            class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                        >
-                            <RotateCcw class="h-4 w-4" />
-                            Limpiar
-                        </button>
-
-                        <button
-                            v-if="auth.can('compras.crear')"
-                            type="button"
-                            @click="compra.confirmarGuardar"
-                            :disabled="
-                                compra.guardando || compra.detalles.length === 0
-                            "
-                            class="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-xs font-black text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            <Loader2
-                                v-if="compra.guardando"
-                                class="h-4 w-4 animate-spin"
-                            />
-                            <CheckCircle2 v-else class="h-4 w-4" />
-                            Guardar compra
-                        </button>
-                    </div>
                 </div>
-
-                <CompraBuscador
-                    :ref="compra.setBuscadorRef"
-                    :formatPrecio="compra.formatPrecio"
-                    :escaneoRapido="escaneoRapido"
-                    @seleccionar="compra.seleccionarItem"
-                />
             </section>
-
             <!-- DETALLES -->
             <section
                 class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
@@ -284,10 +193,16 @@
                         <div class="border-t border-slate-100 p-5">
                             <button
                                 type="button"
-                                @click="panelDatos = false"
-                                class="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white hover:bg-slate-800"
+                                @click="confirmarDesdePanel"
+                                :disabled="compra.guardando"
+                                class="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                Listo
+                                <Loader2
+                                    v-if="compra.guardando"
+                                    class="h-4 w-4 animate-spin"
+                                />
+                                <CheckCircle2 v-else class="h-4 w-4" />
+                                Revisar y guardar compra
                             </button>
                         </div>
                     </div>
@@ -325,7 +240,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
@@ -335,9 +250,6 @@ import {
     RotateCcw,
     Barcode,
     Keyboard,
-    Building2,
-    CalendarDays,
-    CreditCard,
     X,
 } from "lucide-vue-next";
 
@@ -355,33 +267,21 @@ const compra = useCompraStore();
 const panelDatos = ref(false);
 const escaneoRapido = ref(true);
 
-const proveedorActual = computed(() => {
-    return compra.proveedores.find(
-        (p) => Number(p.id) === Number(compra.form.proveedor_id),
-    );
-});
-
-const proveedorNombre = computed(() => {
-    return (
-        proveedorActual.value?.nombre_comercial || "Proveedor no seleccionado"
-    );
-});
-
-const formaPagoLabel = computed(() => {
-    const labels = {
-        efectivo: "Efectivo",
-        transferencia: "Transferencia",
-        tarjeta_debito: "T. Débito",
-        tarjeta_credito: "T. Crédito",
-        credito: "Crédito",
-    };
-    return labels[compra.form.forma_pago] || "Sin pago";
-});
-
 function formatCantidad(value) {
     return new Intl.NumberFormat("es-MX", {
         maximumFractionDigits: 3,
     }).format(Number(value || 0));
+}
+
+async function confirmarDesdePanel() {
+    if (!compra.validarCompra()) return;
+
+    panelDatos.value = false;
+    const guardada = await compra.confirmarGuardar();
+
+    if (guardada === false) {
+        panelDatos.value = true;
+    }
 }
 
 onMounted(() => {

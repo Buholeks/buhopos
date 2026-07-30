@@ -1,5 +1,5 @@
 <template>
-    <div ref="root" class="rounded-xl border border-slate-200 bg-white p-5">
+    <div ref="root" class="bg-white">
         <label class="mb-2 block text-sm font-semibold text-slate-700">
             Buscar producto / variante
             <span class="ml-2 text-xs font-normal text-slate-400">
@@ -61,19 +61,21 @@
                     class="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
                 >
                     <div class="max-h-72 overflow-y-auto">
-                        <div
-                            v-for="row in filasResultados"
-                            :key="row.key"
-                        >
+                        <div v-for="row in filasResultados" :key="row.key">
                             <div
                                 v-if="row.tipo === 'grupo'"
                                 class="border-b border-slate-100 bg-slate-50 px-4 py-2"
                             >
-                                <p class="truncate text-xs font-black uppercase tracking-wide text-slate-500">
+                                <p
+                                    class="truncate text-xs font-black uppercase tracking-wide text-slate-500"
+                                >
                                     {{ row.nombre }}
                                 </p>
                                 <p class="text-[11px] text-slate-400">
-                                    {{ row.total }} variante{{ row.total !== 1 ? "s" : "" }} encontrada{{ row.total !== 1 ? "s" : "" }}
+                                    {{ row.total }} variante{{
+                                        row.total !== 1 ? "s" : ""
+                                    }}
+                                    encontrada{{ row.total !== 1 ? "s" : "" }}
                                 </p>
                             </div>
 
@@ -88,84 +90,92 @@
                                         : 'hover:bg-slate-50'
                                 "
                             >
-                            <!-- Imagen -->
-                            <div
-                                class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
-                            >
-                                <img
-                                    v-if="row.item.imagen_url"
-                                    :src="row.item.imagen_url"
-                                    class="h-full w-full object-contain"
-                                    :alt="row.item.nombre"
-                                />
-                                <ImageOff
-                                    v-else
-                                    class="h-5 w-5 text-slate-300"
-                                />
-                            </div>
-
-                            <!-- Texto -->
-                            <div class="min-w-0 flex-1">
-                                <p
-                                    class="truncate text-sm font-medium text-slate-900"
+                                <!-- Imagen -->
+                                <div
+                                    class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
                                 >
-                                    {{ row.item.nombre }}
-                                    <span
-                                        v-if="row.item.nombre_variante"
-                                        class="text-emerald-600"
-                                    >
-                                        - {{ row.item.nombre_variante }}
-                                    </span>
-                                </p>
-                                <div class="mt-0.5 flex items-center gap-2">
-                                    <span
-                                        v-if="row.item.pedido_generico"
-                                        class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-700"
-                                    >
-                                        Pedido genérico
-                                    </span>
-                                    <span
-                                        class="font-mono text-xs text-slate-400"
-                                    >
-                                        {{ row.item.codigo }}
-                                    </span>
-                                    <span
-                                        v-if="row.item.sku"
-                                        class="font-mono text-xs text-slate-400"
-                                    >
-                                        · {{ row.item.sku }}
-                                    </span>
-                                    <span
-                                        v-if="row.item.codigo_barras"
-                                        class="font-mono text-xs text-slate-400"
-                                    >
-                                        · {{ row.item.codigo_barras }}
-                                    </span>
+                                    <img
+                                        v-if="row.item.imagen_url"
+                                        :src="row.item.imagen_url"
+                                        class="h-full w-full object-contain"
+                                        :alt="row.item.nombre"
+                                    />
+                                    <ImageOff
+                                        v-else
+                                        class="h-5 w-5 text-slate-300"
+                                    />
                                 </div>
-                            </div>
 
-                            <!-- Precios -->
-                            <div class="text-right">
-                                <p class="font-mono text-xs text-slate-500">
-                                    Costo: {{ formatPrecio(row.item.precio_compra) }}
-                                </p>
-                                <p class="font-mono text-xs text-emerald-600">
-                                    Venta: {{ formatPrecio(row.item.precio_venta) }}
-                                </p>
-                            </div>
+                                <!-- Texto -->
+                                <div class="min-w-0 flex-1">
+                                    <p
+                                        class="truncate text-sm font-medium text-slate-900"
+                                    >
+                                        {{ row.item.nombre }}
+                                        <span
+                                            v-if="row.item.nombre_variante"
+                                            class="text-emerald-600"
+                                        >
+                                            - {{ row.item.nombre_variante }}
+                                        </span>
+                                    </p>
+                                    <div class="mt-0.5 flex items-center gap-2">
+                                        <span
+                                            v-if="row.item.pedido_generico"
+                                            class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-700"
+                                        >
+                                            Pedido genérico
+                                        </span>
+                                        <span
+                                            class="font-mono text-xs text-slate-400"
+                                        >
+                                            {{ row.item.codigo }}
+                                        </span>
+                                        <span
+                                            v-if="row.item.sku"
+                                            class="font-mono text-xs text-slate-400"
+                                        >
+                                            · {{ row.item.sku }}
+                                        </span>
+                                        <span
+                                            v-if="row.item.codigo_barras"
+                                            class="font-mono text-xs text-slate-400"
+                                        >
+                                            · {{ row.item.codigo_barras }}
+                                        </span>
+                                    </div>
+                                </div>
 
-                            <!-- Enter hint -->
-                            <div
-                                class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
-                                :class="
-                                    cursor === row.index
-                                        ? 'bg-emerald-100 text-emerald-700'
-                                        : 'bg-slate-100 text-slate-400'
-                                "
-                                title="Enter"
-                            >
-                                <CornerDownLeft class="h-4 w-4" />
-                            </div>
+                                <!-- Precios -->
+                                <div class="text-right">
+                                    <p class="font-mono text-xs text-slate-500">
+                                        Costo:
+                                        {{
+                                            formatPrecio(row.item.precio_compra)
+                                        }}
+                                    </p>
+                                    <p
+                                        class="font-mono text-xs text-emerald-600"
+                                    >
+                                        Venta:
+                                        {{
+                                            formatPrecio(row.item.precio_venta)
+                                        }}
+                                    </p>
+                                </div>
+
+                                <!-- Enter hint -->
+                                <div
+                                    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+                                    :class="
+                                        cursor === row.index
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : 'bg-slate-100 text-slate-400'
+                                    "
+                                    title="Enter"
+                                >
+                                    <CornerDownLeft class="h-4 w-4" />
+                                </div>
                             </div>
                         </div>
                     </div>

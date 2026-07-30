@@ -360,11 +360,11 @@ export const useCompraStore = defineStore("compra", () => {
     }
 
     async function confirmarGuardar() {
-        if (!validarCompra()) return;
+        if (!validarCompra()) return false;
 
         if (detalles.value.length === 0) {
             toastWarning("Agrega al menos un producto");
-            return;
+            return false;
         }
 
         const faltanImeis = detalles.value.find((d) => {
@@ -373,7 +373,7 @@ export const useCompraStore = defineStore("compra", () => {
 
         if (faltanImeis) {
             toastWarning(`Faltan IMEIs en "${faltanImeis.nombre}"`);
-            return;
+            return false;
         }
 
         detalles.value.forEach(normalizeLinea);
@@ -400,7 +400,7 @@ export const useCompraStore = defineStore("compra", () => {
             reverseButtons: true,
         });
 
-        if (!r.isConfirmed) return;
+        if (!r.isConfirmed) return false;
 
         guardando.value = true;
 
@@ -440,12 +440,14 @@ export const useCompraStore = defineStore("compra", () => {
             if (terminado.value) {
                 window.location.href = `/compras/${compraGuardada.id}/etiquetas`;
             }
+            return true;
         } catch (e) {
             Swal.fire({
                 icon: "error",
                 title: "Error al guardar",
                 text: e.response?.data?.message ?? "Ocurrió un error inesperado",
             });
+            return false;
         } finally {
             guardando.value = false;
         }

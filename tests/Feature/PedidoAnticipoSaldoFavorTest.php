@@ -9,6 +9,7 @@ use App\Models\CuentaBancaria;
 use App\Models\Empresa;
 use App\Models\Inventario;
 use App\Models\Pedido;
+use App\Models\PedidoDetalle;
 use App\Models\Producto;
 use App\Models\Sucursal;
 use App\Models\User;
@@ -82,6 +83,63 @@ class PedidoAnticipoSaldoFavorTest extends TestCase
             ['precio_acordado' => 50],
         )->assertStatus(422)
             ->assertJsonFragment(['message' => 'El nuevo total no puede quedar por debajo del anticipo pagado.']);
+    }
+
+    public function test_pedido_parcial_permite_editar_solo_un_renglon_abierto(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'pedido',
+            'cliente_id' => $cliente->id,
+            'detalles' => [
+                [
+                    'producto_id' => $producto->id,
+                    'descripcion' => 'Renglon entregado',
+                    'cantidad' => 1,
+                    'precio_acordado' => 100,
+                ],
+                [
+                    'producto_id' => $producto->id,
+                    'descripcion' => 'Renglon pendiente',
+                    'cantidad' => 2,
+                    'precio_acordado' => 50,
+                ],
+            ],
+        ])->assertCreated();
+
+        $pedidoId = $pedido->json('id');
+        $detalleEntregadoId = $pedido->json('detalles.0.id');
+        $detallePendienteId = $pedido->json('detalles.1.id');
+
+        PedidoDetalle::findOrFail($detalleEntregadoId)->update(['estado' => 'entregado']);
+        Pedido::findOrFail($pedidoId)->update(['estado' => 'parcial']);
+
+        $this->putJson("/api/pedidos/{$pedidoId}/detalles/{$detallePendienteId}/precio", [
+            'precio_acordado' => 75,
+        ])->assertOk()
+            ->assertJsonPath('estado', 'parcial')
+            ->assertJsonPath('subtotal', '250.00')
+            ->assertJsonPath('saldo_pendiente', '150.00');
+
+        $this->assertDatabaseHas('pedido_detalles', [
+            'id' => $detalleEntregadoId,
+            'precio_acordado' => 100,
+            'subtotal' => 100,
+            'estado' => 'entregado',
+        ]);
+        $this->assertDatabaseHas('pedido_detalles', [
+            'id' => $detallePendienteId,
+            'precio_acordado' => 75,
+            'subtotal' => 150,
+            'estado' => 'pendiente',
+        ]);
+
+        $this->putJson("/api/pedidos/{$pedidoId}/detalles/{$detalleEntregadoId}/precio", [
+            'precio_acordado' => 200,
+        ])->assertStatus(422)
+            ->assertJsonFragment(['message' => 'No se puede cambiar el precio de un artículo cerrado.']);
     }
 
     public function test_cancelar_pedido_parcial_y_su_venta_no_duplica_el_saldo_a_favor(): void

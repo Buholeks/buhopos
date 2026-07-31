@@ -287,9 +287,9 @@ class PedidoController extends Controller
                 ], 422);
             }
 
-            if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido', 'parcial'], true)) {
+            if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'], true)) {
                 return response()->json([
-                    'message' => 'No se puede cambiar el precio de un pedido cerrado o parcialmente entregado.',
+                    'message' => 'No se puede cambiar el precio de un pedido cerrado.',
                 ], 422);
             }
 

@@ -205,7 +205,7 @@ function puedeCancelarDetalle(detalle) {
 
 function puedeEditarPrecio(detalle) {
     if (!auth.can('pedidos.crear') || props.data?.tipo !== 'pedido') return false
-    if (['entregado', 'devuelto', 'cancelado', 'vencido', 'parcial'].includes(props.data?.estado)) return false
+    if (['entregado', 'devuelto', 'cancelado', 'vencido'].includes(props.data?.estado)) return false
     return !['entregado', 'devuelto', 'cancelado'].includes(detalle?.estado)
 }
 

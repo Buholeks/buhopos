@@ -390,6 +390,9 @@ const ventasEnEspera = ref([]);
 const modalRecuperar = ref(false);
 const pedidosDisponibles = ref([]);
 const tieneProductosPendientes = ref(false);
+const saldoGeneralCliente = ref(0);
+const saldoLegacyCliente = ref(0);
+const saldosPedidoCliente = ref({});
 
 const empresaId = computed(() => authStore.user?.empresa_id ?? null);
 const sucursalId = computed(() => authStore.user?.sucursal_id ?? null);
@@ -417,9 +420,22 @@ const ventaSoloProductosPendientes = computed(
             ),
         ),
 );
-const saldoBloqueado = computed(
-    () => tieneProductosPendientes.value && !ventaSoloProductosPendientes.value,
+const saldoReservadoAplicable = computed(() => {
+    const topes = detalles.value.reduce((acc, detalle) => {
+        const id = Number(detalle.pedido_id);
+        if (!id) return acc;
+        acc[id] = (acc[id] || 0) + Number(detalle.precio_venta || detalle.precio_acordado || 0) * Number(detalle.cantidad || 0);
+        return acc;
+    }, {});
+    return Object.entries(topes).reduce((total, [id, tope]) =>
+        total + Math.min(Number(saldosPedidoCliente.value?.[id] || 0), Number(tope || 0)), 0);
+});
+const saldoAplicableVenta = computed(() =>
+    saldoGeneralCliente.value
+    + saldoReservadoAplicable.value
+    + ((ventaSoloProductosPendientes.value || !tieneProductosPendientes.value) ? saldoLegacyCliente.value : 0),
 );
+const saldoBloqueado = computed(() => saldoAplicableVenta.value <= 0);
 // Suma del anticipo de los pedidos que están representados en el carrito actual
 const anticipoPedidosEnCarrito = computed(() => {
     if (!ventaSoloProductosPendientes.value) return 0;
@@ -498,7 +514,7 @@ watch(saldoBloqueado, (bloqueado) => {
 });
 
 // Cuando cambian qué pedidos están en el carrito, recalcular saldo sugerido
-watch(anticipoPedidosEnCarrito, () => aplicarSaldoAutomatico());
+watch([anticipoPedidosEnCarrito, saldoAplicableVenta], () => aplicarSaldoAutomatico());
 
 // ── Fila seleccionada ─────────────────────────────────────────────────────────
 const selectedIdx = ref(null);
@@ -1377,6 +1393,9 @@ async function cargarSaldoCliente() {
     cobro.value.saldo_aplicado = 0;
     pedidosDisponibles.value = [];
     tieneProductosPendientes.value = false;
+    saldoGeneralCliente.value = 0;
+    saldoLegacyCliente.value = 0;
+    saldosPedidoCliente.value = {};
 
     if (!cliente.value?.id) return;
 
@@ -1385,6 +1404,9 @@ async function cargarSaldoCliente() {
             `/api/clientes/${cliente.value.id}/pedidos-resumen`,
         );
         cobro.value.saldo_disponible = Number(data?.saldo_favor ?? 0);
+        saldoGeneralCliente.value = Number(data?.saldo_general ?? 0);
+        saldoLegacyCliente.value = Number(data?.saldo_legacy ?? 0);
+        saldosPedidoCliente.value = data?.saldos_pedido ?? {};
         pedidosDisponibles.value = Array.isArray(data?.pedidos_disponibles)
             ? data.pedidos_disponibles
             : [];
@@ -1394,27 +1416,21 @@ async function cargarSaldoCliente() {
         cobro.value.saldo_disponible = 0;
         pedidosDisponibles.value = [];
         tieneProductosPendientes.value = false;
+        saldoGeneralCliente.value = 0;
+        saldoLegacyCliente.value = 0;
+        saldosPedidoCliente.value = {};
     }
 }
 
 function aplicarSaldoAutomatico() {
+    cobro.value.saldo_disponible = Math.max(0, Number(saldoAplicableVenta.value || 0));
     if (!cliente.value?.id || saldoBloqueado.value) {
         cobro.value.saldo_aplicado = 0;
         return;
     }
 
-    // Si la venta es de pedidos específicos, limitamos el saldo al anticipo de esos pedidos
-    // para no consumir anticipos de otros pedidos del mismo cliente
-    const topePorPedido =
-        ventaSoloProductosPendientes.value && anticipoPedidosEnCarrito.value > 0
-            ? Math.min(
-                  Number(cobro.value.saldo_disponible || 0),
-                  anticipoPedidosEnCarrito.value,
-              )
-            : Number(cobro.value.saldo_disponible || 0);
-
     cobro.value.saldo_aplicado = Math.min(
-        topePorPedido,
+        Number(cobro.value.saldo_disponible || 0),
         Number(total.value || 0),
     );
 }

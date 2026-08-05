@@ -77,6 +77,10 @@
                     <Search v-else class="h-4 w-4" />
                     {{ loading ? "Buscando..." : "Buscar" }}
                 </button>
+                <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
+                    <input v-model="soloConSaldo" type="checkbox" class="rounded border-slate-300 text-emerald-600" @change="fetchClientes(1)" />
+                    Con saldo a favor
+                </label>
             </div>
         </section>
 
@@ -114,6 +118,7 @@
                             <th class="px-4 py-3 text-left">Cliente</th>
                             <th class="px-4 py-3 text-left">Contacto</th>
                             <th class="px-4 py-3 text-left">Dirección</th>
+                            <th class="px-4 py-3 text-right">Saldo a favor</th>
                             <th class="px-4 py-3 text-left">Estado</th>
                             <th class="px-4 py-3 text-right">Acciones</th>
                         </tr>
@@ -173,6 +178,9 @@
                                     {{ c.direccion ?? "Sin dirección" }}
                                 </span>
                             </td>
+                            <td class="px-4 py-3 text-right font-mono font-bold" :class="Number(c.saldo_favor) > 0 ? 'text-emerald-700' : 'text-slate-400'">
+                                {{ money(c.saldo_favor) }}
+                            </td>
 
                             <td class="px-4 py-3">
                                 <button
@@ -199,6 +207,9 @@
 
                             <td class="px-4 py-3">
                                 <div class="flex justify-end gap-2">
+                                    <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 transition hover:bg-emerald-50" title="Estado de cuenta" @click="openEstadoCuenta(c)">
+                                        <WalletCards class="h-4 w-4" />
+                                    </button>
                                     <button
                                         v-if="auth.can('clientes.editar')"
                                         type="button"
@@ -223,7 +234,7 @@
                         </tr>
 
                         <tr v-if="!loading && items.length === 0">
-                            <td colspan="5" class="px-4 py-12 text-center">
+                            <td colspan="6" class="px-4 py-12 text-center">
                                 <div
                                     class="mx-auto flex max-w-sm flex-col items-center"
                                 >
@@ -247,7 +258,7 @@
 
                         <tr v-if="loading && items.length === 0">
                             <td
-                                colspan="5"
+                                colspan="6"
                                 class="px-4 py-12 text-center text-sm text-slate-500"
                             >
                                 <div class="inline-flex items-center gap-2">
@@ -333,6 +344,7 @@
                 @cancel="modalOpen = false"
             />
         </BaseModal>
+        <ClienteEstadoCuenta :open="estadoCuentaOpen" :cliente="clienteCuenta" @close="cerrarEstadoCuenta" />
     </main>
 </template>
 
@@ -346,6 +358,7 @@ import { confirm, toastSuccess, toastWarning, error } from "@/lib/alert";
 import BaseModal from "@/components/ui/BaseModal.vue";
 import ClienteForm from "@/components/clientes/ClienteForm.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
+import ClienteEstadoCuenta from "@/components/clientes/ClienteEstadoCuenta.vue";
 
 import {
     ChevronLeft,
@@ -360,9 +373,11 @@ import {
     UserPlus,
     Users,
     X,
+    WalletCards,
 } from "lucide-vue-next";
 
 const q = ref("");
+const soloConSaldo = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 
@@ -373,6 +388,19 @@ const modalOpen = ref(false);
 const editando = ref(null);
 const form = ref(getEmptyForm());
 const formErrors = ref(null);
+const estadoCuentaOpen = ref(false);
+const clienteCuenta = ref(null);
+const money = (value) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(Number(value || 0));
+
+function openEstadoCuenta(cliente) {
+    clienteCuenta.value = cliente;
+    estadoCuentaOpen.value = true;
+}
+
+function cerrarEstadoCuenta() {
+    estadoCuentaOpen.value = false;
+    fetchClientes(meta.value?.current_page ?? 1);
+}
 
 function getEmptyForm() {
     return {
@@ -409,6 +437,7 @@ async function fetchClientes(page = 1) {
             params: {
                 q: q.value || undefined,
                 page,
+                con_saldo: soloConSaldo.value ? 1 : 0,
             },
         });
 

@@ -184,10 +184,12 @@ class CancelacionDevolucionController extends Controller
                 $corteDevolucion->recalcularMovimientos();
             }
 
-            if ($desglose['saldo'] > 0) {
+            $saldoRestaurado = $this->restaurarAplicacionesVenta($venta, min($desglose['saldo'], (float) ($venta->saldo_aplicado ?? 0)), $user->id);
+            $saldoGeneralNuevo = round(max(0, $desglose['saldo'] - $saldoRestaurado), 2);
+            if ($saldoGeneralNuevo > 0) {
                 $this->registrarMovimientoSaldo(
                     $venta,
-                    $desglose['saldo'],
+                    $saldoGeneralNuevo,
                     $formaDevolucion === 'saldo_favor' ? 'devolucion' : 'ajuste',
                     'saldo_favor',
                     "Devolucion de saldo por cancelacion {$venta->folio}",
@@ -676,11 +678,46 @@ class CancelacionDevolucionController extends Controller
             'corte_id' => $corteId,
             'user_id' => Auth::id(),
             'tipo' => $tipo,
+            'alcance' => 'general',
             'forma_pago' => $formaPago,
             'monto' => round($monto, 2),
             'saldo_resultante' => round($saldoAnterior + $monto, 2),
             'concepto' => $concepto,
         ]);
+    }
+
+    private function restaurarAplicacionesVenta(Venta $venta, float $maximo, int $userId): float
+    {
+        $restante = round(max(0, $maximo), 2);
+        $restaurado = 0.0;
+        $aplicaciones = ClienteSaldoMovimiento::where('venta_id', $venta->id)
+            ->where('tipo', 'aplicacion')->lockForUpdate()->get();
+
+        foreach ($aplicaciones as $aplicacion) {
+            if ($restante <= 0) break;
+            $yaRevertido = (float) ClienteSaldoMovimiento::where('movimiento_origen_id', $aplicacion->id)
+                ->where('tipo', 'reverso_aplicacion')->sum('monto');
+            $monto = round(min($restante, max(0, (float) $aplicacion->monto - $yaRevertido)), 2);
+            if ($monto <= 0) continue;
+            $saldoActual = app(\App\Servicios\ClienteSaldoServicio::class)->saldo(
+                (int) $venta->empresa_id, (int) $venta->sucursal_id, (int) $venta->cliente_id,
+                $aplicacion->alcance ?: 'legacy', $aplicacion->alcance === 'pedido' ? (int) $aplicacion->pedido_id : null
+            );
+            ClienteSaldoMovimiento::create([
+                'empresa_id' => $venta->empresa_id, 'sucursal_id' => $venta->sucursal_id,
+                'cliente_id' => $venta->cliente_id, 'pedido_id' => $aplicacion->pedido_id,
+                'venta_id' => $venta->id, 'corte_id' => $venta->corte_id,
+                'movimiento_origen_id' => $aplicacion->id, 'user_id' => $userId,
+                'tipo' => 'reverso_aplicacion', 'alcance' => $aplicacion->alcance ?: 'legacy',
+                'forma_pago' => 'saldo_favor', 'monto' => $monto,
+                'saldo_resultante' => round($saldoActual + $monto, 2),
+                'concepto' => "Reversión de saldo por cancelación {$venta->folio}",
+            ]);
+            $restante -= $monto;
+            $restaurado += $monto;
+        }
+
+        return round($restaurado, 2);
     }
 
     private function saldoDisponibleCliente(int $empresaId, int $sucursalId, int $clienteId): float

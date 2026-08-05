@@ -47,6 +47,8 @@ class PermisosSeeder extends Seeder
             // ── Clientes ──────────────────────────────────────────────────────
             ['modulo' => 'clientes',   'clave' => 'clientes.ver',             'descripcion' => 'Ver listado y datos de clientes'],
             ['modulo' => 'clientes',   'clave' => 'clientes.editar',          'descripcion' => 'Crear y editar clientes'],
+            ['modulo' => 'clientes',   'clave' => 'clientes.saldos.ver',      'descripcion' => 'Consultar estados de cuenta de clientes'],
+            ['modulo' => 'clientes',   'clave' => 'clientes.saldos.ajustar',  'descripcion' => 'Registrar ajustes de saldo general de clientes'],
 
             // ── Reportes ──────────────────────────────────────────────────────
             ['modulo' => 'reportes',   'clave' => 'reportes.ver',             'descripcion' => 'Acceder a reportes generales'],

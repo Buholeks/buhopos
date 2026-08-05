@@ -94,6 +94,8 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::get('/clientes/buscar', [ClienteController::class, 'buscar']);
+    Route::get('/clientes/{cliente}/estado-cuenta', [ClienteController::class, 'estadoCuenta']);
+    Route::post('/clientes/{cliente}/ajustes-saldo', [ClienteController::class, 'ajustarSaldo']);
     Route::apiResource('clientes', ClienteController::class);
 
     Route::get('/proveedores/{proveedor}/estado-cuenta', [ProveedorController::class, 'estadoCuenta']);

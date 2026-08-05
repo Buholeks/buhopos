@@ -5,6 +5,10 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Cliente;
+use App\Models\ClienteSaldoMovimiento;
+use App\Models\Pedido;
+use App\Servicios\ClienteSaldoServicio;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ClienteController extends Controller
@@ -15,7 +19,16 @@ class ClienteController extends Controller
         $user = $request->user();
 
         $q = Cliente::query()
-            ->where('empresa_id', $user->empresa_id);
+            ->where('empresa_id', $user->empresa_id)
+            ->select('clientes.*')
+            ->selectSub(
+                ClienteSaldoMovimiento::query()
+                    ->selectRaw('COALESCE(SUM(' . ClienteSaldoMovimiento::expresionSaldo() . '), 0)')
+                    ->whereColumn('cliente_saldo_movimientos.cliente_id', 'clientes.id')
+                    ->where('cliente_saldo_movimientos.empresa_id', $user->empresa_id)
+                    ->where('cliente_saldo_movimientos.sucursal_id', $user->sucursal_id),
+                'saldo_favor'
+            );
 
         if ($search = trim($request->q)) {
             $words = preg_split('/\s+/', $search);
@@ -28,6 +41,17 @@ class ClienteController extends Controller
                             ->orWhere('telefono', 'like', "%{$word}%");
                     });
                 }
+            });
+        }
+
+        if ($request->boolean('con_saldo')) {
+            $q->whereExists(function ($movimientos) use ($user) {
+                $movimientos->selectRaw('1')->from('cliente_saldo_movimientos as csm')
+                    ->whereColumn('csm.cliente_id', 'clientes.id')
+                    ->where('csm.empresa_id', $user->empresa_id)
+                    ->where('csm.sucursal_id', $user->sucursal_id)
+                    ->groupBy('csm.cliente_id')
+                    ->havingRaw('SUM(' . ClienteSaldoMovimiento::expresionSaldo('csm') . ') > 0');
             });
         }
 
@@ -116,6 +140,11 @@ class ClienteController extends Controller
         $this->assertTenant($request, $cliente);
 
         // recomendación: borrado lógico (soft delete) si te interesa historial
+        $tieneHistorial = $cliente->ventas()->exists()
+            || DB::table('pedidos')->where('cliente_id', $cliente->id)->exists()
+            || DB::table('cliente_saldo_movimientos')->where('cliente_id', $cliente->id)->exists();
+        abort_if($tieneHistorial, 422, 'No se puede eliminar un cliente con historial. Puedes desactivarlo.');
+
         $cliente->delete();
 
         return response()->json(['ok' => true]);
@@ -168,4 +197,66 @@ class ClienteController extends Controller
 
     return response()->json($items);
 }
+
+    public function estadoCuenta(Request $request, Cliente $cliente, ClienteSaldoServicio $saldos): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('clientes.saldos.ver') || Auth::user()->tienePermiso('clientes.ver'), 403, 'Sin permiso para consultar saldos de clientes.');
+        $this->assertTenant($request, $cliente);
+        $user = $request->user();
+        $resumen = $saldos->resumen((int) $user->empresa_id, (int) $user->sucursal_id, (int) $cliente->id);
+
+        $movimientos = ClienteSaldoMovimiento::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)->where('cliente_id', $cliente->id)
+            ->with(['pedido:id,folio,tipo', 'venta:id,folio', 'user:id,name', 'origen:id,concepto'])
+            ->when($request->filled('desde'), fn ($q) => $q->whereDate('created_at', '>=', $request->date('desde')))
+            ->when($request->filled('hasta'), fn ($q) => $q->whereDate('created_at', '<=', $request->date('hasta')))
+            ->when($request->filled('alcance'), fn ($q) => $q->where('alcance', $request->input('alcance')))
+            ->when($request->filled('tipo'), fn ($q) => $q->where('tipo', $request->input('tipo')))
+            ->latest('id')->paginate($request->integer('per_page', 30));
+        $movimientos->getCollection()->each(fn ($m) => $m->setAttribute('importe_firmado', $m->importe_firmado));
+
+        $saldosPedido = $saldos->saldosPedidos((int) $user->empresa_id, (int) $user->sucursal_id, (int) $cliente->id);
+        $foliosPedido = Pedido::whereIn('id', $saldosPedido->keys())->pluck('folio', 'id');
+
+        return response()->json([
+            'cliente' => $cliente,
+            'resumen' => $resumen,
+            'saldos_pedido' => $saldosPedido->map(fn ($saldo, $pedidoId) => [
+                'pedido_id' => (int) $pedidoId,
+                'folio' => $foliosPedido[$pedidoId] ?? "Pedido #{$pedidoId}",
+                'saldo' => round((float) $saldo, 2),
+            ])->values(),
+            'movimientos' => $movimientos,
+        ]);
+    }
+
+    public function ajustarSaldo(Request $request, Cliente $cliente, ClienteSaldoServicio $saldos): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('clientes.saldos.ajustar'), 403, 'Sin permiso: clientes.saldos.ajustar');
+        $this->assertTenant($request, $cliente);
+        $data = $request->validate([
+            'naturaleza' => ['required', 'in:credito,debito'],
+            'monto' => ['required', 'numeric', 'gt:0'],
+            'motivo' => ['required', 'string', 'max:255'],
+        ]);
+        $user = $request->user();
+
+        $movimiento = DB::transaction(function () use ($user, $cliente, $data, $saldos) {
+            ClienteSaldoMovimiento::where('empresa_id', $user->empresa_id)->where('sucursal_id', $user->sucursal_id)
+                ->where('cliente_id', $cliente->id)->lockForUpdate()->get(['id']);
+            $saldo = max(0, $saldos->saldo((int) $user->empresa_id, (int) $user->sucursal_id, (int) $cliente->id, 'general'));
+            $firmado = $data['naturaleza'] === 'credito' ? (float) $data['monto'] : -(float) $data['monto'];
+            abort_if($saldo + $firmado < 0, 422, 'El ajuste no puede dejar el saldo general en negativo.');
+
+            return ClienteSaldoMovimiento::create([
+                'empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id,
+                'cliente_id' => $cliente->id, 'user_id' => $user->id,
+                'tipo' => $data['naturaleza'] === 'credito' ? 'ajuste_credito' : 'ajuste_debito',
+                'alcance' => 'general', 'monto' => round((float) $data['monto'], 2),
+                'saldo_resultante' => round($saldo + $firmado, 2), 'concepto' => $data['motivo'],
+            ]);
+        });
+
+        return response()->json($movimiento, 201);
+    }
 }

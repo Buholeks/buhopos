@@ -90,7 +90,6 @@ class ProveedorController extends Controller
         ]);
 
         return response()->json($proveedor, 201);
-        
     }
 
     public function show(Request $request, $id)
@@ -179,9 +178,9 @@ class ProveedorController extends Controller
 
         $movimientos = (clone $base)
             ->with(['compra:id,folio', 'devolucion:id,referencia,compra_id', 'user:id,name'])
-            ->when($request->filled('desde'), fn ($q) => $q->whereDate('created_at', '>=', $request->date('desde')))
-            ->when($request->filled('hasta'), fn ($q) => $q->whereDate('created_at', '<=', $request->date('hasta')))
-            ->when($request->filled('tipo'), fn ($q) => $q->where('tipo', (string) $request->input('tipo')))
+            ->when($request->filled('desde'), fn($q) => $q->whereDate('created_at', '>=', $request->date('desde')))
+            ->when($request->filled('hasta'), fn($q) => $q->whereDate('created_at', '<=', $request->date('hasta')))
+            ->when($request->filled('tipo'), fn($q) => $q->where('tipo', (string) $request->input('tipo')))
             ->latest('id')
             ->paginate($request->integer('per_page', 20));
 

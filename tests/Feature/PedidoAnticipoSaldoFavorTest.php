@@ -473,7 +473,8 @@ class PedidoAnticipoSaldoFavorTest extends TestCase
 
         $this->assertSame(250.0, (float) $this->saldoFavor($cliente->id));
         $this->assertSame(1, ClienteSaldoMovimiento::where('pedido_id', $pedido->json('id'))->where('tipo', 'abono')->count());
-        $this->assertSame(0, ClienteSaldoMovimiento::where('pedido_id', $pedido->json('id'))->where('tipo', 'aplicacion')->count());
+        $this->assertSame(1, ClienteSaldoMovimiento::where('pedido_id', $pedido->json('id'))->where('tipo', 'aplicacion')->where('alcance', 'pedido')->count());
+        $this->assertSame(1, ClienteSaldoMovimiento::where('pedido_id', $pedido->json('id'))->where('tipo', 'ajuste_credito')->where('alcance', 'general')->count());
     }
 
     public function test_cancelar_pedido_devolviendo_efectivo_consume_saldo_y_registra_egreso(): void
@@ -508,7 +509,6 @@ class PedidoAnticipoSaldoFavorTest extends TestCase
                 ['producto_id' => $producto->id, 'descripcion' => 'Renglon cancelado', 'cantidad' => 1, 'precio_acordado' => 500],
             ],
         ])->assertCreated();
-
         $this->postJson("/api/pedidos/{$pedido->json('id')}/cancelar", [
             'destino_saldo' => 'efectivo',
             'monto_devolucion' => 250,
@@ -769,6 +769,77 @@ class PedidoAnticipoSaldoFavorTest extends TestCase
         $this->deleteJson("/api/pedidos/{$pedidoId}/abonos/{$abonoId}")
             ->assertStatus(422)
             ->assertJsonFragment(['message' => 'No hay caja abierta para registrar el egreso del abono eliminado.']);
+    }
+
+    public function test_venta_de_pedido_combina_anticipo_reservado_y_saldo_general(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+        Inventario::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'producto_id' => $producto->id, 'variante_id' => null, 'stock' => 1]);
+        CorteCaja::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'user_id' => $user->id, 'estado' => 'abierto', 'terminal' => 'POS-01', 'fecha_apertura' => now(), 'fondo_inicial_efectivo' => 0]);
+
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'pedido', 'cliente_id' => $cliente->id, 'anticipo' => 200, 'forma_pago' => 'efectivo',
+            'detalles' => [['producto_id' => $producto->id, 'descripcion' => 'Pedido de 800', 'cantidad' => 1, 'precio_acordado' => 800]],
+        ])->assertCreated();
+        PedidoDetalle::where('id', $pedido->json('detalles.0.id'))->update(['estado' => 'disponible']);
+        Pedido::where('id', $pedido->json('id'))->update(['estado' => 'disponible']);
+
+        ClienteSaldoMovimiento::create([
+            'empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id,
+            'cliente_id' => $cliente->id, 'user_id' => $user->id, 'tipo' => 'ajuste_credito',
+            'alcance' => 'general', 'monto' => 100, 'saldo_resultante' => 100,
+            'concepto' => 'Saldo general manual',
+        ]);
+
+        $venta = $this->postJson('/api/ventas', [
+            'fecha' => now()->toDateString(), 'cliente_id' => $cliente->id, 'vendedor_id' => $user->id,
+            'saldo_aplicado' => 300, 'pagos' => [['forma_pago' => 'efectivo', 'monto' => 500, 'monto_recibido' => 500]],
+            'detalles' => [['producto_id' => $producto->id, 'cantidad' => 1, 'precio_venta' => 800, 'pedido_detalle_id' => $pedido->json('detalles.0.id')]],
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('cliente_saldo_movimientos', ['venta_id' => $venta->json('id'), 'pedido_id' => $pedido->json('id'), 'alcance' => 'pedido', 'tipo' => 'aplicacion', 'monto' => 200]);
+        $this->assertDatabaseHas('cliente_saldo_movimientos', ['venta_id' => $venta->json('id'), 'pedido_id' => null, 'alcance' => 'general', 'tipo' => 'aplicacion', 'monto' => 100]);
+        $this->assertSame(0.0, app(\App\Servicios\ClienteSaldoServicio::class)->resumen($user->empresa_id, $user->sucursal_id, $cliente->id)['total']);
+    }
+
+    public function test_ajustes_manuales_solo_afectan_saldo_general_de_la_sucursal(): void
+    {
+        [$user, $cliente] = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/clientes/{$cliente->id}/ajustes-saldo", [
+            'naturaleza' => 'credito', 'monto' => 100, 'motivo' => 'Cortesía autorizada',
+        ])->assertCreated();
+        $this->postJson("/api/clientes/{$cliente->id}/ajustes-saldo", [
+            'naturaleza' => 'debito', 'monto' => 40, 'motivo' => 'Corrección administrativa',
+        ])->assertCreated();
+
+        $this->getJson('/api/clientes')->assertOk()->assertJsonPath('data.0.saldo_favor', '60.00');
+        $this->getJson("/api/clientes/{$cliente->id}/estado-cuenta")
+            ->assertOk()->assertJsonPath('resumen.general', 60)->assertJsonPath('resumen.reservado', 0);
+        $this->postJson("/api/clientes/{$cliente->id}/ajustes-saldo", [
+            'naturaleza' => 'debito', 'monto' => 61, 'motivo' => 'No permitido',
+        ])->assertStatus(422);
+    }
+
+    public function test_venta_normal_no_puede_consumir_anticipo_reservado_de_pedido(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+        Inventario::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'producto_id' => $producto->id, 'variante_id' => null, 'stock' => 2]);
+        CorteCaja::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'user_id' => $user->id, 'estado' => 'abierto', 'terminal' => 'POS-01', 'fecha_apertura' => now(), 'fondo_inicial_efectivo' => 0]);
+        $this->postJson('/api/pedidos', [
+            'tipo' => 'pedido', 'cliente_id' => $cliente->id, 'anticipo' => 200, 'forma_pago' => 'efectivo',
+            'detalles' => [['producto_id' => $producto->id, 'descripcion' => 'Pedido reservado', 'cantidad' => 1, 'precio_acordado' => 800]],
+        ])->assertCreated();
+        ClienteSaldoMovimiento::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'cliente_id' => $cliente->id, 'user_id' => $user->id, 'tipo' => 'ajuste_credito', 'alcance' => 'general', 'monto' => 100, 'saldo_resultante' => 100, 'concepto' => 'Saldo general']);
+
+        $this->postJson('/api/ventas', [
+            'fecha' => now()->toDateString(), 'cliente_id' => $cliente->id, 'vendedor_id' => $user->id,
+            'saldo_aplicado' => 150, 'pagos' => [['forma_pago' => 'efectivo', 'monto' => 0]],
+            'detalles' => [['producto_id' => $producto->id, 'cantidad' => 1, 'precio_venta' => 150]],
+        ])->assertStatus(422)->assertJsonFragment(['campo' => 'saldo_aplicado']);
     }
 
     private function crearContexto(): array

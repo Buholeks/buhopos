@@ -766,7 +766,20 @@ class PedidoController extends Controller
             $pedido->anticipo = max(0, (float) $pedido->anticipo - $monto);
             $pedido->recalcularSaldoPendiente();
 
-            $abono->delete();
+            $saldoPedido = app(\App\Servicios\ClienteSaldoServicio::class)->saldo(
+                (int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id,
+                $abono->alcance ?: 'legacy', (int) $pedido->id
+            );
+            abort_if($saldoPedido < $monto, 422, 'No se puede revertir el abono porque ya fue utilizado.');
+            ClienteSaldoMovimiento::create([
+                'empresa_id' => $pedido->empresa_id, 'sucursal_id' => $pedido->sucursal_id,
+                'cliente_id' => $pedido->cliente_id, 'pedido_id' => $pedido->id,
+                'corte_id' => $corte->id, 'movimiento_origen_id' => $abono->id,
+                'user_id' => Auth::id(), 'tipo' => 'reverso_credito',
+                'alcance' => $abono->alcance ?: 'legacy', 'forma_pago' => $abono->forma_pago,
+                'monto' => $monto, 'saldo_resultante' => max(0, $saldoPedido - $monto),
+                'concepto' => "Reversión de abono {$pedido->folio}",
+            ]);
 
             DB::commit();
             return response()->json([
@@ -789,10 +802,8 @@ class PedidoController extends Controller
         $user = Auth::user();
         $this->marcarPedidosVencidos((int) $user->empresa_id, (int) $user->sucursal_id);
 
-        $saldo = ClienteSaldoMovimiento::where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->where('cliente_id', $clienteId)
-            ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END"));
+        $servicioSaldo = app(\App\Servicios\ClienteSaldoServicio::class);
+        $resumenSaldo = $servicioSaldo->resumen((int) $user->empresa_id, (int) $user->sucursal_id, $clienteId);
 
         $pedidos = Pedido::where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
@@ -816,7 +827,11 @@ class PedidoController extends Controller
             ->exists();
 
         return response()->json([
-            'saldo_favor' => round((float) $saldo, 2),
+            'saldo_favor' => $resumenSaldo['total'],
+            'saldo_general' => $resumenSaldo['general'],
+            'saldo_legacy' => $resumenSaldo['legacy'],
+            'saldo_reservado' => $resumenSaldo['reservado'],
+            'saldos_pedido' => $servicioSaldo->saldosPedidos((int) $user->empresa_id, (int) $user->sucursal_id, $clienteId),
             'pedidos_disponibles' => $pedidos,
             'tiene_productos_pendientes' => $tieneProductosPendientes,
         ]);
@@ -832,11 +847,7 @@ class PedidoController extends Controller
             ->findOrFail($id);
 
         $anticipo = round((float) $pedido->anticipo, 2);
-        $saldoDisponibleCliente = $this->saldoDisponibleCliente(
-            (int) $pedido->empresa_id,
-            (int) $pedido->sucursal_id,
-            (int) $pedido->cliente_id
-        );
+        $saldoDisponibleCliente = $this->saldoDisponiblePedido($pedido);
 
         return response()->json([
             'anticipo' => $anticipo,
@@ -863,11 +874,7 @@ class PedidoController extends Controller
         }
 
         $anticipo = round((float) $pedido->anticipo, 2);
-        $saldoDisponibleCliente = $this->saldoDisponibleCliente(
-            (int) $pedido->empresa_id,
-            (int) $pedido->sucursal_id,
-            (int) $pedido->cliente_id
-        );
+        $saldoDisponibleCliente = $this->saldoDisponiblePedido($pedido);
 
         return response()->json([
             'anticipo' => $anticipo,
@@ -955,7 +962,7 @@ class PedidoController extends Controller
             $montoDevuelto = 0.0;
 
             if (in_array($destinoSaldo, ['efectivo', 'transferencia'], true)) {
-                $saldoDisponible = $this->saldoDisponibleCliente((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id);
+                $saldoDisponible = $this->saldoDisponiblePedido($pedido);
                 $maximoDevolucion = round(min($anticipo, $saldoDisponible), 2);
 
                 if ($montoDevolucionSolicitado > $maximoDevolucion) {
@@ -981,6 +988,10 @@ class PedidoController extends Controller
             $pedido->actualizarEstadoPorDetalles();
             $pedido->recalcularSaldoPendiente();
             $pedido->refresh();
+
+            if ($destinoSaldo === 'mantener_saldo') {
+                $this->transferirSaldoPedidoAGeneral($pedido, $user->id);
+            }
 
             DB::commit();
 
@@ -1038,7 +1049,7 @@ class PedidoController extends Controller
             return response()->json(['message' => 'Este renglón ya está cerrado y no se puede cancelar.'], 422);
         }
 
-        $saldoDisponible = $this->saldoDisponibleCliente((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id);
+        $saldoDisponible = $this->saldoDisponiblePedido($pedido);
         $maximoDevolucion = $this->maximoDevolucionCancelacionDetalle($pedido, $detalle, $saldoDisponible);
         $corte = null;
 
@@ -1093,6 +1104,10 @@ class PedidoController extends Controller
             $pedido->recalcularSaldoPendiente();
             $pedido->refresh();
 
+            if ($destinoSaldo === 'mantener_saldo' && ! $pedido->detalles()->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])->exists()) {
+                $this->transferirSaldoPedidoAGeneral($pedido, $user->id);
+            }
+
             DB::commit();
 
             $mensaje = 'Renglón cancelado.';
@@ -1120,6 +1135,13 @@ class PedidoController extends Controller
             ->where('sucursal_id', $sucursalId)
             ->where('cliente_id', $clienteId)
             ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END")), 2);
+    }
+
+    private function saldoDisponiblePedido(Pedido $pedido): float
+    {
+        $servicio = app(\App\Servicios\ClienteSaldoServicio::class);
+        return round(max(0, $servicio->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'pedido', (int) $pedido->id))
+            + max(0, $servicio->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'legacy')), 2);
     }
 
     private function maximoDevolucionCancelacionDetalle(Pedido $pedido, PedidoDetalle $detalle, float $saldoDisponibleCliente): float
@@ -1152,26 +1174,24 @@ class PedidoController extends Controller
             'concepto' => "Devolucion saldo {$pedido->tipo} {$pedido->folio}",
         ]);
 
-        $saldoAnterior = $this->saldoDisponibleCliente(
-            (int) $pedido->empresa_id,
-            (int) $pedido->sucursal_id,
-            (int) $pedido->cliente_id
-        );
-
-        ClienteSaldoMovimiento::create([
-            'empresa_id' => $pedido->empresa_id,
-            'sucursal_id' => $pedido->sucursal_id,
-            'cliente_id' => $pedido->cliente_id,
-            'pedido_id' => $pedido->id,
-            'corte_id' => $corte->id,
-            'movimiento_caja_id' => $movimientoCaja->id,
-            'user_id' => Auth::id(),
-            'tipo' => 'aplicacion',
-            'forma_pago' => $formaPago,
-            'monto' => $monto,
-            'saldo_resultante' => max(0, $saldoAnterior - $monto),
-            'concepto' => "Devolucion de saldo por cancelacion {$pedido->folio}",
-        ]);
+        $servicio = app(\App\Servicios\ClienteSaldoServicio::class);
+        $restante = $monto;
+        foreach (['pedido', 'legacy'] as $alcance) {
+            if ($restante <= 0) break;
+            $disponible = max(0, $servicio->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, $alcance, $alcance === 'pedido' ? (int) $pedido->id : null));
+            $aplicar = round(min($restante, $disponible), 2);
+            if ($aplicar <= 0) continue;
+            ClienteSaldoMovimiento::create([
+                'empresa_id' => $pedido->empresa_id, 'sucursal_id' => $pedido->sucursal_id,
+                'cliente_id' => $pedido->cliente_id, 'pedido_id' => $alcance === 'pedido' ? $pedido->id : null,
+                'corte_id' => $corte->id, 'movimiento_caja_id' => $movimientoCaja->id,
+                'user_id' => Auth::id(), 'tipo' => 'aplicacion', 'alcance' => $alcance,
+                'forma_pago' => $formaPago, 'monto' => $aplicar,
+                'saldo_resultante' => max(0, $disponible - $aplicar),
+                'concepto' => "Devolución de saldo por cancelación {$pedido->folio}",
+            ]);
+            $restante -= $aplicar;
+        }
 
         $corte->recalcularMovimientos();
     }
@@ -1209,6 +1229,7 @@ class PedidoController extends Controller
             'movimiento_caja_id' => $movimientoCaja->id,
             'user_id'            => Auth::id(),
             'tipo'               => 'abono',
+            'alcance'            => 'pedido',
             'forma_pago'         => $formaPago,
             'monto'              => $monto,
             'saldo_resultante'   => (float) $saldoAnterior + $monto,
@@ -1216,6 +1237,30 @@ class PedidoController extends Controller
         ]);
 
         $corte->recalcularMovimientos();
+    }
+
+    private function transferirSaldoPedidoAGeneral(Pedido $pedido, int $userId): void
+    {
+        $servicio = app(\App\Servicios\ClienteSaldoServicio::class);
+        $reservado = max(0, $servicio->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'pedido', (int) $pedido->id));
+        if ($reservado <= 0) return;
+
+        $debito = ClienteSaldoMovimiento::create([
+            'empresa_id' => $pedido->empresa_id, 'sucursal_id' => $pedido->sucursal_id,
+            'cliente_id' => $pedido->cliente_id, 'pedido_id' => $pedido->id, 'user_id' => $userId,
+            'tipo' => 'aplicacion', 'alcance' => 'pedido', 'forma_pago' => 'saldo_favor',
+            'monto' => $reservado, 'saldo_resultante' => 0,
+            'concepto' => "Liberación de anticipo del pedido {$pedido->folio}",
+        ]);
+        $general = max(0, $servicio->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'general'));
+        ClienteSaldoMovimiento::create([
+            'empresa_id' => $pedido->empresa_id, 'sucursal_id' => $pedido->sucursal_id,
+            'cliente_id' => $pedido->cliente_id, 'pedido_id' => $pedido->id,
+            'movimiento_origen_id' => $debito->id, 'user_id' => $userId,
+            'tipo' => 'ajuste_credito', 'alcance' => 'general', 'forma_pago' => 'saldo_favor',
+            'monto' => $reservado, 'saldo_resultante' => round($general + $reservado, 2),
+            'concepto' => "Saldo liberado por cancelación del pedido {$pedido->folio}",
+        ]);
     }
 
     private function reservarInventario(Pedido $pedido, PedidoDetalle $detalle, int $productoId, ?int $varianteId, int $cantidad): void

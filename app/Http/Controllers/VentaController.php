@@ -25,6 +25,7 @@ use Illuminate\Validation\Rule;
 use App\Models\CorteCaja;
 use App\Models\Serie;
 use App\Servicios\KardexServicio;
+use App\Servicios\ClienteSaldoServicio;
 use App\Support\ProductVariantSearch;
 use App\Support\TerminalResolver;
 use App\Support\VariantImageResolver;
@@ -237,7 +238,20 @@ class VentaController extends Controller
         }
 
         if ($saldoAplicado > 0) {
-            $saldoDisponible = $this->saldoDisponibleCliente($empresaId, $sucursalId, (int) $datos['cliente_id']);
+            $servicioSaldo = app(ClienteSaldoServicio::class);
+            $pedidoTopes = collect($datos['detalles'])
+                ->filter(fn ($detalle) => ! empty($detalle['pedido_id']))
+                ->groupBy(fn ($detalle) => (int) $detalle['pedido_id'])
+                ->map(fn ($lineas) => round((float) $lineas->sum(fn ($detalle) => (float) $detalle['precio_venta'] * (int) $detalle['cantidad']), 2));
+            $todosSonPedido = count($datos['detalles']) > 0
+                && collect($datos['detalles'])->every(fn ($detalle) => ! empty($detalle['pedido_id']));
+            $resumenSaldo = $servicioSaldo->resumen($empresaId, $sucursalId, (int) $datos['cliente_id']);
+            $reservadoAplicable = $servicioSaldo
+                ->saldosPedidos($empresaId, $sucursalId, (int) $datos['cliente_id'], $pedidoTopes->keys()->all())
+                ->map(fn ($saldo, $pedidoId) => min((float) $saldo, (float) ($pedidoTopes[$pedidoId] ?? 0)))
+                ->sum();
+            $permiteLegacy = $todosSonPedido || ! $this->clienteTieneProductosPendientes($empresaId, $sucursalId, (int) $datos['cliente_id']);
+            $saldoDisponible = round($resumenSaldo['general'] + $reservadoAplicable + ($permiteLegacy ? $resumenSaldo['legacy'] : 0), 2);
 
             if ($saldoAplicado > $saldoDisponible) {
                 return response()->json([
@@ -246,29 +260,6 @@ class VentaController extends Controller
                 ], 422);
             }
 
-            if ($this->clienteTieneProductosPendientes($empresaId, $sucursalId, (int) $datos['cliente_id'])) {
-                $detalleIds = collect($datos['detalles'])
-                    ->pluck('pedido_detalle_id')
-                    ->filter()
-                    ->unique()
-                    ->values();
-
-                $detallesValidos = PedidoDetalle::whereIn('id', $detalleIds)
-                    ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
-                    ->whereHas('pedido', fn($query) => $query
-                        ->where('empresa_id', $empresaId)
-                        ->where('sucursal_id', $sucursalId)
-                        ->where('cliente_id', $datos['cliente_id'])
-                        ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
-                    ->count();
-
-                if ($detalleIds->count() !== count($datos['detalles']) || $detallesValidos !== $detalleIds->count()) {
-                    return response()->json([
-                        'message' => 'El cliente tiene productos pendientes. Su saldo a favor solo puede usarse para liquidar esos pedidos o apartados.',
-                        'campo' => 'saldo_aplicado',
-                    ], 422);
-                }
-            }
         }
 
         if ($totalACobrar > 0 && empty($pagos)) {
@@ -522,11 +513,11 @@ class VentaController extends Controller
             $venta->recalcularTotales();
 
             if ($saldoAplicado > 0) {
-                $this->registrarAplicacionSaldo(
+                app(ClienteSaldoServicio::class)->aplicarEnVenta(
                     $venta,
-                    $corte,
-                    (int) $datos['cliente_id'],
-                    $saldoAplicado
+                    $saldoAplicado,
+                    isset($pedidoTopes) ? $pedidoTopes->all() : [],
+                    $permiteLegacy ?? false
                 );
             }
 
@@ -657,29 +648,6 @@ class VentaController extends Controller
             ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
             ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
             ->exists();
-    }
-
-    private function registrarAplicacionSaldo(Venta $venta, CorteCaja $corte, int $clienteId, float $monto): void
-    {
-        $saldoAnterior = $this->saldoDisponibleCliente(
-            (int) $venta->empresa_id,
-            (int) $venta->sucursal_id,
-            $clienteId
-        );
-
-        ClienteSaldoMovimiento::create([
-            'empresa_id' => $venta->empresa_id,
-            'sucursal_id' => $venta->sucursal_id,
-            'cliente_id' => $clienteId,
-            'venta_id' => $venta->id,
-            'corte_id' => $corte->id,
-            'user_id' => Auth::id(),
-            'tipo' => 'aplicacion',
-            'forma_pago' => 'saldo_favor',
-            'monto' => $monto,
-            'saldo_resultante' => max(0, $saldoAnterior - $monto),
-            'concepto' => "Aplicacion de saldo en venta {$venta->folio}",
-        ]);
     }
 
     private function entregarPedidoDetalle(

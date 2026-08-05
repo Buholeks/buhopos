@@ -33,8 +33,6 @@ use App\Http\Controllers\InventarioAjusteRapidoController;
 use App\Http\Controllers\SerieController;
 use App\Http\Controllers\TraspasoController;
 
-use App\Http\Controllers\CompraProveedorController;
-use App\Http\Controllers\AbonoProveedorController;
 use App\Http\Controllers\PagoProveedorController;
 
 use App\Http\Controllers\ReporteCajaController;
@@ -234,17 +232,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [DevolucionProveedorController::class, 'store']);
         Route::delete('/{devolucionId}', [DevolucionProveedorController::class, 'destroy']);
     });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Compras proveedor / Abonos proveedor
-    | OJO: Si ya usas CompraController + pagos, estos podrían sobrar después.
-    |--------------------------------------------------------------------------
-    */
-
-    Route::get('/compras-proveedor', [CompraProveedorController::class, 'index']);
-    Route::post('/compras-proveedor', [CompraProveedorController::class, 'store']);
-    Route::post('/abonos-proveedor', [AbonoProveedorController::class, 'store']);
 
     /*
     |--------------------------------------------------------------------------

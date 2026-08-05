@@ -67,10 +67,16 @@ class PagoProveedorController extends Controller
         ]);
 
         DB::transaction(function () use ($data, $compra, $request, $empresaId, $sucursalId) {
+            // lockForUpdate: relee y bloquea la compra dentro de la transacción para que dos
+            // pagos simultáneos no calculen "pagado/saldo" sobre el mismo valor desactualizado.
+            $compraLocked = Compra::where('id', $compra->id)->lockForUpdate()->firstOrFail();
+
+            abort_if((float) $data['monto'] > (float) $compraLocked->saldo, 422, 'El monto excede el saldo pendiente de la compra.');
+
             PagoProveedor::create([
                 'empresa_id'  => $empresaId,
                 'sucursal_id' => $sucursalId,
-                'compra_id'   => $compra->id,
+                'compra_id'   => $compraLocked->id,
                 'user_id'     => $request->user()->id,
                 'monto'       => $data['monto'],
                 'fecha_pago'  => $data['fecha_pago'],
@@ -80,12 +86,12 @@ class PagoProveedorController extends Controller
                 'notas'       => $data['notas'] ?? null,
             ]);
 
-            $nuevoPagado = round($compra->pagado + $data['monto'], 2);
-            $nuevoSaldo  = round(max(0, $compra->total - $nuevoPagado), 2);
+            $nuevoPagado = round($compraLocked->pagado + $data['monto'], 2);
+            $nuevoSaldo  = round(max(0, $compraLocked->total - $nuevoPagado), 2);
 
             // DB::table bypasea $fillable — solución segura
             DB::table('compras')
-                ->where('id', $compra->id)
+                ->where('id', $compraLocked->id)
                 ->update([
                     'pagado'     => $nuevoPagado,
                     'saldo'      => $nuevoSaldo,
@@ -120,11 +126,13 @@ class PagoProveedorController extends Controller
             ->findOrFail($pagoId);
 
         DB::transaction(function () use ($pago, $compra) {
-            $nuevoPagado = round(max(0, $compra->pagado - $pago->monto), 2);
-            $nuevoSaldo  = round($compra->total - $nuevoPagado, 2);
+            $compraLocked = Compra::where('id', $compra->id)->lockForUpdate()->firstOrFail();
+
+            $nuevoPagado = round(max(0, $compraLocked->pagado - $pago->monto), 2);
+            $nuevoSaldo  = round($compraLocked->total - $nuevoPagado, 2);
 
             DB::table('compras')
-                ->where('id', $compra->id)
+                ->where('id', $compraLocked->id)
                 ->update([
                     'pagado'     => $nuevoPagado,
                     'saldo'      => $nuevoSaldo,

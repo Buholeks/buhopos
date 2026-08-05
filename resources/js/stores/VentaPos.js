@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref, watch } from "vue";
 import http from "@/lib/http";
+import { generarIdempotencyKey } from "@/lib/idempotency";
 
 function nuevaLineaPago(formaPago = "efectivo", monto = 0) {
     return {
@@ -15,18 +16,6 @@ function nuevaLineaPago(formaPago = "efectivo", monto = 0) {
 function fechaLocal() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function generarIdempotencyKey() {
-    if (typeof crypto !== "undefined" && crypto.randomUUID) {
-        return crypto.randomUUID();
-    }
-
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        const v = c === "x" ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-    });
 }
 
 export const useVentaPosStore = defineStore("VentaPos", () => {

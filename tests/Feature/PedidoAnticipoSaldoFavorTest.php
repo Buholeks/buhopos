@@ -14,6 +14,7 @@ use App\Models\Producto;
 use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -840,6 +841,71 @@ class PedidoAnticipoSaldoFavorTest extends TestCase
             'saldo_aplicado' => 150, 'pagos' => [['forma_pago' => 'efectivo', 'monto' => 0]],
             'detalles' => [['producto_id' => $producto->id, 'cantidad' => 1, 'precio_venta' => 150]],
         ])->assertStatus(422)->assertJsonFragment(['campo' => 'saldo_aplicado']);
+    }
+
+    public function test_abonar_con_idempotency_key_repetida_no_duplica_el_abono(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+        $corte = CorteCaja::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'user_id' => $user->id, 'estado' => 'abierto', 'terminal' => 'POS-01', 'fecha_apertura' => now(), 'fondo_inicial_efectivo' => 0]);
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'pedido', 'cliente_id' => $cliente->id,
+            'detalles' => [['producto_id' => $producto->id, 'descripcion' => 'Pedido', 'cantidad' => 1, 'precio_acordado' => 500]],
+        ])->assertCreated();
+        $pedidoId = $pedido->json('id');
+
+        $payload = ['monto' => 100, 'forma_pago' => 'efectivo', 'idempotency_key' => 'abono-key-1'];
+        $primera = $this->postJson("/api/pedidos/{$pedidoId}/abonos", $payload)->assertOk();
+        $segunda = $this->postJson("/api/pedidos/{$pedidoId}/abonos", $payload)->assertOk();
+
+        $this->assertSame($primera->json(), $segunda->json());
+        $this->assertSame(100.0, (float) Pedido::find($pedidoId)->anticipo);
+        $this->assertSame(1, ClienteSaldoMovimiento::where('pedido_id', $pedidoId)->where('tipo', 'abono')->count());
+        $this->assertSame(1, DB::table('movimientos_caja')->where('corte_id', $corte->id)->where('concepto', 'like', 'Anticipo%')->count());
+    }
+
+    public function test_cancelar_con_idempotency_key_repetida_no_duplica_el_saldo_transferido(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+        Inventario::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'producto_id' => $producto->id, 'variante_id' => null, 'stock' => 5]);
+        CorteCaja::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'user_id' => $user->id, 'estado' => 'abierto', 'terminal' => 'POS-01', 'fecha_apertura' => now(), 'fondo_inicial_efectivo' => 0]);
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'apartado', 'cliente_id' => $cliente->id, 'anticipo' => 250, 'forma_pago' => 'efectivo',
+            'detalles' => [['producto_id' => $producto->id, 'descripcion' => 'Renglon cancelado', 'cantidad' => 1, 'precio_acordado' => 500]],
+        ])->assertCreated();
+        $pedidoId = $pedido->json('id');
+
+        $payload = ['destino_saldo' => 'mantener_saldo', 'idempotency_key' => 'cancelar-key-1'];
+        $primera = $this->postJson("/api/pedidos/{$pedidoId}/cancelar", $payload)->assertOk();
+        $segunda = $this->postJson("/api/pedidos/{$pedidoId}/cancelar", $payload)->assertOk();
+
+        $this->assertSame($primera->json(), $segunda->json());
+        $this->assertSame(250.0, (float) $this->saldoFavor($cliente->id));
+        $this->assertSame(1, ClienteSaldoMovimiento::where('pedido_id', $pedidoId)->where('tipo', 'ajuste_credito')->where('alcance', 'general')->count());
+    }
+
+    public function test_eliminar_abono_con_idempotency_key_repetida_no_duplica_el_egreso(): void
+    {
+        [$user, $cliente, $producto] = $this->crearContexto();
+        Sanctum::actingAs($user);
+        $corte = CorteCaja::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'user_id' => $user->id, 'estado' => 'abierto', 'terminal' => 'POS-01', 'fecha_apertura' => now(), 'fondo_inicial_efectivo' => 0]);
+        Inventario::create(['empresa_id' => $user->empresa_id, 'sucursal_id' => $user->sucursal_id, 'producto_id' => $producto->id, 'variante_id' => null, 'stock' => 5]);
+        $pedido = $this->postJson('/api/pedidos', [
+            'tipo' => 'apartado', 'cliente_id' => $cliente->id, 'anticipo' => 150, 'forma_pago' => 'efectivo',
+            'detalles' => [['producto_id' => $producto->id, 'descripcion' => 'Renglon', 'cantidad' => 1, 'precio_acordado' => 500]],
+        ])->assertCreated();
+        $pedidoId = $pedido->json('id');
+        $abonoId = ClienteSaldoMovimiento::where('pedido_id', $pedidoId)->where('tipo', 'abono')->firstOrFail()->id;
+
+        $payload = ['idempotency_key' => 'eliminar-abono-key-1'];
+        $primera = $this->deleteJson("/api/pedidos/{$pedidoId}/abonos/{$abonoId}", $payload)->assertOk();
+        $segunda = $this->deleteJson("/api/pedidos/{$pedidoId}/abonos/{$abonoId}", $payload)->assertOk();
+
+        $this->assertSame($primera->json(), $segunda->json());
+        $this->assertSame(0.0, (float) $corte->fresh()->movs_efectivo);
+        $this->assertSame(1, ClienteSaldoMovimiento::where('movimiento_origen_id', $abonoId)->where('tipo', 'reverso_credito')->count());
+        $this->assertSame(1, DB::table('movimientos_caja')->where('corte_id', $corte->id)->where('tipo', 'egreso')->count());
     }
 
     private function crearContexto(): array

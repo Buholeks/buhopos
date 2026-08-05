@@ -179,7 +179,7 @@
 
                                 <td class="px-4 py-3">
                                     <div class="flex items-center justify-end gap-2">
-                                        <button type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-600 transition hover:bg-emerald-50" title="Estado de cuenta" @click="openEstadoCuenta(c)">
+                                        <button v-if="puedeVerSaldos" type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-600 transition hover:bg-emerald-50" title="Estado de cuenta" @click="openEstadoCuenta(c)">
                                             <WalletCards class="h-4 w-4" />
                                         </button>
                                         <button
@@ -285,12 +285,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { computed, ref, onMounted } from "vue";
 import http from "@/lib/http";
 import { confirm, toastSuccess, toastWarning, error } from "@/lib/alert";
 import ProveedorModal from "@/components/proveedores/ProveedorModal.vue";
 import ProveedorEstadoCuenta from "@/components/proveedores/ProveedorEstadoCuenta.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
+import { useAuthStore } from "@/stores/auth";
 
 import {
     Building2,
@@ -310,6 +311,11 @@ import {
     XCircle,
     WalletCards,
 } from "lucide-vue-next";
+
+const auth = useAuthStore();
+const puedeVerSaldos = computed(
+    () => auth.can("proveedores.saldos.ver") || auth.can("catalogos.ver"),
+);
 
 const q = ref("");
 const soloConSaldo = ref(false);

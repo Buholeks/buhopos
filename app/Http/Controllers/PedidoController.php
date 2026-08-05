@@ -18,6 +18,8 @@ use App\Models\VarianteAtributo;
 use App\Services\FolioService;
 use App\Support\TerminalResolver;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -657,10 +659,52 @@ class PedidoController extends Controller
         return response()->json($detalles);
     }
 
+    /**
+     * Busca una respuesta ya guardada para este idempotency_key. Si existe, la petición
+     * es un doble clic/reintento del mismo intento: hay que devolver exactamente lo que
+     * se devolvió la primera vez, sin volver a tocar dinero/inventario.
+     */
+    private function idempotenciaExistente(int $empresaId, string $accion, ?string $clave): ?array
+    {
+        if (empty($clave)) {
+            return null;
+        }
+
+        $registro = DB::table('idempotencias')
+            ->where('empresa_id', $empresaId)
+            ->where('accion', $accion)
+            ->where('clave', $clave)
+            ->first();
+
+        if (! $registro) {
+            return null;
+        }
+
+        return ['status' => (int) $registro->status_code, 'body' => json_decode($registro->respuesta, true)];
+    }
+
+    private function guardarIdempotencia(int $empresaId, string $accion, ?string $clave, array $respuesta, int $status): void
+    {
+        if (empty($clave)) {
+            return;
+        }
+
+        DB::table('idempotencias')->insert([
+            'empresa_id' => $empresaId,
+            'accion' => $accion,
+            'clave' => $clave,
+            'status_code' => $status,
+            'respuesta' => json_encode($respuesta),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     public function abonar(Request $request, int $id): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
         $user = Auth::user();
+        $empresaId = (int) $user->empresa_id;
         $terminal = TerminalResolver::fromRequest($request);
 
         $data = $request->validate([
@@ -674,11 +718,18 @@ class PedidoController extends Controller
                 'required_if:forma_pago,tarjeta', 'nullable', 'integer',
                 Rule::exists('terminales_pago', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
             ],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
         ]);
+
+        $clave = $data['idempotency_key'] ?? null;
+        $existente = $this->idempotenciaExistente($empresaId, 'pedidos.abonar', $clave);
+        if ($existente) {
+            return response()->json($existente['body'], $existente['status']);
+        }
 
         $monto = (float) $data['monto'];
 
-        $corte = $this->corteAbierto((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
+        $corte = $this->corteAbierto($empresaId, (int) $user->sucursal_id, $terminal);
         if (! $corte) {
             return response()->json(['message' => 'No hay caja abierta para registrar el abono.'], 422);
         }
@@ -715,15 +766,27 @@ class PedidoController extends Controller
                 $data['terminal_pago_id'] ?? null
             );
 
-            DB::commit();
-            return response()->json($pedido->fresh()->load([
+            $respuesta = $pedido->fresh()->load([
                 'cliente', 'detalles',
                 'saldos.movimientoCaja.cuentaBancaria:id,nombre,banco',
                 'saldos.movimientoCaja.terminalPago:id,nombre,banco',
-            ]));
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            ])->toArray();
+            $this->guardarIdempotencia($empresaId, 'pedidos.abonar', $clave, $respuesta, 200);
+
+            DB::commit();
+            return response()->json($respuesta);
+        } catch (ModelNotFoundException $e) {
             DB::rollBack();
             throw $e;
+        } catch (QueryException $e) {
+            DB::rollBack();
+            // Índice único de idempotencias: dos envíos casi simultáneos del mismo abono
+            // (doble clic, reintento tras timeout) chocan aquí; el que pierde la carrera
+            // regresa la respuesta que sí se guardó, en vez de un error.
+            if ($e->getCode() === '23000' && ($retry = $this->idempotenciaExistente($empresaId, 'pedidos.abonar', $clave))) {
+                return response()->json($retry['body'], $retry['status']);
+            }
+            return response()->json(['message' => $e->getMessage()], 500);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -734,9 +797,19 @@ class PedidoController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
         $user = Auth::user();
+        $empresaId = (int) $user->empresa_id;
         $terminal = TerminalResolver::fromRequest($request);
 
-        $corte = $this->corteAbierto((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
+        $data = $request->validate([
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
+        ]);
+        $clave = $data['idempotency_key'] ?? null;
+        $existente = $this->idempotenciaExistente($empresaId, 'pedidos.eliminarAbono', $clave);
+        if ($existente) {
+            return response()->json($existente['body'], $existente['status']);
+        }
+
+        $corte = $this->corteAbierto($empresaId, (int) $user->sucursal_id, $terminal);
         if (! $corte) {
             return response()->json(['message' => 'No hay caja abierta para registrar el egreso del abono eliminado.'], 422);
         }
@@ -818,18 +891,27 @@ class PedidoController extends Controller
                 'concepto' => "Reversión de abono {$pedido->folio}",
             ]);
 
-            DB::commit();
-            return response()->json([
+            $respuesta = [
                 'message' => 'Abono eliminado. Se registró un egreso de $' . number_format($monto, 2) . ' en la caja actual.',
                 'pedido' => $pedido->fresh()->load([
-                'cliente', 'detalles',
-                'saldos.movimientoCaja.cuentaBancaria:id,nombre,banco',
-                'saldos.movimientoCaja.terminalPago:id,nombre,banco',
-            ]),
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+                    'cliente', 'detalles',
+                    'saldos.movimientoCaja.cuentaBancaria:id,nombre,banco',
+                    'saldos.movimientoCaja.terminalPago:id,nombre,banco',
+                ])->toArray(),
+            ];
+            $this->guardarIdempotencia($empresaId, 'pedidos.eliminarAbono', $clave, $respuesta, 200);
+
+            DB::commit();
+            return response()->json($respuesta);
+        } catch (ModelNotFoundException $e) {
             DB::rollBack();
             throw $e;
+        } catch (QueryException $e) {
+            DB::rollBack();
+            if ($e->getCode() === '23000' && ($retry = $this->idempotenciaExistente($empresaId, 'pedidos.eliminarAbono', $clave))) {
+                return response()->json($retry['body'], $retry['status']);
+            }
+            return response()->json(['message' => $e->getMessage()], 500);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -921,6 +1003,7 @@ class PedidoController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.cancelar'), 403, 'Sin permiso: pedidos.cancelar');
         $user = Auth::user();
+        $empresaId = (int) $user->empresa_id;
         $terminal = TerminalResolver::fromRequest($request);
 
         $data = $request->validate([
@@ -930,7 +1013,14 @@ class PedidoController extends Controller
                 'required_if:destino_saldo,transferencia', 'nullable', 'integer',
                 Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
             ],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
         ]);
+
+        $clave = $data['idempotency_key'] ?? null;
+        $existente = $this->idempotenciaExistente($empresaId, 'pedidos.cancelar', $clave);
+        if ($existente) {
+            return response()->json($existente['body'], $existente['status']);
+        }
 
         $destinoSaldo = $data['destino_saldo'] ?? 'mantener_saldo';
         $montoDevolucionSolicitado = round((float) ($data['monto_devolucion'] ?? 0), 2);
@@ -1043,8 +1133,6 @@ class PedidoController extends Controller
                 $this->transferirSaldoPedidoAGeneral($pedido, $user->id);
             }
 
-            DB::commit();
-
             $huboEntrega = $pedido->estado !== 'cancelado';
             $mensaje = $huboEntrega
                 ? 'Se canceló la parte pendiente del pedido. Los renglones ya entregados no se modificaron.'
@@ -1058,13 +1146,23 @@ class PedidoController extends Controller
                 }
             }
 
-            return response()->json([
+            $respuesta = [
                 'message' => $mensaje,
-                'pedido' => $pedido->load(['cliente', 'detalles']),
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+                'pedido' => $pedido->load(['cliente', 'detalles'])->toArray(),
+            ];
+            $this->guardarIdempotencia($empresaId, 'pedidos.cancelar', $clave, $respuesta, 200);
+
+            DB::commit();
+            return response()->json($respuesta);
+        } catch (ModelNotFoundException $e) {
             DB::rollBack();
             throw $e;
+        } catch (QueryException $e) {
+            DB::rollBack();
+            if ($e->getCode() === '23000' && ($retry = $this->idempotenciaExistente($empresaId, 'pedidos.cancelar', $clave))) {
+                return response()->json($retry['body'], $retry['status']);
+            }
+            return response()->json(['message' => $e->getMessage()], 500);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -1075,6 +1173,7 @@ class PedidoController extends Controller
     {
         abort_unless(Auth::user()->tienePermiso('pedidos.cancelar'), 403, 'Sin permiso: pedidos.cancelar');
         $user = Auth::user();
+        $empresaId = (int) $user->empresa_id;
         $terminal = TerminalResolver::fromRequest($request);
 
         $data = $request->validate([
@@ -1084,7 +1183,14 @@ class PedidoController extends Controller
                 'required_if:destino_saldo,transferencia', 'nullable', 'integer',
                 Rule::exists('cuentas_bancarias', 'id')->where(fn($q) => $q->where('empresa_id', $user->empresa_id)->where('activo', true)),
             ],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
         ]);
+
+        $clave = $data['idempotency_key'] ?? null;
+        $existente = $this->idempotenciaExistente($empresaId, 'pedidos.cancelarDetalle', $clave);
+        if ($existente) {
+            return response()->json($existente['body'], $existente['status']);
+        }
 
         $destinoSaldo = $data['destino_saldo'] ?? 'mantener_saldo';
         $montoDevolucionSolicitado = round((float) ($data['monto_devolucion'] ?? 0), 2);
@@ -1173,8 +1279,6 @@ class PedidoController extends Controller
                 $this->transferirSaldoPedidoAGeneral($pedido, $user->id);
             }
 
-            DB::commit();
-
             $mensaje = 'Renglón cancelado.';
             if ((float) $pedido->anticipo > 0) {
                 if ($montoDevuelto > 0) {
@@ -1184,13 +1288,23 @@ class PedidoController extends Controller
                 }
             }
 
-            return response()->json([
+            $respuesta = [
                 'message' => $mensaje,
-                'pedido' => $pedido->load(['cliente', 'detalles']),
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+                'pedido' => $pedido->load(['cliente', 'detalles'])->toArray(),
+            ];
+            $this->guardarIdempotencia($empresaId, 'pedidos.cancelarDetalle', $clave, $respuesta, 200);
+
+            DB::commit();
+            return response()->json($respuesta);
+        } catch (ModelNotFoundException $e) {
             DB::rollBack();
             throw $e;
+        } catch (QueryException $e) {
+            DB::rollBack();
+            if ($e->getCode() === '23000' && ($retry = $this->idempotenciaExistente($empresaId, 'pedidos.cancelarDetalle', $clave))) {
+                return response()->json($retry['body'], $retry['status']);
+            }
+            return response()->json(['message' => $e->getMessage()], 500);
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);

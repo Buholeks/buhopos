@@ -1,6 +1,7 @@
 import { computed, reactive, ref } from 'vue'
 import http from '@/lib/http'
 import { confirm, toastError, toastSuccess, toastWarning } from '@/lib/alert'
+import { generarIdempotencyKey } from '@/lib/idempotency'
 
 export function useEncargos({ tipo = 'pedido' } = {}) {
     const pedidos = ref([])
@@ -15,6 +16,12 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
     const abonos = reactive({})
     const cuentasBancarias = ref([])
     const terminalesPago = ref([])
+    // Claves de idempotencia por acción en curso: se generan una sola vez por intento
+    // (cancelar este pedido/renglón, eliminar este abono) y se reusan si el usuario
+    // reintenta (doble clic, timeout de red) para que el backend no duplique el
+    // movimiento de dinero. Se liberan cuando la acción termina, sea éxito o error.
+    const clavesCancelacion = reactive({})
+    const clavesEliminarAbono = reactive({})
 
     const form = reactive({
         tipo,
@@ -72,7 +79,7 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
 
     function inicializarAbono(pedidoId) {
         if (!abonos[pedidoId]) {
-            abonos[pedidoId] = { monto: '', forma_pago: 'efectivo', cuenta_bancaria_id: '', terminal_pago_id: '' }
+            abonos[pedidoId] = { monto: '', forma_pago: 'efectivo', cuenta_bancaria_id: '', terminal_pago_id: '', idempotency_key: generarIdempotencyKey() }
         }
     }
 
@@ -252,8 +259,9 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
                 forma_pago: formaPago,
                 cuenta_bancaria_id: formaPago === 'transferencia' ? estado.cuenta_bancaria_id || null : null,
                 terminal_pago_id: formaPago === 'tarjeta' ? estado.terminal_pago_id || null : null,
+                idempotency_key: estado.idempotency_key || generarIdempotencyKey(),
             })
-            abonos[pedido.id] = { monto: '', forma_pago: 'efectivo', cuenta_bancaria_id: '', terminal_pago_id: '' }
+            abonos[pedido.id] = { monto: '', forma_pago: 'efectivo', cuenta_bancaria_id: '', terminal_pago_id: '', idempotency_key: generarIdempotencyKey() }
             toastSuccess('Abono registrado')
             await cargarPedidos()
         } catch (e) {
@@ -262,13 +270,21 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
     }
 
     async function cancelarPedido(pedido, payload = {}) {
-        const { data } = await http.post(`/api/pedidos/${pedido.id}/cancelar`, payload)
+        // La clave se genera una sola vez por intento y sólo se libera si la petición
+        // tiene éxito: si falla (red, validación), se conserva para que un reintento
+        // del mismo intento reutilice la misma clave en vez de generar una nueva.
+        const clave = clavesCancelacion[pedido.id] || (clavesCancelacion[pedido.id] = generarIdempotencyKey())
+        const { data } = await http.post(`/api/pedidos/${pedido.id}/cancelar`, { ...payload, idempotency_key: clave })
+        delete clavesCancelacion[pedido.id]
         toastSuccess(data?.message || 'Cancelado correctamente')
         await cargarPedidos()
     }
 
     async function cancelarDetalle(pedido, detalle, payload = {}) {
-        const { data } = await http.post(`/api/pedidos/${pedido.id}/detalles/${detalle.id}/cancelar`, payload)
+        const claveId = `${pedido.id}:${detalle.id}`
+        const clave = clavesCancelacion[claveId] || (clavesCancelacion[claveId] = generarIdempotencyKey())
+        const { data } = await http.post(`/api/pedidos/${pedido.id}/detalles/${detalle.id}/cancelar`, { ...payload, idempotency_key: clave })
+        delete clavesCancelacion[claveId]
         toastSuccess(data?.message || 'Cancelado correctamente')
         await cargarPedidos()
     }
@@ -281,8 +297,10 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         })
         if (!ok) return false
 
+        const clave = clavesEliminarAbono[abonoId] || (clavesEliminarAbono[abonoId] = generarIdempotencyKey())
         try {
-            const { data } = await http.delete(`/api/pedidos/${pedido.id}/abonos/${abonoId}`)
+            const { data } = await http.delete(`/api/pedidos/${pedido.id}/abonos/${abonoId}`, { data: { idempotency_key: clave } })
+            delete clavesEliminarAbono[abonoId]
             toastSuccess(data?.message || 'Abono eliminado')
             await cargarPedidos()
             return true

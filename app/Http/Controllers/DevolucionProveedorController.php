@@ -457,11 +457,14 @@ class DevolucionProveedorController extends Controller
 
     private function saldoFavorProveedor(int $empresaId, int $sucursalId, int $proveedorId): float
     {
+        // lockForUpdate: evita que una anulación y una aplicación de saldo concurrentes
+        // lean el mismo saldo "viejo" y dejen el saldo a favor en negativo.
         return (float) ProveedorSaldoMovimiento::where([
             'empresa_id' => $empresaId,
             'sucursal_id' => $sucursalId,
             'proveedor_id' => $proveedorId,
-        ])->selectRaw('COALESCE(SUM(' . ProveedorSaldoMovimiento::expresionSaldo() . '), 0) AS saldo')
+        ])->lockForUpdate()
+            ->selectRaw('COALESCE(SUM(' . ProveedorSaldoMovimiento::expresionSaldo() . '), 0) AS saldo')
             ->value('saldo');
     }
 }

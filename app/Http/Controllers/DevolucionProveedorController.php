@@ -288,7 +288,7 @@ class DevolucionProveedorController extends Controller
                 ->findOrFail($devolucionId);
 
             abort_if(
-                $devolucion->estado === 'anulada',
+                $devolucion->estado === 'cancelada',
                 422,
                 'Esta devolución ya fue anulada.'
             );
@@ -345,8 +345,26 @@ class DevolucionProveedorController extends Controller
                 })->update(['estado' => 'disponible']);
             }
 
-            // Revertir movimiento de saldo de proveedor si aplica
-            ProveedorSaldoMovimiento::where('devolucion_proveedor_id', $devolucion->id)->delete();
+            // Conservar la trazabilidad: la anulación se registra como contramovimiento.
+            $creditoOriginal = ProveedorSaldoMovimiento::where('devolucion_proveedor_id', $devolucion->id)
+                ->where('tipo', 'credito')
+                ->lockForUpdate()
+                ->first();
+            if ($creditoOriginal) {
+                $saldoActual = $this->saldoFavorProveedor($devolucion->empresa_id, $devolucion->sucursal_id, $devolucion->proveedor_id);
+                abort_if($saldoActual < (float) $creditoOriginal->monto, 422, 'No puedes anular esta devolución porque su saldo ya fue aplicado en otra compra.');
+                ProveedorSaldoMovimiento::create([
+                    'empresa_id' => $devolucion->empresa_id,
+                    'sucursal_id' => $devolucion->sucursal_id,
+                    'proveedor_id' => $devolucion->proveedor_id,
+                    'user_id' => $user->id,
+                    'devolucion_proveedor_id' => $devolucion->id,
+                    'tipo' => 'reverso_credito',
+                    'monto' => $creditoOriginal->monto,
+                    'saldo_resultante' => round($saldoActual - (float) $creditoOriginal->monto, 2),
+                    'concepto' => "Anulación de {$creditoOriginal->concepto}",
+                ]);
+            }
 
             // Revertir movimiento de caja si aplica
             if ($devolucion->movimiento_caja_id) {
@@ -363,7 +381,7 @@ class DevolucionProveedorController extends Controller
                 'updated_at' => now(),
             ]);
 
-            $devolucion->update(['estado' => 'anulada']);
+            $devolucion->update(['estado' => 'cancelada']);
         });
 
         return response()->json(['message' => 'Devolución anulada correctamente.']);
@@ -443,7 +461,7 @@ class DevolucionProveedorController extends Controller
             'empresa_id' => $empresaId,
             'sucursal_id' => $sucursalId,
             'proveedor_id' => $proveedorId,
-        ])->selectRaw("COALESCE(SUM(CASE WHEN tipo='credito' THEN monto ELSE -monto END), 0) AS saldo")
+        ])->selectRaw('COALESCE(SUM(' . ProveedorSaldoMovimiento::expresionSaldo() . '), 0) AS saldo')
             ->value('saldo');
     }
 }

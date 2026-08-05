@@ -1,18 +1,30 @@
 <template>
-    <section class="p-2 sm:p-6 space-y-4">
-        <HubSection title="Catalogos" :items="catalogosVisibles" />
-    </section>
+    <HubPage
+        title="Catálogos"
+        description="Información base del sistema organizada por tipo."
+        :groups="grupos"
+        search-placeholder="Buscar catálogo"
+    />
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import axios from "axios";
-import HubSection from "@/components/hub/HubSection.vue";
-import { Users, Truck, Tags, BadgeCheck, Package, SlidersHorizontal, Landmark, CreditCard } from "lucide-vue-next";
+import HubPage from "@/components/hub/HubPage.vue";
+import {
+    Users,
+    Truck,
+    Tags,
+    BadgeCheck,
+    Package,
+    SlidersHorizontal,
+    Landmark,
+    CreditCard,
+} from "lucide-vue-next";
 
 const tiposAtributo = ref([]);
 
-const catalogosBase = [
+const personas = [
     {
         label: "Clientes",
         icon: Users,
@@ -24,6 +36,15 @@ const catalogosBase = [
         icon: Truck,
         to: { name: "proveedores" },
         permiso: "catalogos.ver",
+    },
+];
+
+const productos = [
+    {
+        label: "Productos",
+        icon: Package,
+        to: { name: "productos" },
+        permiso: "productos.ver",
     },
     {
         label: "Categorías",
@@ -37,12 +58,9 @@ const catalogosBase = [
         to: { name: "marcas" },
         permiso: "catalogos.ver",
     },
-    {
-        label: "Productos",
-        icon: Package,
-        to: { name: "productos" },
-        permiso: "productos.ver",
-    },
+];
+
+const pagos = [
     {
         label: "Cuentas Bancarias",
         icon: Landmark,
@@ -57,14 +75,36 @@ const catalogosBase = [
     },
 ];
 
-const catalogosVisibles = computed(() => [
-    ...catalogosBase,
-    ...tiposAtributo.value.map((tipo) => ({
+const atributos = computed(() =>
+    tiposAtributo.value.map((tipo) => ({
         label: tipo.nombre,
         icon: SlidersHorizontal,
         to: { name: "catalogo-atributo-valores", params: { id: tipo.id } },
         permiso: "catalogos.ver",
     })),
+);
+
+const grupos = computed(() => [
+    {
+        title: "Personas y empresas",
+        description: "Clientes y socios comerciales.",
+        items: personas,
+    },
+    {
+        title: "Productos",
+        description: "Artículos y clasificaciones del catálogo.",
+        items: productos,
+    },
+    {
+        title: "Pagos",
+        description: "Cuentas y terminales disponibles.",
+        items: pagos,
+    },
+    {
+        title: "Atributos de producto",
+        description: "Valores configurables como color, talla o capacidad.",
+        items: atributos.value,
+    },
 ]);
 
 async function cargarAtributos() {

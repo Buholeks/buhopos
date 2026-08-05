@@ -58,7 +58,11 @@ export const useCompraStore = defineStore("compra", () => {
     );
     const saldoFavorAplicado = computed(() =>
         form.aplicar_saldo_favor
-            ? Math.min(saldoFavorDisponible.value, totalCompra.value)
+            ? Math.min(
+                  saldoFavorDisponible.value,
+                  totalCompra.value,
+                  Math.max(0, Number(form.saldo_favor_monto) || 0),
+              )
             : 0,
     );
     const restantePorPagar = computed(() =>
@@ -89,6 +93,7 @@ export const useCompraStore = defineStore("compra", () => {
             fecha_vencimiento: "",
             notas: "",
             aplicar_saldo_favor: false,
+            saldo_favor_monto: 0,
         };
     }
 
@@ -413,6 +418,9 @@ export const useCompraStore = defineStore("compra", () => {
                 fecha_vencimiento: form.fecha_vencimiento || null,
                 notas: form.notas || null,
                 aplicar_saldo_favor: Boolean(form.aplicar_saldo_favor),
+                saldo_favor_monto: form.aplicar_saldo_favor
+                    ? Number(form.saldo_favor_monto)
+                    : null,
                 detalles: detalles.value.map((d) => ({
                     producto_id: d.producto_id,
                     variante_id: d.variante_id ?? null,
@@ -471,6 +479,11 @@ export const useCompraStore = defineStore("compra", () => {
 
         if (key === 'proveedor_id') {
             form.aplicar_saldo_favor = false;
+            form.saldo_favor_monto = 0;
+        }
+
+        if (key === 'aplicar_saldo_favor' && value) {
+            form.saldo_favor_monto = Math.min(saldoFavorDisponible.value, totalCompra.value);
         }
 
         if (key === 'forma_pago' && !['credito', 'tarjeta_credito'].includes(value)) {

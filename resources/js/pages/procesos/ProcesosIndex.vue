@@ -1,12 +1,14 @@
 <template>
-    <main class="space-y-6 p-2 sm:p-6">
-        <HubSection title="Procesos" :items="procesos" />
-        <!-- <HubSection title="Consultas y reportes" :items="consultas" /> -->
-    </main>
+    <HubPage
+        title="Procesos"
+        description="Operaciones frecuentes organizadas por área."
+        :groups="grupos"
+        search-placeholder="Buscar proceso"
+    />
 </template>
 
 <script setup>
-import HubSection from "@/components/hub/HubSection.vue";
+import HubPage from "@/components/hub/HubPage.vue";
 
 import {
     ShoppingCart,
@@ -15,7 +17,6 @@ import {
     FileText,
     Wallet,
     RotateCcw,
-    ArrowDownUp,
     ClipboardCheck,
     Wrench,
     Landmark,
@@ -26,7 +27,7 @@ import {
     PackageMinus,
 } from "lucide-vue-next";
 
-const procesos = [
+const ventasPedidos = [
     {
         label: "Ventas",
         icon: ShoppingCart,
@@ -42,55 +43,6 @@ const procesos = [
         permiso: "ventas.cancelar",
     },
     {
-        label: "Compras",
-        icon: ReceiptText,
-        to: { name: "compras" },
-        badge: "Disponible",
-        permiso: "compras.crear",
-    },
-    {
-        label: "Corte de Caja",
-        icon: Landmark,
-        to: { name: "caja" },
-        badge: "Disponible",
-        permiso: "caja.abrir",
-    },
-    {
-        label: "Pagos a proveedores",
-        icon: Wallet,
-        to: { name: "reportes-pagos-proveedores" },
-        badge: "Disponible",
-        permiso: "compras.ver",
-    },
-    {
-        label: "Exhibición",
-        icon: PackageCheck,
-        to: { name: "exhibicion" },
-        badge: "Disponible",
-        permiso: "inventario.ver",
-    },
-    {
-        label: "Conteo fisico",
-        icon: ClipboardCheck,
-        to: { name: "conteo-inventario" },
-        badge: "Disponible",
-        permiso: "inventario.conteos.ver",
-    },
-    {
-        label: "Ajuste rapido",
-        icon: PackageMinus,
-        to: { name: "ajuste-rapido-inventario" },
-        badge: "Disponible",
-        permiso: "inventario.ajustes.crear",
-    },
-    {
-        label: "Nuevo traspaso",
-        icon: Repeat2,
-        to: { name: "traspasos-nuevo" },
-        badge: "Disponible",
-        permiso: "inventario.traspasos",
-    },
-    {
         label: "Nuevo pedido",
         icon: ClipboardList,
         to: { name: "pedidos-nuevo" },
@@ -104,6 +56,33 @@ const procesos = [
         badge: "Disponible",
         permiso: "pedidos.crear",
     },
+];
+
+const caja = [
+    {
+        label: "Corte de Caja",
+        icon: Landmark,
+        to: { name: "caja" },
+        badge: "Disponible",
+        permiso: "caja.abrir",
+    },
+];
+
+const compras = [
+    {
+        label: "Compras",
+        icon: ReceiptText,
+        to: { name: "compras" },
+        badge: "Disponible",
+        permiso: "compras.crear",
+    },
+    {
+        label: "Pagos a proveedores",
+        icon: Wallet,
+        to: { name: "reportes-pagos-proveedores" },
+        badge: "Disponible",
+        permiso: "compras.ver",
+    },
     {
         label: "Devolución a proveedor",
         icon: Undo2,
@@ -111,6 +90,40 @@ const procesos = [
         badge: "Disponible",
         permiso: "compras.crear",
     },
+];
+
+const inventario = [
+    {
+        label: "Exhibición",
+        icon: PackageCheck,
+        to: { name: "exhibicion" },
+        badge: "Disponible",
+        permiso: "inventario.ver",
+    },
+    {
+        label: "Conteo físico",
+        icon: ClipboardCheck,
+        to: { name: "conteo-inventario" },
+        badge: "Disponible",
+        permiso: "inventario.conteos.ver",
+    },
+    {
+        label: "Ajuste rápido",
+        icon: PackageMinus,
+        to: { name: "ajuste-rapido-inventario" },
+        badge: "Disponible",
+        permiso: "inventario.ajustes.crear",
+    },
+    {
+        label: "Nuevo traspaso",
+        icon: Repeat2,
+        to: { name: "traspasos-nuevo" },
+        badge: "Disponible",
+        permiso: "inventario.traspasos",
+    },
+];
+
+const herramientas = [
     {
         label: "Importar productos",
         icon: Upload,
@@ -118,6 +131,9 @@ const procesos = [
         badge: "Disponible",
         permiso: "productos.editar",
     },
+];
+
+const proximamente = [
     {
         label: "Cotizaciones",
         icon: FileText,
@@ -132,4 +148,12 @@ const procesos = [
     },
 ];
 
+const grupos = [
+    { title: "Ventas y pedidos", description: "Atención al cliente y encargos.", items: ventasPedidos },
+    { title: "Caja", description: "Operación diaria de efectivo y terminal.", items: caja },
+    { title: "Compras y proveedores", description: "Entradas, pagos y devoluciones.", items: compras },
+    { title: "Inventario", description: "Existencias, conteos y movimientos.", items: inventario },
+    { title: "Herramientas", description: "Utilidades para operaciones masivas.", items: herramientas },
+    { title: "Próximamente", description: "Funciones planeadas para versiones posteriores.", items: proximamente },
+];
 </script>

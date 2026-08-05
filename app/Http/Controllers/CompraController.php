@@ -82,6 +82,7 @@ class CompraController extends Controller
             'fecha_vencimiento' => ['nullable', 'date', 'after_or_equal:fecha'],
             'notas'             => ['nullable', 'string'],
             'aplicar_saldo_favor' => ['nullable', 'boolean'],
+            'saldo_favor_monto' => ['nullable', 'numeric', 'gt:0'],
 
             'detalles'                 => ['required', 'array', 'min:1'],
             'detalles.*.producto_id'   => ['required', 'exists:productos,id'],
@@ -226,7 +227,7 @@ class CompraController extends Controller
             $saldoFavorDisponible = 0;
             $saldoFavorAplicado = 0;
 
-            if ($datos['aplicar_saldo_favor'] ?? false) {
+            if (($datos['aplicar_saldo_favor'] ?? false) || isset($datos['saldo_favor_monto'])) {
                 $movimientosSaldo = ProveedorSaldoMovimiento::where([
                     'empresa_id' => $empresaId,
                     'sucursal_id' => $sucursalId,
@@ -234,11 +235,14 @@ class CompraController extends Controller
                 ])->lockForUpdate()->get(['tipo', 'monto']);
 
                 $saldoFavorDisponible = (float) $movimientosSaldo->sum(
-                    fn($movimiento) => $movimiento->tipo === 'credito'
+                    fn($movimiento) => in_array($movimiento->tipo, ProveedorSaldoMovimiento::TIPOS_CREDITO, true)
                         ? (float) $movimiento->monto
                         : -(float) $movimiento->monto
                 );
-                $saldoFavorAplicado = round(min(max(0, $saldoFavorDisponible), (float) $compra->total), 2);
+                $montoSolicitado = isset($datos['saldo_favor_monto'])
+                    ? (float) $datos['saldo_favor_monto']
+                    : (float) $compra->total;
+                $saldoFavorAplicado = round(min(max(0, $saldoFavorDisponible), $montoSolicitado, (float) $compra->total), 2);
             }
 
             $updateFinal = [

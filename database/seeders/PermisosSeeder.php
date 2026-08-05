@@ -66,6 +66,8 @@ class PermisosSeeder extends Seeder
             // ── Catálogos ─────────────────────────────────────────────────────
             ['modulo' => 'catalogos',  'clave' => 'catalogos.ver',            'descripcion' => 'Ver catálogos: proveedores, categorías, marcas, atributos'],
             ['modulo' => 'catalogos',  'clave' => 'catalogos.editar',         'descripcion' => 'Crear y editar registros de catálogos'],
+            ['modulo' => 'proveedores','clave' => 'proveedores.saldos.ver',   'descripcion' => 'Consultar saldos y estados de cuenta de proveedores'],
+            ['modulo' => 'proveedores','clave' => 'proveedores.saldos.ajustar','descripcion' => 'Registrar ajustes de saldo de proveedores'],
 
             // ── Usuarios ──────────────────────────────────────────────────────
             ['modulo' => 'usuarios',   'clave' => 'usuarios.gestionar',       'descripcion' => 'Crear, editar y activar usuarios; asignar sucursales y roles'],

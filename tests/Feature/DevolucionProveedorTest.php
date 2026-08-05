@@ -9,6 +9,7 @@ use App\Models\Empresa;
 use App\Models\Inventario;
 use App\Models\Producto;
 use App\Models\Proveedor;
+use App\Models\ProveedorSaldoMovimiento;
 use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -55,6 +56,7 @@ class DevolucionProveedorTest extends TestCase
             'sucursal_id' => $user->sucursal_id,
             'user_id' => $user->id,
             'estado' => 'abierto',
+            'terminal' => 'POS-01',
             'fecha_apertura' => now(),
             'fondo_inicial_efectivo' => 0,
         ]);
@@ -143,6 +145,88 @@ class DevolucionProveedorTest extends TestCase
         $this->assertDatabaseHas('proveedor_saldo_movimientos', [
             'compra_id' => $response->json('id'),
             'tipo' => 'aplicacion',
+            'monto' => 100,
+            'saldo_resultante' => 0,
+        ]);
+    }
+
+    public function test_saldo_de_proveedor_esta_aislado_por_sucursal_y_permite_aplicacion_parcial(): void
+    {
+        [$user, $compraOriginal] = $this->crearCompraPagada();
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/compras/{$compraOriginal->id}/cancelar", [
+            'fecha' => now()->toDateString(),
+            'motivo' => 'Crédito de sucursal matriz',
+            'destino_excedente' => 'saldo_favor',
+        ])->assertCreated();
+
+        $otraSucursal = Sucursal::create([
+            'empresa_id' => $user->empresa_id,
+            'nombre' => 'Sucursal sin saldo',
+            'activo' => true,
+        ]);
+        ProveedorSaldoMovimiento::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $otraSucursal->id,
+            'proveedor_id' => $compraOriginal->proveedor_id,
+            'user_id' => $user->id,
+            'tipo' => 'credito',
+            'monto' => 900,
+            'saldo_resultante' => 900,
+            'concepto' => 'Crédito de otra sucursal',
+        ]);
+
+        $this->getJson('/api/proveedores')
+            ->assertOk()
+            ->assertJsonPath('data.0.saldo_favor', '100.00');
+
+        $producto = Producto::where('empresa_id', $user->empresa_id)->firstOrFail();
+        $compra = $this->postJson('/api/compras', [
+            'proveedor_id' => $compraOriginal->proveedor_id,
+            'folio' => 'COMPRA-SALDO-PARCIAL',
+            'fecha' => now()->toDateString(),
+            'forma_pago' => 'credito',
+            'fecha_vencimiento' => now()->addDays(15)->toDateString(),
+            'aplicar_saldo_favor' => true,
+            'saldo_favor_monto' => 35,
+            'detalles' => [[
+                'producto_id' => $producto->id,
+                'cantidad' => 1,
+                'precio_compra' => 50,
+                'precio_venta' => 80,
+            ]],
+        ])->assertCreated();
+
+        $compra->assertJsonPath('saldo_favor_aplicado', '35.00')
+            ->assertJsonPath('saldo', '15.00');
+        $this->getJson('/api/proveedores')
+            ->assertOk()
+            ->assertJsonPath('data.0.saldo_favor', '65.00');
+    }
+
+    public function test_anular_devolucion_conserva_credito_y_registra_reversion(): void
+    {
+        [$user, $compra] = $this->crearCompraPagada();
+        Sanctum::actingAs($user);
+
+        $respuesta = $this->postJson("/api/compras/{$compra->id}/cancelar", [
+            'fecha' => now()->toDateString(),
+            'motivo' => 'Crédito que será revertido',
+            'destino_excedente' => 'saldo_favor',
+        ])->assertCreated();
+
+        $this->deleteJson('/api/devoluciones-proveedor/' . $respuesta->json('id'))
+            ->assertOk();
+
+        $this->assertDatabaseHas('proveedor_saldo_movimientos', [
+            'devolucion_proveedor_id' => $respuesta->json('id'),
+            'tipo' => 'credito',
+            'monto' => 100,
+        ]);
+        $this->assertDatabaseHas('proveedor_saldo_movimientos', [
+            'devolucion_proveedor_id' => $respuesta->json('id'),
+            'tipo' => 'reverso_credito',
             'monto' => 100,
             'saldo_resultante' => 0,
         ]);

@@ -44,6 +44,10 @@
                     </div>
 
                     <div class="flex items-center gap-2">
+                        <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
+                            <input v-model="soloConSaldo" type="checkbox" class="rounded border-slate-300 text-emerald-600" @change="fetchProveedores()" />
+                            Con saldo a favor
+                        </label>
                         <button
                             type="button"
                             class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
@@ -100,6 +104,7 @@
                                 <th class="px-4 py-3 text-left">Correo</th>
                                 <th class="px-4 py-3 text-left">Teléfono</th>
                                 <th class="px-4 py-3 text-left">Contacto</th>
+                                <th class="px-4 py-3 text-right">Saldo a favor</th>
                                 <th class="px-4 py-3 text-left">Estado</th>
                                 <th class="px-4 py-3 text-right">Acciones</th>
                             </tr>
@@ -151,6 +156,10 @@
                                     {{ c.contacto || "-" }}
                                 </td>
 
+                                <td class="px-4 py-3 text-right font-mono font-bold" :class="Number(c.saldo_favor) > 0 ? 'text-emerald-700' : 'text-slate-400'">
+                                    {{ money(c.saldo_favor) }}
+                                </td>
+
                                 <td class="px-4 py-3">
                                     <button
                                         type="button"
@@ -170,6 +179,9 @@
 
                                 <td class="px-4 py-3">
                                     <div class="flex items-center justify-end gap-2">
+                                        <button type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-emerald-600 transition hover:bg-emerald-50" title="Estado de cuenta" @click="openEstadoCuenta(c)">
+                                            <WalletCards class="h-4 w-4" />
+                                        </button>
                                         <button
                                             type="button"
                                             class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
@@ -192,7 +204,7 @@
                             </tr>
 
                             <tr v-if="items.length === 0">
-                                <td colspan="7" class="px-4 py-12 text-center">
+                                <td colspan="8" class="px-4 py-12 text-center">
                                     <div class="mx-auto flex max-w-sm flex-col items-center">
                                         <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                                             <SearchX class="h-6 w-6" />
@@ -268,6 +280,7 @@
             @close="modalOpen = false"
             @submit="save"
         />
+        <ProveedorEstadoCuenta :open="estadoCuentaOpen" :proveedor="proveedorCuenta" @close="cerrarEstadoCuenta" />
     </section>
 </template>
 
@@ -276,6 +289,7 @@ import { ref, onMounted } from "vue";
 import http from "@/lib/http";
 import { confirm, toastSuccess, toastWarning, error } from "@/lib/alert";
 import ProveedorModal from "@/components/proveedores/ProveedorModal.vue";
+import ProveedorEstadoCuenta from "@/components/proveedores/ProveedorEstadoCuenta.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 
 import {
@@ -294,9 +308,11 @@ import {
     Trash2,
     Truck,
     XCircle,
+    WalletCards,
 } from "lucide-vue-next";
 
 const q = ref("");
+const soloConSaldo = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 
@@ -307,6 +323,19 @@ const modalOpen = ref(false);
 const editando = ref(null);
 const form = ref(getEmptyForm());
 const formErrors = ref(null);
+const estadoCuentaOpen = ref(false);
+const proveedorCuenta = ref(null);
+const money = (value) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(Number(value || 0));
+
+function openEstadoCuenta(proveedor) {
+    proveedorCuenta.value = proveedor;
+    estadoCuentaOpen.value = true;
+}
+
+function cerrarEstadoCuenta() {
+    estadoCuentaOpen.value = false;
+    fetchProveedores(meta.value?.current_page ?? 1);
+}
 
 function getEmptyForm() {
     return {
@@ -332,7 +361,7 @@ async function fetchProveedores(page = 1) {
 
     try {
         const { data } = await http.get("/api/proveedores", {
-            params: { q: q.value, page },
+            params: { q: q.value, page, con_saldo: soloConSaldo.value ? 1 : 0 },
         });
 
         items.value = data.data;
@@ -346,6 +375,7 @@ async function fetchProveedores(page = 1) {
 
 function limpiarBusqueda() {
     q.value = "";
+    soloConSaldo.value = false;
     fetchProveedores();
 }
 

@@ -1,11 +1,14 @@
 <template>
-    <main class="space-y-6 p-2 sm:p-6">
-        <HubSection title="Consultas y reportes" :items="consultas" />
-    </main>
+    <HubPage
+        title="Consultas y reportes"
+        description="Historiales operativos e información para tomar decisiones."
+        :groups="grupos"
+        search-placeholder="Buscar consulta o reporte"
+    />
 </template>
 
 <script setup>
-import HubSection from "@/components/hub/HubSection.vue";
+import HubPage from "@/components/hub/HubPage.vue";
 
 import {
     ReceiptText,
@@ -20,7 +23,7 @@ import {
     SlidersHorizontal,
 } from "lucide-vue-next";
 
-const consultas = [
+const consultasOperativas = [
     {
         label: "Consulta de caja",
         icon: ClipboardList,
@@ -29,23 +32,9 @@ const consultas = [
         permiso: "caja.historial",
     },
     {
-        label: "Reporte de caja",
-        icon: Landmark,
-        to: { name: "reportes-caja" },
-        badge: "Disponible",
-        permiso: "reportes.ver",
-    },
-    {
         label: "Consulta de Ventas/Tickets",
         icon: CreditCard,
         to: { name: "reportes-ventas" },
-        badge: "Disponible",
-        permiso: "ventas.ver",
-    },
-    {
-        label: "Ventas agrupadas",
-        icon: BarChart3,
-        to: { name: "reportes-ventas-agrupado" },
         badge: "Disponible",
         permiso: "ventas.ver",
     },
@@ -64,19 +53,22 @@ const consultas = [
         permiso: "reportes.ver",
     },
     {
-        label: "Reporte de utilidades",
-        icon: TrendingUp,
-        to: { name: "reportes-utilidades" },
+        label: "Consulta pedidos",
+        icon: ClipboardList,
+        to: { name: "pedidos-consulta" },
         badge: "Disponible",
-        permiso: "reportes.utilidades",
+        permiso: "pedidos.ver",
     },
     {
-        label: "Inversion en mercancia",
-        icon: PackageSearch,
-        to: { name: "reportes-inventario" },
+        label: "Consulta apartados",
+        icon: ClipboardList,
+        to: { name: "apartados-consulta" },
         badge: "Disponible",
-        permiso: "reportes.ver",
+        permiso: "pedidos.ver",
     },
+];
+
+const consultasInventario = [
     {
         label: "Traspasos entrada",
         icon: Repeat2,
@@ -105,19 +97,42 @@ const consultas = [
         badge: "Disponible",
         permiso: "inventario.ajustes.crear",
     },
+];
+
+const reportes = [
     {
-        label: "Consulta pedidos",
-        icon: ClipboardList,
-        to: { name: "pedidos-consulta" },
+        label: "Reporte de caja",
+        icon: Landmark,
+        to: { name: "reportes-caja" },
         badge: "Disponible",
-        permiso: "pedidos.ver",
+        permiso: "reportes.ver",
     },
     {
-        label: "Consulta apartados",
-        icon: ClipboardList,
-        to: { name: "apartados-consulta" },
+        label: "Ventas agrupadas",
+        icon: BarChart3,
+        to: { name: "reportes-ventas-agrupado" },
         badge: "Disponible",
-        permiso: "pedidos.ver",
+        permiso: "ventas.ver",
     },
+    {
+        label: "Reporte de utilidades",
+        icon: TrendingUp,
+        to: { name: "reportes-utilidades" },
+        badge: "Disponible",
+        permiso: "reportes.utilidades",
+    },
+    {
+        label: "Inversión en mercancía",
+        icon: PackageSearch,
+        to: { name: "reportes-inventario" },
+        badge: "Disponible",
+        permiso: "reportes.ver",
+    },
+];
+
+const grupos = [
+    { title: "Consultas operativas", description: "Movimientos e historiales del trabajo diario.", items: consultasOperativas },
+    { title: "Consultas de inventario", description: "Entradas, salidas, conteos y ajustes.", items: consultasInventario },
+    { title: "Reportes", description: "Indicadores financieros y comerciales.", items: reportes },
 ];
 </script>

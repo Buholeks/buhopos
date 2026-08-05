@@ -3,7 +3,7 @@
         :is="enabled ? 'RouterLink' : 'button'"
         :to="enabled ? to : undefined"
         type="button"
-        class="group relative flex items-center gap-3 rounded-xl border bg-white px-4 py-3 transition focus:outline-none focus:ring-2 focus:ring-slate-200"
+        class="group relative flex items-center gap-2.5 rounded-lg border bg-white px-3 py-2 transition focus:outline-none focus:ring-2 focus:ring-slate-200"
         :class="
             enabled
                 ? 'border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/40'
@@ -13,7 +13,7 @@
     >
         <!-- Icon -->
         <div
-            class="flex h-9 w-9 items-center justify-center rounded-lg border bg-slate-50 transition"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-slate-50 transition"
             :class="
                 enabled
                     ? 'border-slate-200 text-slate-700 group-hover:border-emerald-200 group-hover:text-emerald-600'
@@ -25,7 +25,7 @@
         </div>
 
         <!-- Label -->
-        <span class="flex-1 text-sm font-medium text-slate-800">
+        <span class="flex-1 text-xs font-semibold text-slate-800 sm:text-sm">
             {{ label }}
         </span>
 

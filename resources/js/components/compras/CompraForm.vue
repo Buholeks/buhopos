@@ -95,6 +95,17 @@
                     </span>
                 </label>
                 <div v-if="form.aplicar_saldo_favor" class="mt-3 grid grid-cols-2 gap-2 border-t border-emerald-200 pt-3 text-xs">
+                    <div class="col-span-2">
+                        <BaseInput
+                            label="Monto de saldo a aplicar"
+                            type="number"
+                            min="0.01"
+                            :max="Math.min(saldoFavorDisponible, total)"
+                            step="0.01"
+                            :modelValue="form.saldo_favor_monto"
+                            @update:modelValue="(v) => updateField('saldo_favor_monto', Number(v))"
+                        />
+                    </div>
                     <div><span class="text-emerald-700">Se aplica</span><strong class="block text-emerald-950">{{ formatPrecio(saldoFavorAplicado) }}</strong></div>
                     <div><span class="text-emerald-700">Restante por pagar</span><strong class="block text-emerald-950">{{ formatPrecio(restantePorPagar) }}</strong></div>
                 </div>

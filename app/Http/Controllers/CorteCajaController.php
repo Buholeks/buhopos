@@ -328,7 +328,7 @@ public function cerrar(Request $request, int $id): JsonResponse
                 'detalles.variante:id,sku',
                 'user:id,name',
             ])
-            ->orderByDesc('fecha')
+            ->orderByDesc('created_at')
             ->paginate($request->por_pagina ?? 30);
 
         return response()->json($ventas);

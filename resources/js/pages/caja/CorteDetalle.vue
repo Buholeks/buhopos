@@ -241,7 +241,7 @@
                                     {{ v.folio }}
                                 </span>
                                 <span class="text-sm text-slate-700">{{
-                                    formatFecha(v.fecha)
+                                    formatFecha(v.created_at)
                                 }}</span>
                                 <span
                                     class="rounded px-2 py-0.5 text-xs capitalize"

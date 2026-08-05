@@ -250,7 +250,7 @@ class VentaController extends Controller
                 ->saldosPedidos($empresaId, $sucursalId, (int) $datos['cliente_id'], $pedidoTopes->keys()->all())
                 ->map(fn ($saldo, $pedidoId) => min((float) $saldo, (float) ($pedidoTopes[$pedidoId] ?? 0)))
                 ->sum();
-            $permiteLegacy = $todosSonPedido || ! $this->clienteTieneProductosPendientes($empresaId, $sucursalId, (int) $datos['cliente_id']);
+            $permiteLegacy = $todosSonPedido || ! $servicioSaldo->clienteTieneProductosPendientes($empresaId, $sucursalId, (int) $datos['cliente_id']);
             $saldoDisponible = round($resumenSaldo['general'] + $reservadoAplicable + ($permiteLegacy ? $resumenSaldo['legacy'] : 0), 2);
 
             if ($saldoAplicado > $saldoDisponible) {
@@ -629,25 +629,6 @@ class VentaController extends Controller
         }
 
         return null;
-    }
-
-    private function saldoDisponibleCliente(int $empresaId, int $sucursalId, int $clienteId): float
-    {
-        return round((float) ClienteSaldoMovimiento::where('empresa_id', $empresaId)
-            ->where('sucursal_id', $sucursalId)
-            ->where('cliente_id', $clienteId)
-            ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END")), 2);
-    }
-
-    private function clienteTieneProductosPendientes(int $empresaId, int $sucursalId, int $clienteId): bool
-    {
-        return PedidoDetalle::whereHas('pedido', fn($query) => $query
-            ->where('empresa_id', $empresaId)
-            ->where('sucursal_id', $sucursalId)
-            ->where('cliente_id', $clienteId)
-            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
-            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
-            ->exists();
     }
 
     private function entregarPedidoDetalle(

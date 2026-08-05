@@ -18,12 +18,22 @@ class ClienteController extends Controller
         abort_unless(Auth::user()->tienePermiso('clientes.ver'), 403, 'Sin permiso: clientes.ver');
         $user = $request->user();
 
+        // El saldo por alcance nunca debería quedar negativo en un cliente sano (ver
+        // ClienteSaldoServicio::resumen), pero si algún día ocurre no debe "cancelar"
+        // saldo positivo de otro alcance: cada alcance se recorta a 0 antes de sumarse,
+        // igual que hace resumen()/estadoCuenta(), para que el listado y el estado de
+        // cuenta de un mismo cliente siempre muestren el mismo total.
+        $expr = ClienteSaldoMovimiento::expresionSaldo();
         $q = Cliente::query()
             ->where('empresa_id', $user->empresa_id)
             ->select('clientes.*')
             ->selectSub(
                 ClienteSaldoMovimiento::query()
-                    ->selectRaw('COALESCE(SUM(' . ClienteSaldoMovimiento::expresionSaldo() . '), 0)')
+                    ->selectRaw(
+                        "COALESCE(GREATEST(0, SUM(CASE WHEN alcance = 'general' THEN ({$expr}) ELSE 0 END)), 0)"
+                        . " + COALESCE(GREATEST(0, SUM(CASE WHEN alcance = 'legacy' THEN ({$expr}) ELSE 0 END)), 0)"
+                        . " + COALESCE(GREATEST(0, SUM(CASE WHEN alcance = 'pedido' THEN ({$expr}) ELSE 0 END)), 0)"
+                    )
                     ->whereColumn('cliente_saldo_movimientos.cliente_id', 'clientes.id')
                     ->where('cliente_saldo_movimientos.empresa_id', $user->empresa_id)
                     ->where('cliente_saldo_movimientos.sucursal_id', $user->sucursal_id),
@@ -46,12 +56,17 @@ class ClienteController extends Controller
 
         if ($request->boolean('con_saldo')) {
             $q->whereExists(function ($movimientos) use ($user) {
+                $exprCsm = ClienteSaldoMovimiento::expresionSaldo('csm');
                 $movimientos->selectRaw('1')->from('cliente_saldo_movimientos as csm')
                     ->whereColumn('csm.cliente_id', 'clientes.id')
                     ->where('csm.empresa_id', $user->empresa_id)
                     ->where('csm.sucursal_id', $user->sucursal_id)
                     ->groupBy('csm.cliente_id')
-                    ->havingRaw('SUM(' . ClienteSaldoMovimiento::expresionSaldo('csm') . ') > 0');
+                    ->havingRaw(
+                        "COALESCE(GREATEST(0, SUM(CASE WHEN csm.alcance = 'general' THEN ({$exprCsm}) ELSE 0 END)), 0)"
+                        . " + COALESCE(GREATEST(0, SUM(CASE WHEN csm.alcance = 'legacy' THEN ({$exprCsm}) ELSE 0 END)), 0)"
+                        . " + COALESCE(GREATEST(0, SUM(CASE WHEN csm.alcance = 'pedido' THEN ({$exprCsm}) ELSE 0 END)), 0) > 0"
+                    );
             });
         }
 

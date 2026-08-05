@@ -662,13 +662,6 @@ class PedidoController extends Controller
         abort_unless(Auth::user()->tienePermiso('pedidos.crear'), 403, 'Sin permiso: pedidos.crear');
         $user = Auth::user();
         $terminal = TerminalResolver::fromRequest($request);
-        $pedido = Pedido::where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->findOrFail($id);
-
-        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
-            return response()->json(['message' => 'Este pedido ya está cerrado.'], 422);
-        }
 
         $data = $request->validate([
             'monto' => ['required', 'numeric', 'min:0.01'],
@@ -684,9 +677,6 @@ class PedidoController extends Controller
         ]);
 
         $monto = (float) $data['monto'];
-        if ($monto > (float) $pedido->saldo_pendiente) {
-            return response()->json(['message' => 'El abono supera el saldo pendiente del pedido.'], 422);
-        }
 
         $corte = $this->corteAbierto((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
         if (! $corte) {
@@ -695,6 +685,24 @@ class PedidoController extends Controller
 
         DB::beginTransaction();
         try {
+            // lockForUpdate: sin este bloqueo, dos abonos simultáneos (doble clic o
+            // reintento de red) pueden leer el mismo pedido->anticipo antes de que
+            // ninguno haga commit, y el segundo "update" pisa (lost update) al primero.
+            $pedido = Pedido::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->lockForUpdate()
+                ->findOrFail($id);
+
+            if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
+                DB::rollBack();
+                return response()->json(['message' => 'Este pedido ya está cerrado.'], 422);
+            }
+
+            if ($monto > (float) $pedido->saldo_pendiente) {
+                DB::rollBack();
+                return response()->json(['message' => 'El abono supera el saldo pendiente del pedido.'], 422);
+            }
+
             $pedido->anticipo = (float) $pedido->anticipo + $monto;
             $pedido->recalcularSaldoPendiente();
 
@@ -713,6 +721,9 @@ class PedidoController extends Controller
                 'saldos.movimientoCaja.cuentaBancaria:id,nombre,banco',
                 'saldos.movimientoCaja.terminalPago:id,nombre,banco',
             ]));
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -725,19 +736,6 @@ class PedidoController extends Controller
         $user = Auth::user();
         $terminal = TerminalResolver::fromRequest($request);
 
-        $pedido = Pedido::where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->findOrFail($pedidoId);
-
-        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
-            return response()->json(['message' => 'No se puede modificar un pedido cerrado.'], 422);
-        }
-
-        $abono = ClienteSaldoMovimiento::where('pedido_id', $pedido->id)
-            ->where('tipo', 'abono')
-            ->with('movimientoCaja')
-            ->findOrFail($abonoId);
-
         $corte = $this->corteAbierto((int) $user->empresa_id, (int) $user->sucursal_id, $terminal);
         if (! $corte) {
             return response()->json(['message' => 'No hay caja abierta para registrar el egreso del abono eliminado.'], 422);
@@ -745,6 +743,45 @@ class PedidoController extends Controller
 
         DB::beginTransaction();
         try {
+            // lockForUpdate: evita que un doble clic/reintento procese el mismo pedido
+            // dos veces en paralelo antes de que el primero haga commit.
+            $pedido = Pedido::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->lockForUpdate()
+                ->findOrFail($pedidoId);
+
+            if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado', 'vencido'])) {
+                DB::rollBack();
+                return response()->json(['message' => 'No se puede modificar un pedido cerrado.'], 422);
+            }
+
+            $abono = ClienteSaldoMovimiento::where('pedido_id', $pedido->id)
+                ->where('tipo', 'abono')
+                ->with('movimientoCaja')
+                ->lockForUpdate()
+                ->findOrFail($abonoId);
+
+            // Guarda explícita contra doble reversión: el lock de arriba sólo protege
+            // envíos concurrentes que se solapan. Un segundo envío que llega después de
+            // que el primero ya hizo commit no queda bloqueado por lockForUpdate, y sin
+            // esta guarda volvería a crear otro egreso de caja y otro reverso_credito
+            // por el mismo abono.
+            $yaRevertido = ClienteSaldoMovimiento::where('movimiento_origen_id', $abono->id)
+                ->where('tipo', 'reverso_credito')
+                ->exists();
+            if ($yaRevertido) {
+                DB::rollBack();
+                return response()->json(['message' => 'Este abono ya fue eliminado previamente.'], 422);
+            }
+
+            // Bloquea el resto del ledger del cliente para que el cómputo de saldo
+            // disponible de abajo sea consistente frente a otra operación concurrente
+            // (venta, cancelación, ajuste) sobre el mismo cliente.
+            ClienteSaldoMovimiento::where('empresa_id', $pedido->empresa_id)
+                ->where('sucursal_id', $pedido->sucursal_id)
+                ->where('cliente_id', $pedido->cliente_id)
+                ->lockForUpdate()->get(['id']);
+
             $monto = (float) $abono->monto;
 
             // El ingreso original nunca se borra: queda como historial de que el abono se
@@ -790,6 +827,9 @@ class PedidoController extends Controller
                 'saldos.movimientoCaja.terminalPago:id,nombre,banco',
             ]),
             ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -818,13 +858,7 @@ class PedidoController extends Controller
             ->limit(50)
             ->get();
 
-        $tieneProductosPendientes = PedidoDetalle::whereHas('pedido', fn($query) => $query
-            ->where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->where('cliente_id', $clienteId)
-            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
-            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
-            ->exists();
+        $tieneProductosPendientes = $servicioSaldo->clienteTieneProductosPendientes((int) $user->empresa_id, (int) $user->sucursal_id, $clienteId);
 
         return response()->json([
             'saldo_favor' => $resumenSaldo['total'],
@@ -902,10 +936,6 @@ class PedidoController extends Controller
         $montoDevolucionSolicitado = round((float) ($data['monto_devolucion'] ?? 0), 2);
         $corte = null;
 
-        $pedido = Pedido::where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->findOrFail($id);
-
         if (in_array($destinoSaldo, ['efectivo', 'transferencia'], true)) {
             $corte = CorteCaja::where('empresa_id', $user->empresa_id)
                 ->where('sucursal_id', $user->sucursal_id)
@@ -923,21 +953,41 @@ class PedidoController extends Controller
             }
         }
 
-        // 'vencido' se excluye a propósito: un pedido vencido debe poder cancelarse para
-        // decidir qué pasa con su anticipo (mantenerlo o devolverlo), no queda "cerrado".
-        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado'])) {
-            return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
-        }
-
-        $detallesCancelables = $pedido->detalles()
-            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado']);
-
-        if (! $detallesCancelables->exists()) {
-            return response()->json(['message' => 'Este pedido no tiene renglones pendientes por cancelar.'], 422);
-        }
-
         DB::beginTransaction();
         try {
+            // lockForUpdate + las validaciones de estado/renglones cancelables movidas
+            // aquí adentro: sin esto, dos cancelaciones simultáneas del mismo pedido
+            // (doble clic) leen ambas "hay renglones pendientes" antes de que ninguna
+            // haga commit, y las dos ejecutan transferirSaldoPedidoAGeneral() duplicando
+            // el saldo a favor acreditado al cliente.
+            $pedido = Pedido::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->lockForUpdate()
+                ->findOrFail($id);
+
+            // 'vencido' se excluye a propósito: un pedido vencido debe poder cancelarse para
+            // decidir qué pasa con su anticipo (mantenerlo o devolverlo), no queda "cerrado".
+            if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado'])) {
+                DB::rollBack();
+                return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
+            }
+
+            $detallesCancelables = $pedido->detalles()
+                ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado']);
+
+            if (! $detallesCancelables->exists()) {
+                DB::rollBack();
+                return response()->json(['message' => 'Este pedido no tiene renglones pendientes por cancelar.'], 422);
+            }
+
+            // Bloquea el ledger del cliente para que los cómputos de saldo disponible de
+            // abajo (saldoDisponiblePedido / transferirSaldoPedidoAGeneral) sean
+            // consistentes frente a otra cancelación o venta concurrente del cliente.
+            ClienteSaldoMovimiento::where('empresa_id', $pedido->empresa_id)
+                ->where('sucursal_id', $pedido->sucursal_id)
+                ->where('cliente_id', $pedido->cliente_id)
+                ->lockForUpdate()->get(['id']);
+
             // Liberar reservas de inventario activas
             InventarioReserva::where('pedido_id', $pedido->id)
                 ->where('estado', 'activa')
@@ -1012,6 +1062,9 @@ class PedidoController extends Controller
                 'message' => $mensaje,
                 'pedido' => $pedido->load(['cliente', 'detalles']),
             ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
@@ -1035,33 +1088,11 @@ class PedidoController extends Controller
 
         $destinoSaldo = $data['destino_saldo'] ?? 'mantener_saldo';
         $montoDevolucionSolicitado = round((float) ($data['monto_devolucion'] ?? 0), 2);
-
-        $pedido = Pedido::where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->findOrFail($pedidoId);
-
-        if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado'], true)) {
-            return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
-        }
-
-        $detalle = $pedido->detalles()->findOrFail($detalleId);
-        if (in_array($detalle->estado, ['entregado', 'devuelto', 'cancelado'], true)) {
-            return response()->json(['message' => 'Este renglón ya está cerrado y no se puede cancelar.'], 422);
-        }
-
-        $saldoDisponible = $this->saldoDisponiblePedido($pedido);
-        $maximoDevolucion = $this->maximoDevolucionCancelacionDetalle($pedido, $detalle, $saldoDisponible);
         $corte = null;
 
         if (in_array($destinoSaldo, ['efectivo', 'transferencia'], true)) {
             if ($montoDevolucionSolicitado <= 0) {
                 return response()->json(['message' => 'Captura el monto a devolver.'], 422);
-            }
-
-            if ($montoDevolucionSolicitado > $maximoDevolucion) {
-                return response()->json([
-                    'message' => 'El monto a devolver supera el saldo disponible por esta cancelación. Disponible: $' . number_format($maximoDevolucion, 2),
-                ], 422);
             }
 
             $corte = CorteCaja::where('empresa_id', $user->empresa_id)
@@ -1078,6 +1109,40 @@ class PedidoController extends Controller
 
         DB::beginTransaction();
         try {
+            // lockForUpdate + validaciones movidas aquí adentro por el mismo motivo que
+            // en cancelar(): evita que un doble clic duplique el saldo transferido o el
+            // egreso de caja de la devolución.
+            $pedido = Pedido::where('empresa_id', $user->empresa_id)
+                ->where('sucursal_id', $user->sucursal_id)
+                ->lockForUpdate()
+                ->findOrFail($pedidoId);
+
+            if (in_array($pedido->estado, ['entregado', 'devuelto', 'cancelado'], true)) {
+                DB::rollBack();
+                return response()->json(['message' => 'Este pedido ya está cerrado y no se puede cancelar.'], 422);
+            }
+
+            $detalle = $pedido->detalles()->lockForUpdate()->findOrFail($detalleId);
+            if (in_array($detalle->estado, ['entregado', 'devuelto', 'cancelado'], true)) {
+                DB::rollBack();
+                return response()->json(['message' => 'Este renglón ya está cerrado y no se puede cancelar.'], 422);
+            }
+
+            ClienteSaldoMovimiento::where('empresa_id', $pedido->empresa_id)
+                ->where('sucursal_id', $pedido->sucursal_id)
+                ->where('cliente_id', $pedido->cliente_id)
+                ->lockForUpdate()->get(['id']);
+
+            $saldoDisponible = $this->saldoDisponiblePedido($pedido);
+            $maximoDevolucion = $this->maximoDevolucionCancelacionDetalle($pedido, $detalle, $saldoDisponible);
+
+            if (in_array($destinoSaldo, ['efectivo', 'transferencia'], true) && $montoDevolucionSolicitado > $maximoDevolucion) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'El monto a devolver supera el saldo disponible por esta cancelación. Disponible: $' . number_format($maximoDevolucion, 2),
+                ], 422);
+            }
+
             InventarioReserva::where('pedido_detalle_id', $detalle->id)
                 ->where('estado', 'activa')
                 ->update(['estado' => 'liberada']);
@@ -1123,18 +1188,13 @@ class PedidoController extends Controller
                 'message' => $mensaje,
                 'pedido' => $pedido->load(['cliente', 'detalles']),
             ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 500);
         }
-    }
-
-    private function saldoDisponibleCliente(int $empresaId, int $sucursalId, int $clienteId): float
-    {
-        return round((float) ClienteSaldoMovimiento::where('empresa_id', $empresaId)
-            ->where('sucursal_id', $sucursalId)
-            ->where('cliente_id', $clienteId)
-            ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END")), 2);
     }
 
     private function saldoDisponiblePedido(Pedido $pedido): float
@@ -1215,10 +1275,9 @@ class PedidoController extends Controller
             'concepto' => "Anticipo {$pedido->tipo} {$pedido->folio}",
         ]);
 
-        $saldoAnterior = ClienteSaldoMovimiento::where('empresa_id', $pedido->empresa_id)
-            ->where('sucursal_id', $pedido->sucursal_id)
-            ->where('cliente_id', $pedido->cliente_id)
-            ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END"));
+        $saldoAnterior = app(\App\Servicios\ClienteSaldoServicio::class)->saldo(
+            (int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id
+        );
 
         ClienteSaldoMovimiento::create([
             'empresa_id'         => $pedido->empresa_id,
@@ -1242,6 +1301,15 @@ class PedidoController extends Controller
     private function transferirSaldoPedidoAGeneral(Pedido $pedido, int $userId): void
     {
         $servicio = app(\App\Servicios\ClienteSaldoServicio::class);
+
+        // Mismo patrón que ClienteSaldoServicio::aplicarEnVenta(): bloquea el ledger del
+        // cliente antes de leer/escribir para que esta función sea segura incluso si en
+        // el futuro se llama desde un lugar que no bloqueó el pedido primero.
+        ClienteSaldoMovimiento::where('empresa_id', $pedido->empresa_id)
+            ->where('sucursal_id', $pedido->sucursal_id)
+            ->where('cliente_id', $pedido->cliente_id)
+            ->lockForUpdate()->get(['id']);
+
         $reservado = max(0, $servicio->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'pedido', (int) $pedido->id));
         if ($reservado <= 0) return;
 

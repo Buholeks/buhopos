@@ -178,7 +178,7 @@
                                     {{ c.direccion ?? "Sin dirección" }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 text-right font-mono font-bold" :class="Number(c.saldo_favor) > 0 ? 'text-emerald-700' : 'text-slate-400'">
+                            <td class="px-4 py-3 text-right font-mono font-bold" :class="Number(c.saldo_favor) > 0 ? 'text-emerald-700' : Number(c.saldo_favor) < 0 ? 'text-rose-600' : 'text-slate-400'" :title="Number(c.saldo_favor) < 0 ? 'Saldo negativo: revisa el estado de cuenta, esto no debería ocurrir.' : null">
                                 {{ money(c.saldo_favor) }}
                             </td>
 

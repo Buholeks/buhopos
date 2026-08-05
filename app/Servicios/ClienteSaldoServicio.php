@@ -3,12 +3,31 @@
 namespace App\Servicios;
 
 use App\Models\ClienteSaldoMovimiento;
+use App\Models\PedidoDetalle;
 use App\Models\Venta;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ClienteSaldoServicio
 {
+    /**
+     * Fuente única de la regla que decide si el saldo 'legacy' del cliente puede
+     * usarse en la venta: no debe tener pedidos/apartados pendientes de otro tipo
+     * que ese saldo antiguo pudiera necesitar cubrir primero. Antes vivía duplicada
+     * (con el mismo cuerpo) en PedidoController::clienteResumen() y en
+     * VentaController::clienteTieneProductosPendientes(); ambos deben llamar aquí.
+     */
+    public function clienteTieneProductosPendientes(int $empresaId, int $sucursalId, int $clienteId): bool
+    {
+        return PedidoDetalle::whereHas('pedido', fn ($query) => $query
+            ->where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->where('cliente_id', $clienteId)
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado', 'vencido']))
+            ->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])
+            ->exists();
+    }
+
     public function saldo(int $empresaId, int $sucursalId, int $clienteId, ?string $alcance = null, ?int $pedidoId = null): float
     {
         return round((float) ClienteSaldoMovimiento::query()

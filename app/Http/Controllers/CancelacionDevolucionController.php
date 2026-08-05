@@ -664,7 +664,7 @@ class CancelacionDevolucionController extends Controller
             return;
         }
 
-        $saldoAnterior = $this->saldoDisponibleCliente(
+        $saldoAnterior = app(\App\Servicios\ClienteSaldoServicio::class)->saldo(
             (int) $venta->empresa_id,
             (int) $venta->sucursal_id,
             (int) $venta->cliente_id
@@ -718,14 +718,6 @@ class CancelacionDevolucionController extends Controller
         }
 
         return round($restaurado, 2);
-    }
-
-    private function saldoDisponibleCliente(int $empresaId, int $sucursalId, int $clienteId): float
-    {
-        return round((float) ClienteSaldoMovimiento::where('empresa_id', $empresaId)
-            ->where('sucursal_id', $sucursalId)
-            ->where('cliente_id', $clienteId)
-            ->sum(DB::raw("CASE WHEN tipo IN ('abono','devolucion','ajuste') THEN monto ELSE -monto END")), 2);
     }
 
     private function corteAbiertoPorTerminal(int $empresaId, int $sucursalId, string $terminal): ?CorteCaja

@@ -3,6 +3,11 @@ import { computed, nextTick, reactive, ref } from "vue";
 import http from "@/lib/http";
 import { alertColors, swal as Swal } from "@/lib/alert";
 import { toastSuccess, toastError, toastWarning } from "@/lib/alert";
+import {
+    playSonidoCompletado,
+    playSonidoError,
+    playSonidoExito,
+} from "@/lib/sound";
 
 export const useCompraStore = defineStore("compra", () => {
     const proveedores = ref([]);
@@ -11,6 +16,7 @@ export const useCompraStore = defineStore("compra", () => {
 
     const form = reactive(formInicial());
     const detalles = ref([]);
+    const ultimoEvento = ref(null);
     let keyCounter = 0;
 
     const modalCantidad = reactive({
@@ -169,6 +175,17 @@ export const useCompraStore = defineStore("compra", () => {
                 false,
             );
             toastSuccess(`+1 a ${item.nombre}`);
+            marcarUltimoEvento({
+                tipo: "agregado",
+                nombre: item.nombre,
+                nombre_variante: item.nombre_variante ?? null,
+                codigo: item.codigo,
+                sku: item.sku ?? null,
+                codigo_barras: item.codigo_barras ?? null,
+                cantidad: 1,
+                imagen_url: item.imagen_url,
+            });
+            playSonidoExito();
             enfocarBuscador();
             return;
         }
@@ -242,6 +259,15 @@ export const useCompraStore = defineStore("compra", () => {
         enfocarBuscador();
     }
 
+    function marcarUltimoEvento(evento) {
+        ultimoEvento.value = { timestamp: Date.now(), ...evento };
+    }
+
+    function registrarNoEncontrado(busqueda) {
+        marcarUltimoEvento({ tipo: "no_encontrado", busqueda });
+        playSonidoError();
+    }
+
     function agregarDetalle(item, cantidad, precio_compra, precio_venta, imeis = [], pedidoDetalleIds = [], notificar = true) {
         if (!item) return;
 
@@ -265,7 +291,20 @@ export const useCompraStore = defineStore("compra", () => {
             ]));
 
             normalizeLinea(existe);
-            if (notificar) toastSuccess(`+${cantidad} a ${item.nombre}`);
+            if (notificar) {
+                toastSuccess(`+${cantidad} a ${item.nombre}`);
+                marcarUltimoEvento({
+                    tipo: "agregado",
+                    nombre: item.nombre,
+                    nombre_variante: item.nombre_variante ?? null,
+                    codigo: item.codigo,
+                    sku: item.sku ?? null,
+                    codigo_barras: item.codigo_barras ?? null,
+                    cantidad: existe.cantidad,
+                    imagen_url: item.imagen_url,
+                });
+                playSonidoExito();
+            }
             return;
         }
 
@@ -291,6 +330,20 @@ export const useCompraStore = defineStore("compra", () => {
 
         // Nuevo arriba. Más POS, menos “lo mandé al sótano”.
         detalles.value.unshift(det);
+
+        if (notificar) {
+            marcarUltimoEvento({
+                tipo: "agregado",
+                nombre: item.nombre,
+                nombre_variante: item.nombre_variante ?? null,
+                codigo: item.codigo,
+                sku: item.sku ?? null,
+                codigo_barras: item.codigo_barras ?? null,
+                cantidad: det.cantidad,
+                imagen_url: item.imagen_url,
+            });
+            playSonidoExito();
+        }
 
         if (item.tiene_series && notificar) {
             toastSuccess(
@@ -360,6 +413,7 @@ export const useCompraStore = defineStore("compra", () => {
 
     function resetear() {
         detalles.value = [];
+        ultimoEvento.value = null;
         Object.assign(form, formInicial());
         enfocarBuscador();
     }
@@ -432,6 +486,8 @@ export const useCompraStore = defineStore("compra", () => {
                 })),
             });
 
+            playSonidoCompletado();
+
             const terminado = await Swal.fire({
                 icon: "success",
                 title: "¡Compra registrada!",
@@ -498,6 +554,7 @@ export const useCompraStore = defineStore("compra", () => {
         guardando,
         form,
         detalles,
+        ultimoEvento,
 
         modalCantidad,
         modalImei,
@@ -517,6 +574,7 @@ export const useCompraStore = defineStore("compra", () => {
         actualizarForm,
 
         seleccionarItem,
+        registrarNoEncontrado,
         confirmarCantidad,
         confirmarImeis,
         volverACantidad,

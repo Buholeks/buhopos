@@ -7,6 +7,45 @@
             </span>
         </label>
 
+        <!-- Último capturado -->
+        <div
+            v-if="ultimoEvento"
+            class="mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+            :class="
+                ultimoEvento.tipo === 'agregado'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-rose-200 bg-rose-50 text-rose-700'
+            "
+        >
+            <CheckCircle2
+                v-if="ultimoEvento.tipo === 'agregado'"
+                class="h-4 w-4 shrink-0"
+            />
+            <AlertTriangle v-else class="h-4 w-4 shrink-0" />
+
+            <div class="min-w-0 flex-1 truncate">
+                <template v-if="ultimoEvento.tipo === 'agregado'">
+                    Último capturado:
+                    <strong>{{ ultimoEvento.nombre }}</strong>
+                    <span v-if="ultimoEvento.nombre_variante">
+                        - {{ ultimoEvento.nombre_variante }}
+                    </span>
+                    <span class="ml-1 font-mono text-xs opacity-70">
+                        ({{
+                            ultimoEvento.codigo_barras ||
+                            ultimoEvento.sku ||
+                            ultimoEvento.codigo
+                        }})
+                    </span>
+                    · x{{ ultimoEvento.cantidad }}
+                </template>
+                <template v-else>
+                    No se encontró ningún producto para
+                    <strong>"{{ ultimoEvento.busqueda }}"</strong>
+                </template>
+            </div>
+        </div>
+
         <div class="relative">
             <!-- Input -->
             <div
@@ -215,7 +254,15 @@ import http from "@/lib/http";
 import { swal as Swal } from "@/lib/alert";
 import { toastError } from "@/lib/alert";
 // ✅ Lucide icons
-import { Search, X, Loader2, ImageOff, CornerDownLeft } from "lucide-vue-next";
+import {
+    Search,
+    X,
+    Loader2,
+    ImageOff,
+    CornerDownLeft,
+    CheckCircle2,
+    AlertTriangle,
+} from "lucide-vue-next";
 
 // const Toast = Swal.mixin({
 //     toast: true,
@@ -228,9 +275,10 @@ import { Search, X, Loader2, ImageOff, CornerDownLeft } from "lucide-vue-next";
 const props = defineProps({
     formatPrecio: { type: Function, required: true },
     escaneoRapido: { type: Boolean, default: true },
+    ultimoEvento: { type: Object, default: null },
 });
 
-const emit = defineEmits(["seleccionar"]);
+const emit = defineEmits(["seleccionar", "no-encontrado"]);
 
 // ── Estado interno ──────────────────────────────────────────────────────────
 const root = ref(null);
@@ -358,6 +406,10 @@ async function buscarProductos(q, exacta = false) {
                 seleccionarItem(r, exacto);
                 return;
             }
+        }
+
+        if (exacta && resultados.value.length === 0) {
+            emit("no-encontrado", q);
         }
 
         dropdown.value = resultados.value.length > 0 || q.length > 1;

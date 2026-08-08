@@ -78,7 +78,9 @@
                             :ref="compra.setBuscadorRef"
                             :formatPrecio="compra.formatPrecio"
                             :escaneoRapido="escaneoRapido"
+                            :ultimoEvento="compra.ultimoEvento"
                             @seleccionar="compra.seleccionarItem"
+                            @no-encontrado="compra.registrarNoEncontrado"
                         />
                     </div>
 

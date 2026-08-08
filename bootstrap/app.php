@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\VerificarAccesoEmpresa::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

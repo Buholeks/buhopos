@@ -7,7 +7,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE proveedor_saldo_movimientos MODIFY tipo ENUM('credito','aplicacion','ajuste','ajuste_credito','ajuste_debito','reverso_credito','reverso_aplicacion') NOT NULL");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE proveedor_saldo_movimientos MODIFY tipo ENUM('credito','aplicacion','ajuste','ajuste_credito','ajuste_debito','reverso_credito','reverso_aplicacion') NOT NULL");
+        }
     }
 
     public function down(): void
@@ -15,6 +17,8 @@ return new class extends Migration
         DB::table('proveedor_saldo_movimientos')
             ->whereIn('tipo', ['ajuste_credito', 'ajuste_debito', 'reverso_credito', 'reverso_aplicacion'])
             ->delete();
-        DB::statement("ALTER TABLE proveedor_saldo_movimientos MODIFY tipo ENUM('credito','aplicacion','ajuste') NOT NULL");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE proveedor_saldo_movimientos MODIFY tipo ENUM('credito','aplicacion','ajuste') NOT NULL");
+        }
     }
 };

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Empresa;
+use App\Models\Plan;
 use App\Models\Sucursal;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -23,7 +24,7 @@ class AuthController extends Controller
         if (! $user->activo) {
             Auth::guard('web')->logout();
             return response()->json([
-                'message' => 'Tu cuenta está pendiente de activación. Contacta al administrador.',
+                'message' => 'Tu cuenta fue desactivada. Contacta al administrador.',
             ], 403);
         }
 
@@ -34,11 +35,12 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $user->load(['empresa:id,nombre,logo', 'sucursal:id,nombre']);
+        $user->load(['empresa:id,nombre,logo,activo', 'empresa.suscripcion.plan:id,nombre', 'sucursal:id,nombre,activo']);
 
         $rol = $user->rolEnSucursal((int) $user->sucursal_id);
 
         $empresa = $user->empresa;
+        $suscripcion = $empresa?->suscripcion;
 
         return response()->json([
             ...$user->toArray(),
@@ -47,6 +49,8 @@ class AuthController extends Controller
             'empresa'  => $empresa ? array_merge($empresa->toArray(), [
                 'logo_url' => $empresa->logo ? Storage::disk('public')->url($empresa->logo) : null,
             ]) : null,
+            'suscripcion' => $suscripcion,
+            'acceso_operativo' => ! $suscripcion || $suscripcion->permiteAcceso(),
         ]);
     }
 
@@ -72,7 +76,8 @@ class AuthController extends Controller
             'password.min'              => 'La contraseña debe tener al menos 8 caracteres.',
         ]);
 
-        DB::transaction(function () use ($validated) {
+        $user = DB::transaction(function () use ($validated) {
+            $planPrueba = Plan::where('es_prueba', true)->where('activo', true)->firstOrFail();
             $empresa = Empresa::create([
                 'nombre'   => $validated['empresa_nombre'],
                 'correo'   => $validated['empresa_correo'] ?? null,
@@ -97,7 +102,7 @@ class AuthController extends Controller
                 'name'           => $validated['usuario_nombre'],
                 'email'          => $validated['email'],
                 'password'       => $validated['password'],
-                'activo'         => false, // pendiente de activación manual
+                'activo'         => true,
                 'es_super_admin' => true,
             ]);
 
@@ -105,10 +110,28 @@ class AuthController extends Controller
             // pero el user aún no existía en ese momento (se crea después).
             // Por eso lo adjuntamos explícitamente aquí.
             $user->sucursales()->syncWithoutDetaching([$sucursal->id]);
+
+            // El acceso operativo se habilita mediante pago, prueba o promoción.
+            $empresa->suscripcion()->create([
+                'plan_id' => $planPrueba->id,
+                'estado' => 'prueba',
+                'precio_acordado' => 0,
+                'fecha_inicio' => today()->toDateString(),
+                'fecha_vencimiento' => today()->addDays(15)->toDateString(),
+                'dias_gracia' => 0,
+            ]);
+
+            return $user;
         });
 
+        Auth::guard('web')->login($user);
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
+
         return response()->json([
-            'message' => 'Registro recibido. Tu cuenta queda pendiente de activación manual.',
+            'message' => 'Cuenta creada. Selecciona un plan para comenzar.',
+            'redirect_to' => '/facturacion',
         ], 201);
     }
 
@@ -134,7 +157,7 @@ class AuthController extends Controller
         if (! $user->activo) {
             Auth::guard('web')->logout();
             return response()->json([
-                'message' => 'Tu cuenta está pendiente de activación. Contacta al administrador.',
+                'message' => 'Tu cuenta fue desactivada. Contacta al administrador.',
             ], 403);
         }
 
@@ -145,7 +168,8 @@ class AuthController extends Controller
             ], 403);
         }
 
-        $permitida = $user->sucursales()->where('sucursales.id', $user->sucursal_id)->exists();
+        $permitida = $user->sucursales()->where('sucursales.id', $user->sucursal_id)
+            ->where('sucursales.activo', true)->exists();
         if (! $permitida) {
             Auth::guard('web')->logout();
             return response()->json([
@@ -157,10 +181,11 @@ class AuthController extends Controller
             $request->session()->regenerate();
         }
 
-        $user->load(['empresa:id,nombre,logo', 'sucursal:id,nombre']);
+        $user->load(['empresa:id,nombre,logo,activo', 'empresa.suscripcion.plan:id,nombre', 'sucursal:id,nombre,activo']);
         $rol = $user->rolEnSucursal((int) $user->sucursal_id);
 
         $empresa = $user->empresa;
+        $suscripcion = $empresa?->suscripcion;
 
         return response()->json([
             ...$user->toArray(),
@@ -169,6 +194,8 @@ class AuthController extends Controller
             'empresa'  => $empresa ? array_merge($empresa->toArray(), [
                 'logo_url' => $empresa->logo ? Storage::disk('public')->url($empresa->logo) : null,
             ]) : null,
+            'suscripcion' => $suscripcion,
+            'acceso_operativo' => ! $suscripcion || $suscripcion->permiteAcceso(),
         ]);
     }
 

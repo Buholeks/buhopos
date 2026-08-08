@@ -17,12 +17,16 @@ return new class extends Migration
             $table->decimal('monto', 14, 2)->unsigned()->change();
         });
 
-        DB::statement('ALTER TABLE cliente_saldo_movimientos ADD CONSTRAINT chk_cliente_saldo_monto_positivo CHECK (monto > 0)');
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement('ALTER TABLE cliente_saldo_movimientos ADD CONSTRAINT chk_cliente_saldo_monto_positivo CHECK (monto > 0)');
+        }
     }
 
     public function down(): void
     {
-        DB::statement('ALTER TABLE cliente_saldo_movimientos DROP CHECK chk_cliente_saldo_monto_positivo');
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement('ALTER TABLE cliente_saldo_movimientos DROP CHECK chk_cliente_saldo_monto_positivo');
+        }
 
         Schema::table('cliente_saldo_movimientos', function (Blueprint $table) {
             $table->decimal('monto', 14, 2)->change();

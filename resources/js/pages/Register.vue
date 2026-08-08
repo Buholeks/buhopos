@@ -8,7 +8,7 @@
                             Registrar empresa
                         </h1>
                         <p class="mt-1 text-sm text-slate-500">
-                            La cuenta quedará pendiente de activación manual.
+                            Comienza con 15 días de prueba y acceso a todos los módulos.
                         </p>
                     </div>
 
@@ -66,7 +66,7 @@
                             <button type="submit" class="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200 disabled:opacity-70" :disabled="loading || !canSubmit">
                                 <Loader2 v-if="loading" class="h-4 w-4 animate-spin" />
                                 <UserPlus v-else class="h-4 w-4" />
-                                {{ loading ? "Registrando..." : "Enviar registro" }}
+                                {{ loading ? "Creando cuenta..." : "Crear cuenta" }}
                             </button>
 
                             <RouterLink :to="{ name: 'login' }" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
@@ -80,9 +80,9 @@
                             <div class="flex items-start gap-3">
                                 <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0" />
                                 <div>
-                                    <p class="font-semibold">Registro recibido</p>
+                                    <p class="font-semibold">Cuenta creada</p>
                                     <p class="mt-1 text-sm">
-                                        Tu empresa, sucursal y usuario fueron creados. La cuenta está inactiva hasta aprobación manual.
+                                        Tu empresa está lista. Disfruta 15 días de acceso completo y elige un plan cuando estés listo.
                                     </p>
                                 </div>
                             </div>
@@ -104,12 +104,12 @@
                     </div>
                     <div>
                         <h2 class="text-xl font-semibold">BuhoPOS</h2>
-                        <p class="text-sm text-white/70">Alta controlada de nuevos clientes</p>
+                        <p class="text-sm text-white/70">Tu negocio listo en pocos minutos</p>
                     </div>
                 </div>
 
                 <p class="max-w-md text-sm leading-relaxed text-white/60">
-                    El registro crea la estructura inicial del negocio, pero el acceso queda bloqueado hasta que un administrador active la cuenta.
+                    Prueba todos los módulos durante 15 días. Elige un plan antes de que termine el periodo para continuar sin interrupciones.
                 </p>
             </div>
         </div>
@@ -118,6 +118,8 @@
 
 <script setup>
 import { computed, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import http from "@/lib/http";
 import {
@@ -145,6 +147,9 @@ const form = reactive({
     password: "",
     password_confirmation: "",
 });
+
+const router = useRouter();
+const auth = useAuthStore();
 
 const loading = ref(false);
 const success = ref(false);
@@ -174,7 +179,8 @@ async function submit() {
     try {
         await http.get("/sanctum/csrf-cookie");
         await http.post("/api/register", form);
-        success.value = true;
+        await auth.fetchUser();
+        await router.replace({ name: "facturacion" });
     } catch (e) {
         errors.value = e?.response?.data?.errors ?? {};
         error.value = e?.response?.data?.message || "No se pudo completar el registro.";

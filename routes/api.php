@@ -47,6 +47,15 @@ use App\Http\Controllers\RolController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EtiquetaController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\Plataforma\AuthController as PlataformaAuthController;
+use App\Http\Controllers\Plataforma\DashboardController as PlataformaDashboardController;
+use App\Http\Controllers\Plataforma\EmpresaController as PlataformaEmpresaController;
+use App\Http\Controllers\Plataforma\PlanController as PlataformaPlanController;
+use App\Http\Controllers\Plataforma\SuscripcionController as PlataformaSuscripcionController;
+use App\Http\Controllers\Plataforma\StripeController as PlataformaStripeController;
+use App\Http\Controllers\Plataforma\CodigoPromocionalController as PlataformaCodigoPromocionalController;
+use App\Http\Controllers\StripeWebhookController;
+use App\Http\Controllers\FacturacionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,6 +65,40 @@ use App\Http\Controllers\MediaController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/stripe/webhook', StripeWebhookController::class)->middleware('throttle:120,1');
+
+Route::prefix('plataforma')->group(function () {
+    Route::post('/login', [PlataformaAuthController::class, 'login']);
+    Route::middleware('auth:plataforma')->group(function () {
+        Route::get('/me', [PlataformaAuthController::class, 'me']);
+        Route::post('/logout', [PlataformaAuthController::class, 'logout']);
+        Route::get('/dashboard', PlataformaDashboardController::class);
+        Route::get('/empresas', [PlataformaEmpresaController::class, 'index']);
+        Route::get('/empresas/{empresa}', [PlataformaEmpresaController::class, 'show']);
+        Route::put('/empresas/{empresa}', [PlataformaEmpresaController::class, 'update']);
+        Route::post('/empresas/{empresa}/sucursales', [PlataformaEmpresaController::class, 'guardarSucursal']);
+        Route::put('/empresas/{empresa}/sucursales/{sucursal}', [PlataformaEmpresaController::class, 'guardarSucursal']);
+        Route::post('/empresas/{empresa}/usuarios', [PlataformaEmpresaController::class, 'guardarUsuario']);
+        Route::put('/empresas/{empresa}/usuarios/{user}', [PlataformaEmpresaController::class, 'guardarUsuario']);
+        Route::get('/planes', [PlataformaPlanController::class, 'index']);
+        Route::post('/planes', [PlataformaPlanController::class, 'store']);
+        Route::put('/planes/{plan}', [PlataformaPlanController::class, 'update']);
+        Route::get('/codigos-promocionales', [PlataformaCodigoPromocionalController::class, 'index']);
+        Route::post('/codigos-promocionales', [PlataformaCodigoPromocionalController::class, 'store']);
+        Route::put('/codigos-promocionales/{codigo}', [PlataformaCodigoPromocionalController::class, 'update']);
+        Route::get('/stripe/estado', [PlataformaStripeController::class, 'estado']);
+        Route::post('/planes/{plan}/stripe/sincronizar', [PlataformaStripeController::class, 'sincronizarPlan']);
+        Route::post('/empresas/{empresa}/stripe/checkout', [PlataformaStripeController::class, 'checkout']);
+        Route::post('/empresas/{empresa}/stripe/portal', [PlataformaStripeController::class, 'portal']);
+        Route::put('/empresas/{empresa}/suscripcion', [PlataformaSuscripcionController::class, 'guardar']);
+        Route::post('/empresas/{empresa}/pagos', [PlataformaSuscripcionController::class, 'registrarPago']);
+        Route::get('/cuenta-cobro', [PlataformaSuscripcionController::class, 'cuentaCobro']);
+        Route::put('/cuenta-cobro', [PlataformaSuscripcionController::class, 'guardarCuentaCobro']);
+        Route::post('/solicitudes-pago/{solicitud}/revisar', [PlataformaSuscripcionController::class, 'revisarSolicitud']);
+        Route::get('/solicitudes-pago', [PlataformaSuscripcionController::class, 'solicitudesPago']);
+        Route::get('/solicitudes-pago/{solicitud}/comprobante', [PlataformaSuscripcionController::class, 'descargarComprobante']);
+    });
+});
 
 // Públicos — sin autenticación (cert y firma son operaciones de handshake de QZ Tray)
 Route::get('/etiquetas/qztray/cert', [EtiquetaController::class, 'qzCertificado']);
@@ -65,6 +108,20 @@ Route::post('/etiquetas/qztray/sign', [EtiquetaController::class, 'qzFirmar']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::get('/facturacion', [FacturacionController::class, 'show']);
+    Route::post('/facturacion/checkout', [FacturacionController::class, 'checkout']);
+    Route::post('/facturacion/portal', [FacturacionController::class, 'portal']);
+    Route::post('/facturacion/tarjeta/preparar', [FacturacionController::class, 'prepararTarjeta']);
+    Route::post('/facturacion/tarjeta', [FacturacionController::class, 'guardarTarjeta']);
+    Route::post('/facturacion/plan', [FacturacionController::class, 'cambiarPlan']);
+    Route::post('/facturacion/codigo-promocional', [FacturacionController::class, 'canjearCodigo']);
+    Route::post('/facturacion/pago-manual', [FacturacionController::class, 'solicitarPagoManual']);
+    Route::post('/facturacion/pago-manual/{solicitud}/comprobante', [FacturacionController::class, 'subirComprobante']);
+    Route::delete('/facturacion/pago-manual/{solicitud}', [FacturacionController::class, 'cancelarSolicitudPago']);
+    Route::post('/facturacion/volver-tarjeta', [FacturacionController::class, 'volverATarjeta']);
+    Route::get('/facturacion/pago-manual/{solicitud}/comprobante', [FacturacionController::class, 'descargarComprobante']);
+    Route::post('/facturacion/sucursales', [FacturacionController::class, 'guardarSucursal']);
+    Route::put('/facturacion/sucursales/{sucursal}', [FacturacionController::class, 'cambiarEstadoSucursal']);
     Route::get('/perfil', [ProfileController::class, 'show']);
     Route::put('/perfil/usuario', [ProfileController::class, 'updateUser']);
     Route::put('/perfil/empresa', [ProfileController::class, 'updateEmpresa']);

@@ -14,7 +14,9 @@ return new class extends Migration
             $table->index(['empresa_id', 'sucursal_id', 'producto_id', 'atributo_id', 'activo'], 'idx_inv_exh_color_activa');
         });
 
-        DB::statement("ALTER TABLE inventario_exhibiciones MODIFY tipo_cobertura ENUM('producto', 'color', 'variante') NOT NULL DEFAULT 'producto'");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE inventario_exhibiciones MODIFY tipo_cobertura ENUM('producto', 'color', 'variante') NOT NULL DEFAULT 'producto'");
+        }
 
         Schema::table('inventario_exhibiciones', function (Blueprint $table) {
             $table->foreign('atributo_id')
@@ -32,6 +34,8 @@ return new class extends Migration
             $table->dropColumn('atributo_id');
         });
 
-        DB::statement("ALTER TABLE inventario_exhibiciones MODIFY tipo_cobertura ENUM('producto', 'variante') NOT NULL DEFAULT 'producto'");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE inventario_exhibiciones MODIFY tipo_cobertura ENUM('producto', 'variante') NOT NULL DEFAULT 'producto'");
+        }
     }
 };

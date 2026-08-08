@@ -14,6 +14,7 @@ class SucursalActivaController extends Controller
 
         return response()->json(
             $user->sucursales()
+                ->where('sucursales.activo', true)
                 ->select('sucursales.id', 'sucursales.nombre', 'sucursales.empresa_id')
                 ->orderBy('sucursales.nombre')
                 ->get()
@@ -27,7 +28,8 @@ class SucursalActivaController extends Controller
         $user       = $request->user();
         $sucursalId = (int) $request->sucursal_id;
 
-        $permitida = $user->sucursales()->where('sucursales.id', $sucursalId)->exists();
+        $permitida = $user->sucursales()->where('sucursales.id', $sucursalId)
+            ->where('sucursales.activo', true)->exists();
 
         if (! $permitida) {
             return response()->json(['message' => 'No tienes acceso a esa sucursal.'], 403);

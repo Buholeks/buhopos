@@ -9,13 +9,17 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE traspasos MODIFY estado ENUM('completado','pendiente','recibido','rechazado','cancelado') NOT NULL DEFAULT 'pendiente'");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE traspasos MODIFY estado ENUM('completado','pendiente','recibido','rechazado','cancelado') NOT NULL DEFAULT 'pendiente'");
+        }
 
         DB::table('traspasos')
             ->where('estado', 'completado')
             ->update(['estado' => 'recibido']);
 
-        DB::statement("ALTER TABLE traspasos MODIFY estado ENUM('pendiente','recibido','rechazado','cancelado') NOT NULL DEFAULT 'pendiente'");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE traspasos MODIFY estado ENUM('pendiente','recibido','rechazado','cancelado') NOT NULL DEFAULT 'pendiente'");
+        }
 
         Schema::table('traspasos', function (Blueprint $table) {
             $table->foreignId('recibido_por')->nullable()->after('cancelado_por')->constrained('users')->nullOnDelete();
@@ -28,7 +32,9 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE traspasos MODIFY estado ENUM('completado','pendiente','recibido','rechazado','cancelado') NOT NULL DEFAULT 'pendiente'");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE traspasos MODIFY estado ENUM('completado','pendiente','recibido','rechazado','cancelado') NOT NULL DEFAULT 'pendiente'");
+        }
 
         DB::table('traspasos')
             ->where('estado', 'pendiente')
@@ -54,6 +60,8 @@ return new class extends Migration
             ]);
         });
 
-        DB::statement("ALTER TABLE traspasos MODIFY estado ENUM('completado','cancelado') NOT NULL DEFAULT 'completado'");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE traspasos MODIFY estado ENUM('completado','cancelado') NOT NULL DEFAULT 'completado'");
+        }
     }
 };

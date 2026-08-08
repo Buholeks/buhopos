@@ -37,6 +37,10 @@ const props = defineProps({
 const auth = useAuthStore();
 
 const visibleItems = computed(() =>
-    props.items.filter((item) => !item.permiso || auth.can(item.permiso))
+    props.items.filter(
+        (item) =>
+            (!item.permiso || auth.can(item.permiso)) &&
+            (!item.superAdmin || auth.esSuperAdmin),
+    )
 );
 </script>

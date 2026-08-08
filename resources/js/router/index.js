@@ -67,13 +67,43 @@ import HistorialArticulo from "@/pages/reportes/articulo/HistorialArticulo.vue";
 
 import ConfiguracionIndex from "@/pages/configuracion/ConfiguracionIndex.vue";
 import VigenciaPedidos from "@/pages/configuracion/VigenciaPedidos.vue";
+import SucursalesConfiguracion from "@/pages/configuracion/SucursalesIndex.vue";
 import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
 import RolesIndex from "@/pages/roles/RolesIndex.vue";
 import SinPermiso from "@/pages/errores/SinPermiso.vue";
 import NotFound from "@/pages/errores/NotFound.vue";
 import PerfilIndex from "@/pages/perfil/PerfilIndex.vue";
+import FacturacionIndex from "@/pages/facturacion/FacturacionIndex.vue";
+import PlataformaLayout from "@/plataforma/layouts/PlataformaLayout.vue";
+import PlataformaLogin from "@/plataforma/pages/Login.vue";
+import PlataformaDashboard from "@/plataforma/pages/Dashboard.vue";
+import PlataformaEmpresas from "@/plataforma/pages/EmpresasIndex.vue";
+import PlataformaEmpresaDetalle from "@/plataforma/pages/EmpresaDetalle.vue";
+import PlataformaPlanes from "@/plataforma/pages/PlanesIndex.vue";
+import PlataformaCodigosPromocionales from "@/plataforma/pages/CodigosPromocionales.vue";
+import PlataformaCobros from "@/plataforma/pages/CobrosIndex.vue";
+import { usePlataformaAuthStore } from "@/plataforma/stores/auth";
 
 const routes = [
+  {
+    path: "/plataforma/login",
+    name: "plataforma-login",
+    component: PlataformaLogin,
+    meta: { plataformaGuest: true, title: "Acceso de plataforma" },
+  },
+  {
+    path: "/plataforma",
+    component: PlataformaLayout,
+    meta: { plataformaAuth: true },
+    children: [
+      { path: "", name: "plataforma-dashboard", component: PlataformaDashboard, meta: { title: "Resumen" } },
+      { path: "empresas", name: "plataforma-empresas", component: PlataformaEmpresas, meta: { title: "Empresas" } },
+      { path: "empresas/:id", name: "plataforma-empresa-detalle", component: PlataformaEmpresaDetalle, meta: { title: "Administrar empresa" } },
+      { path: "planes", name: "plataforma-planes", component: PlataformaPlanes, meta: { title: "Planes" } },
+      { path: "cobros", name: "plataforma-cobros", component: PlataformaCobros, meta: { title: "Cobros" } },
+      { path: "codigos-promocionales", name: "plataforma-codigos-promocionales", component: PlataformaCodigosPromocionales, meta: { title: "Códigos promocionales" } },
+    ],
+  },
   {
     path: "/",
     component: AppLayout,
@@ -145,9 +175,11 @@ const routes = [
 
       { path: "configuracion", name: "configuracion", component: ConfiguracionIndex, meta: { title: "Configuración" } },
       { path: "configuracion/vigencia-pedidos", name: "vigencia-pedidos", component: VigenciaPedidos, meta: { title: "Vigencia de pedidos y apartados", permiso: "empresa.editar" } },
+      { path: "configuracion/sucursales", name: "sucursales-configuracion", component: SucursalesConfiguracion, meta: { title: "Sucursales", superAdmin: true } },
       { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios",permiso: "usuarios.gestionar" } },
       { path: "roles",    name: "roles",    component: RolesIndex,    meta: { title: "Roles y permisos", permiso: "usuarios.gestionar" } },
       { path: "perfil",   name: "perfil",   component: PerfilIndex,   meta: { title: "Mi perfil" } },
+      { path: "facturacion", name: "facturacion", component: FacturacionIndex, meta: { title: "Plan y facturación" } },
 
       { path: "sin-permiso", name: "sin-permiso", component: SinPermiso, meta: { title: "Sin permiso" } },
     ],
@@ -172,12 +204,28 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
 
+  if (to.meta.plataformaAuth || to.meta.plataformaGuest) {
+    const plataformaAuth = usePlataformaAuthStore();
+    await plataformaAuth.bootstrap();
+    if (to.meta.plataformaAuth && !plataformaAuth.isAuth) return { name: "plataforma-login" };
+    if (to.meta.plataformaGuest && plataformaAuth.isAuth) return { name: "plataforma-dashboard" };
+    return true;
+  }
+
   if (!auth.booted) {
     await auth.bootstrap();
   }
 
   if (to.meta.auth && !auth.isAuth) {
     return { name: "login" };
+  }
+
+  if (auth.isAuth && !auth.accesoOperativo && to.name !== "facturacion") {
+    return { name: "facturacion" };
+  }
+
+  if (to.meta.superAdmin && auth.isAuth && !auth.esSuperAdmin) {
+    return { name: "sin-permiso" };
   }
 
   if (to.meta.guest && auth.isAuth) {

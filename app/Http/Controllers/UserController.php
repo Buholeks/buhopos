@@ -11,6 +11,7 @@ use App\Models\Rol;
 use App\Models\Sucursal;
 use App\Models\SucursalUser;
 use App\Models\User;
+use App\Services\LimitesSuscripcionService;
 
 class UserController extends Controller
 {
@@ -91,6 +92,8 @@ class UserController extends Controller
             'role_id.exists'         => 'El rol seleccionado no pertenece a esta empresa.',
         ]);
 
+        app(LimitesSuscripcionService::class)->validarNuevoUsuario($actor->empresa);
+
         $usuario = DB::transaction(function () use ($actor, $data) {
             $usuario = User::create([
                 'empresa_id'  => $actor->empresa_id,
@@ -153,6 +156,10 @@ class UserController extends Controller
             'password.min'       => 'La contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'La confirmación de contraseña no coincide.',
         ]);
+
+        if (($data['activo'] ?? false) && ! $user->activo) {
+            app(LimitesSuscripcionService::class)->validarNuevoUsuario($actor->empresa);
+        }
 
         $user->update($data);
 

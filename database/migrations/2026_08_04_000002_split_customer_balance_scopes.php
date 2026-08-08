@@ -16,7 +16,9 @@ return new class extends Migration
             $table->json('metadata')->nullable()->after('concepto');
         });
 
-        DB::statement("ALTER TABLE cliente_saldo_movimientos MODIFY tipo ENUM('abono','aplicacion','devolucion','ajuste','ajuste_credito','ajuste_debito','reverso_credito','reverso_aplicacion') NOT NULL");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE cliente_saldo_movimientos MODIFY tipo ENUM('abono','aplicacion','devolucion','ajuste','ajuste_credito','ajuste_debito','reverso_credito','reverso_aplicacion') NOT NULL");
+        }
     }
 
     public function down(): void
@@ -24,7 +26,9 @@ return new class extends Migration
         DB::table('cliente_saldo_movimientos')->whereIn('tipo', [
             'ajuste_credito', 'ajuste_debito', 'reverso_credito', 'reverso_aplicacion',
         ])->delete();
-        DB::statement("ALTER TABLE cliente_saldo_movimientos MODIFY tipo ENUM('abono','aplicacion','devolucion','ajuste') NOT NULL");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE cliente_saldo_movimientos MODIFY tipo ENUM('abono','aplicacion','devolucion','ajuste') NOT NULL");
+        }
         Schema::table('cliente_saldo_movimientos', function (Blueprint $table) {
             $table->dropForeign(['movimiento_origen_id']);
             $table->dropColumn(['alcance', 'movimiento_origen_id', 'metadata']);

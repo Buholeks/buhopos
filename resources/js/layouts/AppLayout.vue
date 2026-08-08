@@ -132,6 +132,17 @@
                 </div>
             </header>
 
+            <div
+                v-if="alertaSuscripcion"
+                :class="alertaSuscripcion.clase"
+                class="flex items-center justify-between gap-4 border-b px-4 py-2.5 text-sm"
+            >
+                <p class="font-semibold">{{ alertaSuscripcion.texto }}</p>
+                <button class="shrink-0 font-black underline underline-offset-2" @click="router.push({ name: 'facturacion' })">
+                    Elegir un plan
+                </button>
+            </div>
+
             <!-- MAIN -->
             <main class="flex-1 overflow-y-auto">
                 <div class="px-1 sm:px-2 lg:px-3 py-2 sm:py-3">
@@ -143,7 +154,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import AppNav from "../components/AppNav.vue";
 import { useAuthStore } from "../stores/auth";
@@ -164,6 +175,37 @@ const loading = ref(false);
 const navOpen = ref(false);
 const traspasosPendientes = ref(0);
 let traspasosTimer = null;
+
+const alertaSuscripcion = computed(() => {
+    if (!auth.esSuperAdmin) return null;
+    if (auth.suscripcion?.estado === "prueba" && auth.suscripcion?.fecha_vencimiento) {
+        const hoyPrueba = new Date(); hoyPrueba.setHours(0, 0, 0, 0);
+        const finPrueba = new Date(`${auth.suscripcion.fecha_vencimiento.slice(0, 10)}T00:00:00`);
+        const diasPrueba = Math.max(0, Math.ceil((finPrueba - hoyPrueba) / 86400000));
+        return {
+            texto: `Prueba restante: ${diasPrueba} ${diasPrueba === 1 ? "día" : "días"}`,
+            clase: diasPrueba <= 3
+                ? "border-orange-200 bg-orange-50 text-orange-800"
+                : "border-sky-200 bg-sky-50 text-sky-800",
+        };
+    }
+    const promo = auth.suscripcion?.acceso_promocional_hasta;
+    if (promo) {
+        const hoyPromo = new Date(); hoyPromo.setHours(0, 0, 0, 0);
+        const finPromo = new Date(`${promo.slice(0, 10)}T00:00:00`);
+        const diasPromo = Math.ceil((finPromo - hoyPromo) / 86400000);
+        if (diasPromo >= 0 && diasPromo <= 4) return { texto: `Tu acceso promocional termina ${diasPromo === 0 ? 'hoy' : `en ${diasPromo} día(s)`}. Selecciona un plan para continuar sin interrupciones.`, clase: 'border-amber-200 bg-amber-50 text-amber-800' };
+        if (diasPromo >= 0) return null;
+    }
+    if (!auth.suscripcion?.fecha_vencimiento) return null;
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const vencimiento = new Date(`${auth.suscripcion.fecha_vencimiento.slice(0, 10)}T00:00:00`);
+    const dias = Math.ceil((vencimiento - hoy) / 86400000);
+    if (auth.suscripcion.estado === 'vencida' || dias < 0) return { texto: 'No pudimos procesar la renovación. Actualiza tu método de pago para evitar la suspensión.', clase: 'border-rose-200 bg-rose-50 text-rose-800' };
+    if (dias > 4) return null;
+    if (dias <= 1) return { texto: dias === 0 ? 'Tu suscripción vence hoy.' : 'Tu suscripción vence mañana.', clase: 'border-orange-200 bg-orange-50 text-orange-800' };
+    return { texto: `Tu suscripción vence en ${dias} días.`, clase: 'border-amber-200 bg-amber-50 text-amber-800' };
+});
 
 const storageKey = () =>
     `buhopos:traspasos:last:${auth.empresaId ?? "na"}:${auth.sucursalActivaId ?? "na"}`;

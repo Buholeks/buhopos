@@ -6,15 +6,28 @@
 
 <script setup>
 import HubSection from "@/components/hub/HubSection.vue";
-import { CalendarClock, Ruler, ShieldCheck, SlidersHorizontal, Ticket, Tags, UsersRound } from "lucide-vue-next";
+import { CalendarClock, CreditCard, Ruler, ShieldCheck, SlidersHorizontal, Store, Ticket, Tags, UsersRound } from "lucide-vue-next";
 
 const items = [
+    {
+        label: "Plan y facturación",
+        icon: CreditCard,
+        to: { name: "facturacion" },
+        badge: "Stripe",
+    },
     {
         label: "Usuarios",
         icon: UsersRound,
         to: { name: "usuarios" },
         badge: "Disponible",
         permiso: "usuarios.gestionar",
+    },
+    {
+        label: "Sucursales",
+        icon: Store,
+        to: { name: "sucursales-configuracion" },
+        badge: "Según tu plan",
+        superAdmin: true,
     },
     {
         label: "Roles y permisos",

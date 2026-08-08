@@ -9,7 +9,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE compras MODIFY estado ENUM('borrador','confirmada','devuelta_parcial','devuelta','cancelada') NOT NULL DEFAULT 'borrador'");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE compras MODIFY estado ENUM('borrador','confirmada','devuelta_parcial','devuelta','cancelada') NOT NULL DEFAULT 'borrador'");
+        }
 
         Schema::table('devoluciones_proveedor', function (Blueprint $table) {
             $table->enum('destino_excedente', ['saldo_favor', 'caja'])->nullable()->after('reembolso_pendiente');
@@ -46,6 +48,8 @@ return new class extends Migration
             $table->dropColumn('movimiento_caja_id');
             $table->dropColumn(['destino_excedente', 'forma_reembolso']);
         });
-        DB::statement("ALTER TABLE compras MODIFY estado ENUM('borrador','confirmada','cancelada') NOT NULL DEFAULT 'borrador'");
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE compras MODIFY estado ENUM('borrador','confirmada','cancelada') NOT NULL DEFAULT 'borrador'");
+        }
     }
 };

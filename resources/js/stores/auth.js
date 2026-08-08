@@ -22,6 +22,8 @@ export const useAuthStore = defineStore("auth", {
     sucursalNombre:  (s) => s.user?.sucursal?.nombre ?? "",
     sucursalActivaId:(s) => s.user?.sucursal_id ?? null,
     esSuperAdmin:    (s) => !!s.user?.es_super_admin,
+    suscripcion:     (s) => s.user?.suscripcion ?? null,
+    accesoOperativo: (s) => s.user?.acceso_operativo !== false,
     rolActual:       (s) => s.user?.rol ?? null,
   },
 

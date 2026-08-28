@@ -179,6 +179,29 @@ class PlataformaAdministracionTest extends TestCase
         $this->assertDatabaseHas('empresas', ['id' => $empresa->id, 'activo' => true]);
     }
 
+    public function test_pago_manual_duplicado_con_misma_clave_no_se_repite(): void
+    {
+        $admin = PlataformaAdministrador::create(['nombre' => 'Dueño', 'email' => 'idem@example.com', 'password' => 'password-seguro']);
+        $empresa = Empresa::create(['nombre' => 'Cliente idempotente', 'activo' => false]);
+        $plan = Plan::create(['nombre' => 'Base', 'precio_mensual' => 499, 'sucursales_incluidas' => 1, 'precio_sucursal_adicional' => 0, 'activo' => true]);
+        Suscripcion::create(['empresa_id' => $empresa->id, 'plan_id' => $plan->id, 'estado' => 'pendiente']);
+
+        $payload = [
+            'importe' => 499, 'fecha_pago' => '2026-08-05', 'periodo_inicio' => '2026-08-05',
+            'periodo_fin' => '2026-09-04', 'metodo' => 'transferencia', 'estado' => 'confirmado',
+            'idempotency_key' => 'clave-prueba-123',
+        ];
+
+        $primera = $this->actingAs($admin, 'plataforma')->postJson("/api/plataforma/empresas/{$empresa->id}/pagos", $payload)
+            ->assertCreated()->json();
+
+        $segunda = $this->actingAs($admin, 'plataforma')->postJson("/api/plataforma/empresas/{$empresa->id}/pagos", $payload)
+            ->assertCreated()->json();
+
+        $this->assertSame($primera['id'], $segunda['id']);
+        $this->assertSame(1, $empresa->suscripcion()->first()->pagos()->count());
+    }
+
     public function test_evento_de_suscripcion_stripe_sincroniza_periodo_y_estado(): void
     {
         $empresa = Empresa::create(['nombre' => 'Cliente Stripe', 'activo' => true]);

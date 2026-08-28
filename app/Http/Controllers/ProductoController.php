@@ -7,10 +7,12 @@ use App\Importaciones\ProductosPlantillaExportacion;
 use App\Models\Inventario;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
+use App\Models\ProductoVarianteGrupo;
 use App\Models\TipoAtributo;
 use App\Models\VarianteAtributo;
 use App\Servicios\KardexServicio;
 use App\Servicios\ProductosImportacionServicio;
+use App\Servicios\VarianteGrupoServicio;
 use App\Support\VariantImageResolver;
 use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
@@ -356,17 +358,28 @@ class ProductoController extends Controller
         abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
         $producto = Producto::deEmpresa($this->empresaId())->findOrFail($id);
 
+        $grupos = app(VarianteGrupoServicio::class)->sincronizar($producto)
+            ->keyBy(fn($grupo) => $grupo->tipo_atributo_id . ':' . $grupo->atributo_id);
+
         $variantes = $producto->variantes()
             ->with(['producto:id,imagen', 'atributos.tipoAtributo', 'atributos.atributo'])
             ->get();
 
         $variantes = VariantImageResolver::applyResolvedImages($variantes)
-            ->map(fn($v) => array_merge($v->toArray(), [
+            ->map(function ($v) use ($grupos) {
+                $grupo = $v->atributos
+                    ->map(fn($relacion) => $grupos->get($relacion->tipo_atributo_id . ':' . $relacion->atributo_id))
+                    ->filter()
+                    ->first();
+
+                return array_merge($v->toArray(), [
                 'nombre_variante' => $v->nombreVariante(),
                 'precio_vigente'  => $v->precioVigente(),
                 'imagen_url'      => $v->imagen_url,
                 'imagen_url_resuelta' => $v->imagen_url_resuelta,
-            ]));
+                'grupo' => $grupo?->only(['id', 'tipo_atributo_id', 'atributo_id', 'codigo', 'es_personalizado']),
+                ]);
+            });
 
         return response()->json($variantes);
     }
@@ -508,6 +521,8 @@ class ProductoController extends Controller
                 $producto->update(['tiene_variantes' => true]);
             }
 
+            app(VarianteGrupoServicio::class)->sincronizar($producto);
+
             app(KardexServicio::class)->registrar([
                 'empresa_id' => $empresaId,
                 'sucursal_id' => $this->sucursalId(),
@@ -554,6 +569,164 @@ class ProductoController extends Controller
     }
 
     // ── PUT /api/productos/{id}/variantes/{varianteId} ────────────────────────
+    public function storeVariantesMasivas(Request $request, int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+        $empresaId = $this->empresaId();
+        $producto = Producto::deEmpresa($empresaId)->findOrFail($id);
+
+        $datos = $request->validate([
+            'variantes' => ['required', 'array', 'min:1', 'max:99'],
+            'variantes.*.sku' => ['nullable', 'string', 'max:100'],
+            'variantes.*.atributos' => ['required', 'array', 'min:1'],
+            'variantes.*.atributos.*' => ['required', 'integer', 'exists:atributos,id'],
+        ]);
+
+        $stockSinVariante = Inventario::where('empresa_id', $empresaId)
+            ->where('producto_id', $id)
+            ->whereNull('variante_id')
+            ->where('stock', '>', 0)
+            ->exists();
+
+        if ($stockSinVariante) {
+            return response()->json([
+                'message' => 'No se pueden agregar variantes porque el producto tiene existencia registrada sin variante.',
+            ], 422);
+        }
+
+        $existentes = ProductoVariante::where('empresa_id', $empresaId)
+            ->where('producto_id', $id)
+            ->whereNull('deleted_at')
+            ->with('atributos')
+            ->get()
+            ->map(fn($variante) => $variante->atributos->pluck('atributo_id')->map(fn($valor) => (int) $valor)->sort()->values()->join('-'))
+            ->all();
+
+        $combinaciones = [];
+        $skus = [];
+        foreach ($datos['variantes'] as $indice => $datosVariante) {
+            $atributos = collect($datosVariante['atributos'])
+                ->mapWithKeys(fn($atributoId, $tipoId) => [(int) $tipoId => (int) $atributoId]);
+
+            foreach ($atributos as $tipoId => $atributoId) {
+                $valido = \App\Models\Atributo::where('id', $atributoId)
+                    ->where('empresa_id', $empresaId)
+                    ->where('tipo_atributo_id', $tipoId)
+                    ->where('activo', true)
+                    ->exists();
+
+                if (! $valido) {
+                    return response()->json(['message' => 'Una variante contiene atributos inválidos.'], 422);
+                }
+            }
+
+            $clave = $atributos->values()->sort()->values()->join('-');
+            if (in_array($clave, $existentes, true) || in_array($clave, $combinaciones, true)) {
+                return response()->json(['message' => 'Hay combinaciones de atributos repetidas o ya registradas.'], 422);
+            }
+            $combinaciones[] = $clave;
+
+            $sku = trim((string) ($datosVariante['sku'] ?? ''));
+            if ($sku !== '') {
+                if (in_array($sku, $skus, true) || ProductoVariante::where('empresa_id', $empresaId)->withTrashed()->where('sku', $sku)->exists()) {
+                    return response()->json(['message' => "El SKU {$sku} ya está registrado."], 422);
+                }
+                $skus[] = $sku;
+            }
+        }
+
+        try {
+            $creadas = DB::transaction(function () use ($datos, $producto, $empresaId) {
+                $creadas = collect();
+
+                foreach ($datos['variantes'] as $datosVariante) {
+                    $variante = ProductoVariante::create([
+                        'producto_id' => $producto->id,
+                        'empresa_id' => $empresaId,
+                        'sku' => trim((string) ($datosVariante['sku'] ?? '')) ?: ProductoVariante::generarSku($producto->id, $empresaId),
+                        'oferta_activa' => false,
+                        'activo' => true,
+                    ]);
+
+                    foreach ($datosVariante['atributos'] as $tipoId => $atributoId) {
+                        VarianteAtributo::create([
+                            'variante_id' => $variante->id,
+                            'tipo_atributo_id' => (int) $tipoId,
+                            'atributo_id' => (int) $atributoId,
+                        ]);
+                    }
+
+                    app(KardexServicio::class)->registrar([
+                        'empresa_id' => $empresaId,
+                        'sucursal_id' => $this->sucursalId(),
+                        'producto_id' => $producto->id,
+                        'variante_id' => $variante->id,
+                        'user_id' => Auth::id(),
+                        'tipo' => 'alta_variante',
+                        'direccion' => 'neutro',
+                        'cantidad' => 0,
+                        'stock_antes' => 0,
+                        'stock_despues' => 0,
+                        'referencia_tipo' => 'producto_variante',
+                        'referencia_id' => $variante->id,
+                        'folio' => $variante->sku,
+                        'fecha' => $variante->created_at ?? now(),
+                        'metadata' => ['producto_codigo' => $producto->codigo, 'sku' => $variante->sku],
+                    ]);
+
+                    $creadas->push($variante);
+                }
+
+                if (! $producto->tiene_variantes) {
+                    $producto->update(['tiene_variantes' => true]);
+                }
+
+                return $creadas;
+            });
+
+            app(VarianteGrupoServicio::class)->sincronizar($producto);
+
+            return response()->json([
+                'message' => $creadas->count() . ' variantes creadas correctamente.',
+                'creadas' => $creadas->count(),
+            ], 201);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json(['message' => 'No se pudieron crear las variantes.'], 500);
+        }
+    }
+
+    public function updateVarianteGrupo(Request $request, int $id, int $grupoId): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+        $empresaId = $this->empresaId();
+        Producto::deEmpresa($empresaId)->findOrFail($id);
+
+        $grupo = ProductoVarianteGrupo::where('empresa_id', $empresaId)
+            ->where('producto_id', $id)
+            ->findOrFail($grupoId);
+
+        $request->merge(['codigo' => mb_strtoupper(trim((string) $request->input('codigo')))]);
+        $datos = $request->validate([
+            'codigo' => [
+                'required', 'string', 'max:100',
+                Rule::unique('producto_variante_grupos', 'codigo')
+                    ->where(fn($query) => $query->where('empresa_id', $empresaId))
+                    ->ignore($grupo->id),
+            ],
+        ]);
+
+        $grupo->update([
+            'codigo' => $datos['codigo'],
+            'es_personalizado' => true,
+        ]);
+
+        return response()->json([
+            'message' => 'Código de grupo actualizado.',
+            'data' => $grupo,
+        ]);
+    }
+
     public function updateVariante(Request $request, int $id, int $varianteId): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');

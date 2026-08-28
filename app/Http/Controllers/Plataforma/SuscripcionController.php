@@ -8,6 +8,7 @@ use App\Models\PagoSuscripcion;
 use App\Models\Suscripcion;
 use App\Models\SolicitudPagoSuscripcion;
 use App\Models\CuentaCobroPlataforma;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -116,28 +117,91 @@ class SuscripcionController extends Controller
             'referencia' => ['nullable', 'string', 'max:255'],
             'estado' => ['required', Rule::in(['pendiente', 'confirmado', 'rechazado', 'reembolsado'])],
             'notas' => ['nullable', 'string', 'max:2000'],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
         ]);
 
-        $pago = DB::transaction(function () use ($suscripcion, $data) {
-            $pago = $suscripcion->pagos()->create($data + ['registrado_por' => auth('plataforma')->id()]);
-            if ($pago->estado === 'confirmado') {
-                // Un pago registrado fuera de orden (p. ej. una transferencia antigua capturada tarde)
-                // nunca debe recortar un vencimiento ya extendido por un pago más reciente.
-                $vencimiento = $suscripcion->fecha_vencimiento && $suscripcion->fecha_vencimiento->greaterThan($pago->periodo_fin)
-                    ? $suscripcion->fecha_vencimiento
-                    : $pago->periodo_fin;
-                $suscripcion->update([
-                    'estado' => 'activa',
-                    'modalidad_cobro' => in_array($pago->metodo, ['transferencia', 'deposito', 'efectivo', 'otro'], true) ? 'manual' : $suscripcion->modalidad_cobro,
-                    'fecha_inicio' => $suscripcion->fecha_inicio ?: $pago->periodo_inicio,
-                    'fecha_vencimiento' => $vencimiento,
-                    'cancelada_en' => null,
-                ]);
-                $suscripcion->empresa()->update(['activo' => true]);
-            }
-            return $pago;
-        });
+        $clave = $data['idempotency_key'] ?? null;
+        unset($data['idempotency_key']);
 
-        return response()->json($pago->load('administrador:id,nombre'), 201);
+        $existente = $this->idempotenciaExistente($empresa->id, 'plataforma.registrarPago', $clave);
+        if ($existente) {
+            return response()->json($existente['body'], $existente['status']);
+        }
+
+        try {
+            $pago = DB::transaction(function () use ($suscripcion, $data) {
+                $pago = $suscripcion->pagos()->create($data + ['registrado_por' => auth('plataforma')->id()]);
+                if ($pago->estado === 'confirmado') {
+                    // Un pago registrado fuera de orden (p. ej. una transferencia antigua capturada tarde)
+                    // nunca debe recortar un vencimiento ya extendido por un pago más reciente.
+                    $vencimiento = $suscripcion->fecha_vencimiento && $suscripcion->fecha_vencimiento->greaterThan($pago->periodo_fin)
+                        ? $suscripcion->fecha_vencimiento
+                        : $pago->periodo_fin;
+                    $suscripcion->update([
+                        'estado' => 'activa',
+                        'modalidad_cobro' => in_array($pago->metodo, ['transferencia', 'deposito', 'efectivo', 'otro'], true) ? 'manual' : $suscripcion->modalidad_cobro,
+                        'fecha_inicio' => $suscripcion->fecha_inicio ?: $pago->periodo_inicio,
+                        'fecha_vencimiento' => $vencimiento,
+                        'cancelada_en' => null,
+                    ]);
+                    $suscripcion->empresa()->update(['activo' => true]);
+                }
+                return $pago;
+            });
+        } catch (QueryException $e) {
+            // Índice único de idempotencias: dos envíos casi simultáneos del mismo pago
+            // (doble clic, reintento tras timeout) chocan aquí; el que pierde la carrera
+            // regresa la respuesta que sí se guardó, en vez de un error o un pago duplicado.
+            if ($e->getCode() === '23000' && ($retry = $this->idempotenciaExistente($empresa->id, 'plataforma.registrarPago', $clave))) {
+                return response()->json($retry['body'], $retry['status']);
+            }
+            throw $e;
+        }
+
+        $respuesta = $pago->load('administrador:id,nombre')->toArray();
+        $this->guardarIdempotencia($empresa->id, 'plataforma.registrarPago', $clave, $respuesta, 201);
+
+        return response()->json($respuesta, 201);
+    }
+
+    /**
+     * Busca una respuesta ya guardada para este idempotency_key. Si existe, la petición
+     * es un doble clic/reintento del mismo intento: hay que devolver exactamente lo que
+     * se devolvió la primera vez, sin registrar el pago otra vez.
+     */
+    private function idempotenciaExistente(int $empresaId, string $accion, ?string $clave): ?array
+    {
+        if (empty($clave)) {
+            return null;
+        }
+
+        $registro = DB::table('idempotencias')
+            ->where('empresa_id', $empresaId)
+            ->where('accion', $accion)
+            ->where('clave', $clave)
+            ->first();
+
+        if (! $registro) {
+            return null;
+        }
+
+        return ['status' => (int) $registro->status_code, 'body' => json_decode($registro->respuesta, true)];
+    }
+
+    private function guardarIdempotencia(int $empresaId, string $accion, ?string $clave, array $respuesta, int $status): void
+    {
+        if (empty($clave)) {
+            return;
+        }
+
+        DB::table('idempotencias')->insert([
+            'empresa_id' => $empresaId,
+            'accion' => $accion,
+            'clave' => $clave,
+            'status_code' => $status,
+            'respuesta' => json_encode($respuesta),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 }

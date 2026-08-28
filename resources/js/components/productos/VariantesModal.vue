@@ -146,6 +146,15 @@
                                                 {{ grupo.tipo }} · {{ grupo.variantes.length }} variantes
                                             </p>
                                         </div>
+                                        <input
+                                            v-if="grupo.grupo"
+                                            :value="grupo.grupo.codigo"
+                                            class="w-36 rounded-lg border border-slate-200 bg-white px-2 py-1 font-mono text-xs outline-none focus:border-emerald-500"
+                                            title="Código de búsqueda del grupo"
+                                            @click.stop
+                                            @keydown.enter.prevent="$event.target.blur()"
+                                            @change="emit('editar-grupo', { grupo: grupo.grupo, codigo: $event.target.value })"
+                                        />
                                         <ChevronDown
                                             class="h-4 w-4 text-slate-400 transition"
                                             :class="grupoColapsado(grupo.key) ? '-rotate-90' : ''"
@@ -1031,6 +1040,7 @@ const emit = defineEmits([
     "eliminar",
     "update:formEditVar",
     "restablecer-precios",
+    "editar-grupo",
 ]);
 
 const formEditProxy = computed({
@@ -1122,6 +1132,7 @@ const variantesAgrupadas = computed(() => {
                 label,
                 tipo: tipo?.nombre ?? "Atributo",
                 imagen_url: imagenVariante(variante),
+                grupo: variante.grupo ?? null,
                 variantes: [],
             });
         }

@@ -108,8 +108,32 @@ class ProductoVariante extends Model
     /** Genera SKU automático */
     public static function generarSku(int $productoId, int $empresaId): string
     {
-        $count = self::where('producto_id', $productoId)->withTrashed()->count() + 1;
-        return "P{$productoId}V" . str_pad($count, 2, '0', STR_PAD_LEFT);
+        $codigoProducto = Producto::where('empresa_id', $empresaId)
+            ->whereKey($productoId)
+            ->value('codigo');
+
+        if ($codigoProducto === null) {
+            throw new \InvalidArgumentException('El producto no pertenece a la empresa indicada.');
+        }
+
+        $consecutivo = self::where('empresa_id', $empresaId)
+            ->where('producto_id', $productoId)
+            ->withTrashed()
+            ->count() + 1;
+
+        do {
+            $sufijo = str_pad($consecutivo, 2, '0', STR_PAD_LEFT);
+            $prefijo = mb_substr($codigoProducto, 0, 100 - mb_strlen($sufijo));
+            $sku = $prefijo . $sufijo;
+            $consecutivo++;
+        } while (
+            self::where('empresa_id', $empresaId)
+                ->where('sku', $sku)
+                ->withTrashed()
+                ->exists()
+        );
+
+        return $sku;
     }
 
 

@@ -116,8 +116,18 @@ class Producto extends Model
     /** Genera código SKU automático para esta empresa */
     public static function generarCodigo(int $empresaId): string
     {
-        $total = self::where('empresa_id', $empresaId)->withTrashed()->count() + 1;
-        return 'PROD' . str_pad($total, 5, '0', STR_PAD_LEFT);
+        $consecutivo = self::where('empresa_id', $empresaId)->withTrashed()->count() + 10001;
+
+        do {
+            $codigo = (string) $consecutivo++;
+        } while (
+            self::where('empresa_id', $empresaId)
+                ->where('codigo', $codigo)
+                ->withTrashed()
+                ->exists()
+        );
+
+        return $codigo;
     }
 
 

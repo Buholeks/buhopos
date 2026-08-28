@@ -175,6 +175,7 @@
             @eliminar="confirmarEliminarVariante"
             @update:formEditVar="Object.assign(formEditVar, $event)"
             @restablecer-precios="restablecerPreciosVariantes"
+            @editar-grupo="actualizarCodigoGrupo"
         />
     </div>
 </template>
@@ -785,23 +786,18 @@ async function agregarVariantesMasivas(items) {
     let fallidas = 0;
 
     try {
-        for (const item of variantesNuevas) {
-            const fd = new FormData();
+        const { data } = await http.post(
+            `/api/productos/${modalVar.productoId}/variantes/masivas`,
+            {
+                variantes: variantesNuevas.map((item) => ({
+                    atributos: item.atributos ?? {},
+                    sku: item.sku || null,
+                })),
+            },
+        );
+        creadas = Number(data?.creadas ?? variantesNuevas.length);
 
-            Object.entries(item.atributos ?? {}).forEach(([tipoId, atributoId]) => {
-                fd.append(`atributos[${tipoId}]`, atributoId);
-            });
-
-            if (item.sku) fd.append("sku", item.sku);
-            fd.append("oferta_activa", "0");
-
-            try {
-                await http.post(`/api/productos/${modalVar.productoId}/variantes`, fd);
-                creadas++;
-            } catch {
-                fallidas++;
-            }
-        }
+        if (creadas > 0) resetGeneradorKey.value++;
 
         await cargarVariantes(modalVar.productoId);
         await cargarProductos(paginacion.value.current_page);
@@ -813,9 +809,28 @@ async function agregarVariantesMasivas(items) {
             varTab.value = "lista";
         }
 
-        if (creadas > 0) resetGeneradorKey.value++;
+    } catch (e) {
+        fallidas = variantesNuevas.length;
+        toastError(e.response?.data?.message ?? "No se pudieron crear las variantes");
     } finally {
         cargandoVar.value = false;
+    }
+}
+
+async function actualizarCodigoGrupo({ grupo, codigo }) {
+    const nuevoCodigo = String(codigo ?? "").trim();
+    if (!grupo?.id || !nuevoCodigo || nuevoCodigo === grupo.codigo) return;
+
+    try {
+        await http.put(
+            `/api/productos/${modalVar.productoId}/variantes/grupos/${grupo.id}`,
+            { codigo: nuevoCodigo },
+        );
+        toastSuccess("Código de grupo actualizado");
+        await cargarVariantes(modalVar.productoId);
+    } catch (e) {
+        toastError(e.response?.data?.message ?? "No se pudo actualizar el código del grupo");
+        await cargarVariantes(modalVar.productoId);
     }
 }
 

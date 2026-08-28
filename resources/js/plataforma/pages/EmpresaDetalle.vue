@@ -1108,6 +1108,7 @@ import {
 
 import http from "@/lib/http";
 import { confirm, swal, toastSuccess, error as showError } from "@/lib/alert";
+import { generarIdempotencyKey } from "@/lib/idempotency";
 import EstadoBadge from "../components/EstadoBadge.vue";
 
 const route = useRoute();
@@ -1166,6 +1167,7 @@ const pago = reactive({
     metodo: "transferencia",
     referencia: "",
     estado: "confirmado",
+    idempotency_key: generarIdempotencyKey(),
 });
 
 const solicitudesRevision = computed(() =>
@@ -1362,6 +1364,7 @@ async function registrarPago() {
             metodo: "transferencia",
             referencia: "",
             estado: "confirmado",
+            idempotency_key: generarIdempotencyKey(),
         });
 
         await cargar();

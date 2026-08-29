@@ -56,6 +56,21 @@ class ProductoVarianteGrupoTest extends TestCase
             'valor' => 'Blanco rojo',
             'activo' => true,
         ]);
+        $talla = TipoAtributo::create([
+            'empresa_id' => $empresa->id,
+            'sucursal_id' => $sucursal->id,
+            'user_id' => $user->id,
+            'nombre' => 'Talla',
+            'activo' => true,
+        ]);
+        $talla22 = Atributo::create([
+            'empresa_id' => $empresa->id,
+            'sucursal_id' => $sucursal->id,
+            'user_id' => $user->id,
+            'tipo_atributo_id' => $talla->id,
+            'valor' => '22',
+            'activo' => true,
+        ]);
 
         foreach (['1000101', '1000102'] as $sku) {
             $variante = ProductoVariante::create([
@@ -68,6 +83,11 @@ class ProductoVarianteGrupoTest extends TestCase
                 'variante_id' => $variante->id,
                 'tipo_atributo_id' => $color->id,
                 'atributo_id' => $blancoRojo->id,
+            ]);
+            VarianteAtributo::create([
+                'variante_id' => $variante->id,
+                'tipo_atributo_id' => $talla->id,
+                'atributo_id' => $talla22->id,
             ]);
         }
 
@@ -82,5 +102,14 @@ class ProductoVarianteGrupoTest extends TestCase
         $this->assertSame($grupo->id, $grupoSincronizado->id);
         $this->assertSame('BR-2044', $grupoSincronizado->codigo);
         $this->assertTrue($grupoSincronizado->es_personalizado);
+
+        VarianteAtributo::where('tipo_atributo_id', $talla->id)->delete();
+
+        $this->assertFalse($servicio->productoEsAgrupable($producto->id));
+        $this->assertTrue($servicio->sincronizar($producto)->isEmpty());
+        $this->assertDatabaseHas('producto_variante_grupos', [
+            'id' => $grupo->id,
+            'codigo' => 'BR-2044',
+        ]);
     }
 }

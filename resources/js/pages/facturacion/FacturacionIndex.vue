@@ -154,9 +154,9 @@
                             v-if="datos.suscripcion?.plan"
                             class="text-sm font-bold text-slate-700"
                         >
-                            {{ dinero(datos.suscripcion.plan.precio_mensual)
+                            {{ dinero(datos.suscripcion.periodicidad === 'anual' ? datos.suscripcion.plan.precio_anual : datos.suscripcion.plan.precio_mensual)
                             }}<span class="font-medium text-slate-400"
-                                >/mes</span
+                                >/{{ datos.suscripcion.periodicidad === 'anual' ? 'año' : 'mes' }}</span
                             >
                         </p>
                     </div>
@@ -294,17 +294,15 @@
                         </p>
                     </div>
 
-                    <div
-                        class="flex w-fit items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500"
-                    >
-                        <Info class="h-4 w-4 text-slate-400" />
-                        Precios mensuales en MXN
+                    <div class="flex w-fit rounded-xl bg-slate-100 p-1 text-xs font-semibold">
+                        <button type="button" class="rounded-lg px-3 py-1.5 transition" :class="periodicidadSeleccionada === 'mensual' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'" @click="periodicidadSeleccionada = 'mensual'">Mensual</button>
+                        <button type="button" class="rounded-lg px-3 py-1.5 transition" :class="periodicidadSeleccionada === 'anual' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500'" @click="periodicidadSeleccionada = 'anual'">Anual · ahorra</button>
                     </div>
                 </div>
 
                 <div class="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
                     <article
-                        v-for="plan in datos.planes"
+                        v-for="plan in planesDisponibles"
                         :key="plan.id"
                         class="relative flex flex-col overflow-hidden rounded-2xl border p-5 transition"
                         :class="
@@ -357,15 +355,18 @@
                                 <p
                                     class="text-3xl font-black tracking-tight text-slate-900"
                                 >
-                                    {{ dinero(plan.precio_mensual) }}
+                                    {{ dinero(precioPlan(plan)) }}
                                 </p>
 
                                 <span
                                     class="pb-1 text-xs font-medium text-slate-400"
                                 >
-                                    / mes
+                                    / {{ periodicidadSeleccionada === 'anual' ? 'año' : 'mes' }}
                                 </span>
                             </div>
+                            <p v-if="periodicidadSeleccionada === 'anual' && ahorroPlan(plan) > 0" class="mt-1 text-xs font-semibold text-emerald-700">
+                                Ahorras {{ dinero(ahorroPlan(plan)) }} al año
+                            </p>
                         </div>
 
                         <div
@@ -1328,6 +1329,7 @@ const datos = ref(null);
 const cargando = ref(true);
 const cargaFallida = ref(false);
 const cambiandoPlanId = ref(null);
+const periodicidadSeleccionada = ref("mensual");
 const aplicandoCodigo = ref(false);
 const iniciandoPago = ref(false);
 const mostrarCheckout = ref(false);
@@ -1543,7 +1545,19 @@ function limite(valor, singular, plural) {
 }
 
 function esPlanActual(plan) {
-    return plan.id === datos.value?.suscripcion?.plan_id;
+    return plan.id === datos.value?.suscripcion?.plan_id && periodicidadSeleccionada.value === (datos.value?.suscripcion?.periodicidad || "mensual");
+}
+
+const planesDisponibles = computed(() =>
+    (datos.value?.planes || []).filter((plan) => periodicidadSeleccionada.value === "mensual" || plan.precio_anual !== null),
+);
+
+function precioPlan(plan) {
+    return periodicidadSeleccionada.value === "anual" ? plan.precio_anual : plan.precio_mensual;
+}
+
+function ahorroPlan(plan) {
+    return Math.max(0, Number(plan.precio_mensual || 0) * 12 - Number(plan.precio_anual || 0));
 }
 
 function esPlanRecomendado(plan) {
@@ -1689,6 +1703,9 @@ async function cargar() {
     try {
         const response = await http.get("/api/facturacion");
         datos.value = response.data;
+        if (response.data?.suscripcion?.periodicidad) {
+            periodicidadSeleccionada.value = response.data.suscripcion.periodicidad;
+        }
     } catch (excepcion) {
         datos.value = null;
         cargaFallida.value = true;
@@ -1700,8 +1717,10 @@ async function cargar() {
 
 async function cambiarPlan(plan) {
     const actual = datos.value?.suscripcion?.plan;
-    const diferencia =
-        Number(plan.precio_mensual) - Number(actual?.precio_mensual || 0);
+    const periodicidadActual = datos.value?.suscripcion?.periodicidad || "mensual";
+    const precioActual = periodicidadActual === "anual" ? actual?.precio_anual : actual?.precio_mensual;
+    const diferencia = Number(precioPlan(plan)) * (periodicidadSeleccionada.value === "mensual" ? 12 : 1)
+        - Number(precioActual || 0) * (periodicidadActual === "mensual" ? 12 : 1);
     const esMejora = diferencia > 0;
     const aplicacion = actual
         ? esMejora
@@ -1713,8 +1732,8 @@ async function cambiarPlan(plan) {
             ? "¿Confirmar cambio de plan?"
             : "¿Seleccionar este plan?",
         text: actual
-            ? `${actual.nombre} (${dinero(actual.precio_mensual)}/mes) → ${plan.nombre} (${dinero(plan.precio_mensual)}/mes). ${aplicacion}`
-            : `${plan.nombre} por ${dinero(plan.precio_mensual)} al mes. ${aplicacion}`,
+            ? `${actual.nombre} (${dinero(precioActual)}/${periodicidadActual === "anual" ? "año" : "mes"}) → ${plan.nombre} (${dinero(precioPlan(plan))}/${periodicidadSeleccionada.value === "anual" ? "año" : "mes"}). ${aplicacion}`
+            : `${plan.nombre} por ${dinero(precioPlan(plan))} al ${periodicidadSeleccionada.value === "anual" ? "año" : "mes"}. ${aplicacion}`,
         confirmText: actual ? "Sí, cambiar plan" : "Sí, seleccionar plan",
         icon: "question",
         tone: esMejora || !actual ? "primary" : "warning",
@@ -1729,6 +1748,7 @@ async function cambiarPlan(plan) {
     try {
         const { data } = await http.post("/api/facturacion/plan", {
             plan_id: plan.id,
+            periodicidad: periodicidadSeleccionada.value,
         });
 
         toastSuccess(data.mensaje);

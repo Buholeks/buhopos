@@ -10,7 +10,7 @@ class Suscripcion extends Model
     protected $table = 'suscripciones';
 
     protected $fillable = [
-        'empresa_id', 'stripe_subscription_id', 'stripe_schedule_id', 'plan_id', 'plan_pendiente_id', 'estado', 'stripe_status', 'modalidad_cobro', 'cancelar_al_final', 'fecha_inicio', 'fecha_vencimiento', 'cambio_plan_en',
+        'empresa_id', 'stripe_subscription_id', 'stripe_schedule_id', 'plan_id', 'periodicidad', 'plan_pendiente_id', 'periodicidad_pendiente', 'estado', 'stripe_status', 'modalidad_cobro', 'cancelar_al_final', 'fecha_inicio', 'fecha_vencimiento', 'cambio_plan_en',
         'dias_gracia', 'precio_acordado', 'notas', 'cancelada_en', 'acceso_promocional_hasta',
     ];
 

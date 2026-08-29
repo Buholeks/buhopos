@@ -238,6 +238,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/productos/importacion/previsualizar', [ProductoController::class, 'previsualizarImportacion']);
     Route::post('/productos/importacion', [ProductoController::class, 'importar']);
     Route::post('/productos/{id}/restore', [ProductoController::class, 'restore']);
+    Route::patch('/productos/{id}/activo', [ProductoController::class, 'updateActivo']);
     Route::apiResource('productos', ProductoController::class);
 
     Route::prefix('productos/{id}/variantes')->group(function () {

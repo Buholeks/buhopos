@@ -17,6 +17,7 @@ use App\Support\VariantImageResolver;
 use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -41,7 +42,14 @@ class ProductoController extends Controller
     public function index(Request $request): JsonResponse
     {
         abort_unless(Auth::user()->tienePermiso('productos.ver'), 403, 'Sin permiso: productos.ver');
-        $query = Producto::deEmpresa($this->empresaId())
+        $empresaId = $this->empresaId();
+        $query = Producto::deEmpresa($empresaId)
+            ->select([
+                'id', 'empresa_id', 'categoria_id', 'marca_id', 'modelo_id',
+                'unidad_medida_id', 'nombre', 'codigo', 'imagen',
+                'precio_costo', 'precio_venta', 'tiene_variantes',
+                'tiene_series', 'pedido_generico', 'activo',
+            ])
             ->with([
                 'categoria:id,nombre',
                 'marca:id,nombre',
@@ -81,20 +89,9 @@ class ProductoController extends Controller
 
         if ($request->filled('buscar')) {
             $b = trim((string) $request->buscar);
-
-            $query->where(function ($q) use ($b) {
-                $q->where('nombre', 'like', "%{$b}%")
-                    ->orWhere('codigo', 'like', "%{$b}%")
-                    ->orWhereHas('categoria', fn($sq) => $sq->where('nombre', 'like', "%{$b}%"))
-                    ->orWhereHas('marca', fn($sq) => $sq->where('nombre', 'like', "%{$b}%"))
-                    ->orWhereHas('modelo', fn($sq) => $sq->where('nombre', 'like', "%{$b}%"))
-                    ->orWhereHas('unidadMedida', fn($sq) => $sq
-                        ->where('nombre', 'like', "%{$b}%")
-                        ->orWhere('abreviatura', 'like', "%{$b}%"))
-                    ->orWhereHas('variantes', fn($sq) => $sq
-                        ->where('sku', 'like', "%{$b}%")
-                        ->orWhere('codigo_barras', 'like', "%{$b}%"));
-            });
+            if ($b !== '') {
+                $this->aplicarBusquedaProductos($query, $b, $empresaId);
+            }
         }
 
         $productos = $query->paginate($request->integer('por_pagina', 20));
@@ -107,6 +104,69 @@ class ProductoController extends Controller
         });
 
         return response()->json($productos);
+    }
+
+    private function aplicarBusquedaProductos(Builder $query, string $buscar, int $empresaId): void
+    {
+        $productoIdsExactos = Producto::deEmpresa($empresaId)
+            ->where('codigo', $buscar)
+            ->pluck('id');
+
+        $varianteProductoIdsExactos = ProductoVariante::query()
+            ->where('empresa_id', $empresaId)
+            ->where(fn($q) => $q
+                ->where('sku', $buscar)
+                ->orWhere('codigo_barras', $buscar))
+            ->pluck('producto_id');
+
+        $idsExactos = $productoIdsExactos
+            ->merge($varianteProductoIdsExactos)
+            ->unique()
+            ->values();
+
+        if ($idsExactos->isNotEmpty()) {
+            $query->whereIn('id', $idsExactos);
+            return;
+        }
+
+        // El comodín sólo se agrega al final para que los índices puedan
+        // participar en búsquedas por nombre, código, SKU y código de barras.
+        $prefijo = addcslashes($buscar, '\\%_') . '%';
+        $variantesCoincidentes = ProductoVariante::query()
+            ->select('producto_id')
+            ->where('empresa_id', $empresaId)
+            ->where(fn($q) => $q
+                ->where('sku', 'like', $prefijo)
+                ->orWhere('codigo_barras', 'like', $prefijo));
+
+        $query->where(function ($q) use ($prefijo, $variantesCoincidentes) {
+            $q->where('nombre', 'like', $prefijo)
+                ->orWhere('codigo', 'like', $prefijo)
+                ->orWhereHas('categoria', fn($sq) => $sq->where('nombre', 'like', $prefijo))
+                ->orWhereHas('marca', fn($sq) => $sq->where('nombre', 'like', $prefijo))
+                ->orWhereHas('modelo', fn($sq) => $sq->where('nombre', 'like', $prefijo))
+                ->orWhereHas('unidadMedida', fn($sq) => $sq
+                    ->where('nombre', 'like', $prefijo)
+                    ->orWhere('abreviatura', 'like', $prefijo))
+                ->orWhereIn('id', $variantesCoincidentes);
+        });
+    }
+
+    public function updateActivo(Request $request, int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('productos.editar'), 403, 'Sin permiso: productos.editar');
+
+        $datos = $request->validate([
+            'activo' => ['required', 'boolean'],
+        ]);
+
+        $producto = Producto::deEmpresa($this->empresaId())->findOrFail($id);
+        $producto->update(['activo' => $datos['activo']]);
+
+        return response()->json([
+            'message' => $producto->activo ? 'Producto activado.' : 'Producto desactivado.',
+            'data' => ['id' => $producto->id, 'activo' => $producto->activo],
+        ]);
     }
 
     public function restore(int $id): JsonResponse
@@ -495,7 +555,9 @@ class ProductoController extends Controller
                 $atributoId = (int) $atributoId;
 
                 $valido = \App\Models\Atributo::where('id', $atributoId)
+                    ->where('empresa_id', $empresaId)
                     ->where('tipo_atributo_id', $tipoId)
+                    ->where('activo', true)
                     ->exists();
 
                 if (! $valido) {
@@ -778,7 +840,9 @@ class ProductoController extends Controller
 
             foreach ($atributosEditados as $tipoId => $atributoId) {
                 $valido = \App\Models\Atributo::where('id', $atributoId)
+                    ->where('empresa_id', $this->empresaId())
                     ->where('tipo_atributo_id', $tipoId)
+                    ->where('activo', true)
                     ->exists();
 
                 if (! $valido) {
@@ -813,50 +877,62 @@ class ProductoController extends Controller
             }
         }
 
-        $variante->sku           = $toNullIfEmpty($datos['sku'] ?? null);
-        $variante->codigo_barras = $toNullIfEmpty($datos['codigo_barras'] ?? null);
-        $variante->precio_costo  = $toNullIfEmpty($datos['precio_costo'] ?? null);
-        $variante->precio_venta  = $toNullIfEmpty($datos['precio_venta'] ?? null);
-        $variante->precio1       = $toNullIfEmpty($datos['precio1'] ?? null);
-        $variante->precio2       = $toNullIfEmpty($datos['precio2'] ?? null);
-        $variante->precio3       = $toNullIfEmpty($datos['precio3'] ?? null);
-        $variante->precio4       = $toNullIfEmpty($datos['precio4'] ?? null);
-        $variante->precio5       = $toNullIfEmpty($datos['precio5'] ?? null);
-        $variante->precio_oferta = $toNullIfEmpty($datos['precio_oferta'] ?? null);
-        $variante->oferta_hasta  = $toNullIfEmpty($datos['oferta_hasta'] ?? null);
-        $variante->stock_minimo  = $toNullIfEmpty($datos['stock_minimo'] ?? null);
+        DB::beginTransaction();
 
-        if (array_key_exists('oferta_activa', $datos)) {
-            $variante->oferta_activa = $datos['oferta_activa'];
-        }
+        try {
+            $variante->sku           = $toNullIfEmpty($datos['sku'] ?? null);
+            $variante->codigo_barras = $toNullIfEmpty($datos['codigo_barras'] ?? null);
+            $variante->precio_costo  = $toNullIfEmpty($datos['precio_costo'] ?? null);
+            $variante->precio_venta  = $toNullIfEmpty($datos['precio_venta'] ?? null);
+            $variante->precio1       = $toNullIfEmpty($datos['precio1'] ?? null);
+            $variante->precio2       = $toNullIfEmpty($datos['precio2'] ?? null);
+            $variante->precio3       = $toNullIfEmpty($datos['precio3'] ?? null);
+            $variante->precio4       = $toNullIfEmpty($datos['precio4'] ?? null);
+            $variante->precio5       = $toNullIfEmpty($datos['precio5'] ?? null);
+            $variante->precio_oferta = $toNullIfEmpty($datos['precio_oferta'] ?? null);
+            $variante->oferta_hasta  = $toNullIfEmpty($datos['oferta_hasta'] ?? null);
+            $variante->stock_minimo  = $toNullIfEmpty($datos['stock_minimo'] ?? null);
 
-        if (array_key_exists('activo', $datos)) {
-            $variante->activo = $datos['activo'];
-        }
-
-        if (!empty($datos['eliminar_imagen'])) {
-            $this->quitarReferenciaMedia($variante);
-            $this->borrarArchivoLegacy($variante->imagen);
-            $variante->imagen = null;
-        } elseif ($request->filled('imagen_media_id')) {
-            $variante->imagen = $this->asignarImagenDesdeMedia($variante, (int) $request->imagen_media_id);
-        } elseif ($request->hasFile('imagen')) {
-            $this->borrarArchivoLegacy($variante->imagen);
-            $variante->imagen = $this->subirYRegistrarImagen($variante, $request->file('imagen'), "variantes/{$variante->empresa_id}");
-        }
-
-        $variante->save();
-
-        if ($atributosEditados !== null) {
-            VarianteAtributo::where('variante_id', $variante->id)->delete();
-
-            foreach ($atributosEditados as $tipoId => $atributoId) {
-                VarianteAtributo::create([
-                    'variante_id'      => $variante->id,
-                    'tipo_atributo_id' => $tipoId,
-                    'atributo_id'      => $atributoId,
-                ]);
+            if (array_key_exists('oferta_activa', $datos)) {
+                $variante->oferta_activa = $datos['oferta_activa'];
             }
+
+            if (array_key_exists('activo', $datos)) {
+                $variante->activo = $datos['activo'];
+            }
+
+            if (!empty($datos['eliminar_imagen'])) {
+                $this->quitarReferenciaMedia($variante);
+                $this->borrarArchivoLegacy($variante->imagen);
+                $variante->imagen = null;
+            } elseif ($request->filled('imagen_media_id')) {
+                $variante->imagen = $this->asignarImagenDesdeMedia($variante, (int) $request->imagen_media_id);
+            } elseif ($request->hasFile('imagen')) {
+                $this->borrarArchivoLegacy($variante->imagen);
+                $variante->imagen = $this->subirYRegistrarImagen($variante, $request->file('imagen'), "variantes/{$variante->empresa_id}");
+            }
+
+            $variante->save();
+
+            if ($atributosEditados !== null) {
+                VarianteAtributo::where('variante_id', $variante->id)->delete();
+
+                foreach ($atributosEditados as $tipoId => $atributoId) {
+                    VarianteAtributo::create([
+                        'variante_id'      => $variante->id,
+                        'tipo_atributo_id' => $tipoId,
+                        'atributo_id'      => $atributoId,
+                    ]);
+                }
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Error al actualizar la variante.',
+            ], 500);
         }
 
         $variante->load(['producto', 'atributos.tipoAtributo', 'atributos.atributo']);

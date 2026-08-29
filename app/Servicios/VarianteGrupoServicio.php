@@ -6,6 +6,7 @@ use App\Models\Producto;
 use App\Models\ProductoVarianteGrupo;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class VarianteGrupoServicio
 {
@@ -24,6 +25,10 @@ class VarianteGrupoServicio
             ])
             ->unique('id')
             ->values();
+
+        if ($tipos->count() < 2) {
+            return collect();
+        }
 
         $tipo = $tipos->first(fn($item) => in_array($this->normalizar($item['nombre']), self::NOMBRES_VISUALES, true))
             ?: $tipos->sortBy('id')->first();
@@ -50,6 +55,16 @@ class VarianteGrupoServicio
                 ]
             );
         })->values();
+    }
+
+    public function productoEsAgrupable(int $productoId): bool
+    {
+        return DB::table('variante_atributos as va')
+            ->join('producto_variantes as pv', 'pv.id', '=', 'va.variante_id')
+            ->where('pv.producto_id', $productoId)
+            ->whereNull('pv.deleted_at')
+            ->distinct()
+            ->count('va.tipo_atributo_id') >= 2;
     }
 
     private function codigoDisponible(Producto $producto, int $atributoId): string

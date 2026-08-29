@@ -49,6 +49,84 @@
             </div>
         </div>
 
+        <div class="mb-5 rounded-xl border border-slate-200 bg-white p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                    <p class="text-sm font-semibold text-slate-800">Filtros</p>
+                    <p class="text-xs text-slate-500">Combina uno o varios criterios</p>
+                </div>
+                <button
+                    v-if="hayFiltros"
+                    type="button"
+                    class="text-xs font-medium text-emerald-700 hover:text-emerald-800"
+                    @click="limpiarFiltros"
+                >
+                    Limpiar filtros
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <BaseSearchSelect
+                    v-model="filtros.categoria_id"
+                    :selected-item="filtrosSeleccionados.categoria"
+                    :fetcher="buscarCategoriasFiltro"
+                    label="Categoría"
+                    placeholder="Todas las categorías"
+                    @selected="seleccionarFiltro('categoria', 'categoria_id', $event)"
+                />
+                <BaseSearchSelect
+                    v-model="filtros.marca_id"
+                    :selected-item="filtrosSeleccionados.marca"
+                    :fetcher="buscarMarcasFiltro"
+                    label="Marca"
+                    placeholder="Todas las marcas"
+                    @selected="seleccionarMarcaFiltro"
+                />
+                <BaseSearchSelect
+                    v-model="filtros.modelo_id"
+                    :selected-item="filtrosSeleccionados.modelo"
+                    :fetcher="buscarModelosFiltro"
+                    :disabled="!filtros.marca_id"
+                    label="Modelo"
+                    :placeholder="filtros.marca_id ? 'Todos los modelos' : 'Selecciona una marca'"
+                    @selected="seleccionarFiltro('modelo', 'modelo_id', $event)"
+                />
+                <BaseSearchSelect
+                    v-model="filtros.unidad_medida_id"
+                    :selected-item="filtrosSeleccionados.unidad"
+                    :fetcher="buscarUnidadesFiltro"
+                    label="Unidad"
+                    placeholder="Todas las unidades"
+                    @selected="seleccionarFiltro('unidad', 'unidad_medida_id', $event)"
+                />
+
+                <label class="block text-sm font-medium text-slate-700">
+                    Estado
+                    <select v-model="filtros.activo" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" @change="aplicarFiltros">
+                        <option value="">Todos</option>
+                        <option value="1">Activos</option>
+                        <option value="0">Inactivos</option>
+                    </select>
+                </label>
+                <label class="block text-sm font-medium text-slate-700">
+                    Variantes
+                    <select v-model="filtros.tiene_variantes" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" @change="aplicarFiltros">
+                        <option value="">Todos</option>
+                        <option value="1">Con variantes</option>
+                        <option value="0">Sin variantes</option>
+                    </select>
+                </label>
+                <label class="block text-sm font-medium text-slate-700">
+                    Series / IMEI
+                    <select v-model="filtros.tiene_series" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" @change="aplicarFiltros">
+                        <option value="">Todos</option>
+                        <option value="1">Con series</option>
+                        <option value="0">Sin series</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+
         <!-- EMPTY -->
         <div
             v-if="productos.length === 0 && !cargandoLista"
@@ -195,6 +273,7 @@ import ProductoModal from "@/components/productos/ProductoModal.vue";
 import VariantesModal from "@/components/productos/VariantesModal.vue";
 
 import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import { Boxes, Loader2 } from "lucide-vue-next";
 
 const TABS = [
@@ -208,6 +287,21 @@ const cargandoLista = ref(false);
 const cargando = ref(false);
 const cargandoVar = ref(false);
 const busqueda = ref("");
+const filtros = reactive({
+    categoria_id: null,
+    marca_id: null,
+    modelo_id: null,
+    unidad_medida_id: null,
+    activo: "",
+    tiene_variantes: "",
+    tiene_series: "",
+});
+const filtrosSeleccionados = reactive({
+    categoria: null,
+    marca: null,
+    modelo: null,
+    unidad: null,
+});
 const paginacion = ref({ total: 0, current_page: 1, last_page: 1 });
 let buscarTimer = null;
 
@@ -298,12 +392,24 @@ const margen = computed(() => {
     return ((form.precio_venta - form.precio_costo) / form.precio_costo) * 100;
 });
 
-// ── Init ───────────────────────────────────────────────────────────────────────
-onMounted(() => Promise.all([cargarProductos(), cargarCatalogos()]));
+const hayFiltros = computed(() => Object.values(filtros).some((valor) => valor !== null && valor !== ""));
 
+// ── Init ───────────────────────────────────────────────────────────────────────
+onMounted(() => cargarProductos());
+
+let catalogosPromise = null;
 async function cargarCatalogos() {
-    const { data } = await http.get("/api/productos/atributos-empresa");
-    catalogos.tiposAtributo = data?.data ?? data;
+    if (catalogos.tiposAtributo.length) return;
+    if (!catalogosPromise) {
+        catalogosPromise = http.get("/api/productos/atributos-empresa")
+            .then(({ data }) => {
+                catalogos.tiposAtributo = data?.data ?? data;
+            })
+            .finally(() => {
+                catalogosPromise = null;
+            });
+    }
+    return catalogosPromise;
 }
 
 async function cargarProductos(pagina = 1) {
@@ -311,6 +417,9 @@ async function cargarProductos(pagina = 1) {
     try {
         const params = { page: pagina, por_pagina: 20 };
         if (busqueda.value) params.buscar = busqueda.value;
+        Object.entries(filtros).forEach(([campo, valor]) => {
+            if (valor !== null && valor !== "") params[campo] = valor;
+        });
         const { data } = await http.get("/api/productos", { params });
         productos.value = data.data;
         paginacion.value = {
@@ -339,6 +448,65 @@ function irPagina(p) {
     cargarProductos(p);
 }
 
+async function buscarCatalogoFiltro(endpoint, q, params = {}) {
+    const { data } = await http.get(endpoint, { params: { ...params, q } });
+    return Array.isArray(data) ? data : data?.data ?? [];
+}
+
+function buscarCategoriasFiltro(q) {
+    return buscarCatalogoFiltro("/api/categorias/buscar", q);
+}
+
+function buscarMarcasFiltro(q) {
+    return buscarCatalogoFiltro("/api/marcas/buscar", q);
+}
+
+function buscarModelosFiltro(q) {
+    if (!filtros.marca_id) return [];
+    return buscarCatalogoFiltro("/api/modelos/buscar", q, { marca_id: filtros.marca_id });
+}
+
+function buscarUnidadesFiltro(q) {
+    return buscarCatalogoFiltro("/api/unidades-medida/buscar", q);
+}
+
+function seleccionarFiltro(seleccion, campo, item) {
+    filtrosSeleccionados[seleccion] = item;
+    filtros[campo] = item?.id ?? null;
+    aplicarFiltros();
+}
+
+function seleccionarMarcaFiltro(item) {
+    filtrosSeleccionados.marca = item;
+    filtros.marca_id = item?.id ?? null;
+    filtrosSeleccionados.modelo = null;
+    filtros.modelo_id = null;
+    aplicarFiltros();
+}
+
+function aplicarFiltros() {
+    cargarProductos(1);
+}
+
+function limpiarFiltros() {
+    Object.assign(filtros, {
+        categoria_id: null,
+        marca_id: null,
+        modelo_id: null,
+        unidad_medida_id: null,
+        activo: "",
+        tiene_variantes: "",
+        tiene_series: "",
+    });
+    Object.assign(filtrosSeleccionados, {
+        categoria: null,
+        marca: null,
+        modelo: null,
+        unidad: null,
+    });
+    cargarProductos(1);
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function formatPrecio(v) {
     return new Intl.NumberFormat("es-MX", {
@@ -359,7 +527,14 @@ function categoriaNombre(p) {
     );
 }
 
-function duplicarProducto(p) {
+async function duplicarProducto(p) {
+    try {
+        const { data } = await http.get(`/api/productos/${p.id}`);
+        p = data;
+    } catch (e) {
+        toastError(e.response?.data?.message ?? "No se pudo cargar el producto");
+        return;
+    }
     abrirModal();
     asegurarCatalogosSeleccionados(p);
     Object.assign(form, {
@@ -389,12 +564,8 @@ function duplicarProducto(p) {
 }
 
 async function toggleActivoProducto(p) {
-    const fd = formDataDesdeProducto(p);
-    fd.append("_method", "PUT");
-    fd.set("activo", p.activo ? "0" : "1");
-
     try {
-        await http.post(`/api/productos/${p.id}`, fd);
+        await http.patch(`/api/productos/${p.id}/activo`, { activo: !p.activo });
         toastSuccess(p.activo ? "Producto desactivado" : "Producto activado");
         await cargarProductos(paginacion.value.current_page);
     } catch (e) {
@@ -402,36 +573,6 @@ async function toggleActivoProducto(p) {
             e.response?.data?.message ?? "No se pudo actualizar el estado",
         );
     }
-}
-
-function formDataDesdeProducto(p) {
-    const fd = new FormData();
-    [
-        "nombre",
-        "codigo",
-        "descripcion",
-        "categoria_id",
-        "marca_id",
-        "modelo_id",
-        "unidad_medida_id",
-        "precio_costo",
-        "precio_venta",
-        "precio1",
-        "precio2",
-        "precio3",
-        "precio4",
-        "precio5",
-        "stock_minimo",
-        "peso",
-    ].forEach((campo) => {
-        if (p[campo] !== null && p[campo] !== undefined && p[campo] !== "") {
-            fd.append(campo, p[campo]);
-        }
-    });
-    fd.append("activo", p.activo ? "1" : "0");
-    fd.append("tiene_series", p.tiene_series ? "1" : "0");
-    fd.append("pedido_generico", p.pedido_generico ? "1" : "0");
-    return fd;
 }
 
 // function generarCodigo() {
@@ -463,9 +604,16 @@ function resumenPorTipo(tipoId) {
 }
 
 // ── Modal Producto ─────────────────────────────────────────────────────────────
-function abrirModal(p = null) {
+async function abrirModal(p = null) {
     resetForm();
     if (p) {
+        try {
+            const { data } = await http.get(`/api/productos/${p.id}`);
+            p = data;
+        } catch (e) {
+            toastError(e.response?.data?.message ?? "No se pudo cargar el producto");
+            return;
+        }
         asegurarCatalogosSeleccionados(p);
         modal.editando = true;
         modal.idEditando = p.id;
@@ -694,7 +842,13 @@ async function abrirVariantes(p) {
     modalVar.mostrar = true;
     varTab.value = p.tiene_variantes ? "lista" : "generar";
     varEditandoId.value = null;
-    await cargarVariantes(p.id);
+    variantes.value = [];
+    cargandoVar.value = true;
+    try {
+        await Promise.all([cargarCatalogos(), cargarVariantes(p.id)]);
+    } finally {
+        cargandoVar.value = false;
+    }
 }
 
 function cerrarVariantes() {

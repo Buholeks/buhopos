@@ -203,9 +203,7 @@ class CatalogoPreciosController extends Controller
             ['key' => 'precio5', 'label' => 'Precio 5', 'valor' => $precio('precio5')],
         ];
 
-        $ofertaVigente = $row->oferta_activa
-            && (float) ($row->precio_oferta ?? 0) > 0
-            && (empty($row->oferta_hasta) || substr((string) $row->oferta_hasta, 0, 10) >= now()->toDateString());
+        $ofertaVigente = ProductoVariante::ofertaVigente($row->oferta_activa, $row->precio_oferta, $row->oferta_hasta);
 
         if ($ofertaVigente) {
             array_unshift($precios, [

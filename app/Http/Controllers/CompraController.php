@@ -11,6 +11,7 @@ use App\Models\Pedido;
 use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
 use App\Models\ProductoVarianteGrupo;
+use App\Servicios\VarianteGrupoServicio;
 use App\Models\Producto;
 use App\Models\ProveedorSaldoMovimiento;
 use App\Servicios\KardexServicio;
@@ -733,7 +734,7 @@ class CompraController extends Controller
             ->where('codigo', mb_strtoupper($q))
             ->with(['producto:id,codigo', 'atributo:id,valor'])
             ->first();
-        if ($grupoExacto) {
+        if ($grupoExacto && app(VarianteGrupoServicio::class)->productoEsAgrupable($grupoExacto->producto_id)) {
             $tokens = ProductVariantSearch::tokens($grupoExacto->producto->codigo . ' ' . $grupoExacto->atributo->valor);
         }
 

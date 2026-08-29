@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\ProductoVariante;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class VariantImageResolver
@@ -83,9 +84,20 @@ class VariantImageResolver
             return [];
         }
 
-        $variantes = ProductoVariante::where('empresa_id', $empresaId)
+        $ranked = DB::table('producto_variantes')
+            ->select('id')
+            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY producto_id ORDER BY id) AS preview_rank')
+            ->where('empresa_id', $empresaId)
             ->whereIn('producto_id', $productIds)
-            ->whereNotNull('imagen')
+            ->whereNull('deleted_at')
+            ->whereNotNull('imagen');
+
+        $variantIds = DB::query()
+            ->fromSub($ranked, 'ranked_variants')
+            ->where('preview_rank', '<=', $limit)
+            ->pluck('id');
+
+        $variantes = ProductoVariante::whereKey($variantIds)
             ->with([
                 'atributos.tipoAtributo:id,nombre',
                 'atributos.atributo:id,valor',

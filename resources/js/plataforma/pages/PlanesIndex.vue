@@ -46,6 +46,27 @@
                     />
                 </label>
 
+                <label class="block">
+                    <span class="mb-1 block text-xs font-medium text-slate-600">
+                        Precio anual <span class="font-normal text-slate-400">(opcional)</span>
+                    </span>
+                    <div class="relative">
+                        <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+                        <input
+                            v-model.number="form.precio_anual"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Ej. 1000"
+                            class="h-10 w-full rounded-lg border border-slate-200 bg-white pl-7 pr-12 text-sm text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                        />
+                        <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">MXN</span>
+                    </div>
+                    <span v-if="ahorroAnual > 0" class="mt-1 block text-xs text-emerald-600">
+                        Ahorro de {{ dinero.format(ahorroAnual) }} frente a 12 meses
+                    </span>
+                </label>
+
                 <!-- Descripción -->
                 <label class="block">
                     <span class="mb-1 block text-xs font-medium text-slate-600">
@@ -380,6 +401,9 @@
                                 <p class="mt-0.5 text-xs text-slate-400">
                                     Por mes
                                 </p>
+                                <p v-if="plan.precio_anual !== null" class="mt-1 text-xs font-medium text-emerald-700">
+                                    {{ dinero.format(plan.precio_anual) }} por año
+                                </p>
                             </td>
 
                             <!-- Incluye -->
@@ -519,7 +543,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import {
     CircleAlert,
     Loader2,
@@ -538,6 +562,7 @@ const editando = ref(null);
 const cargando = ref(false);
 const guardando = ref(false);
 const sincronizando = ref(null);
+const ahorroAnual = computed(() => Math.max(0, Number(form.precio_mensual || 0) * 12 - Number(form.precio_anual || 0)));
 
 const errorCarga = ref("");
 const errorFormulario = ref("");
@@ -551,6 +576,7 @@ const base = () => ({
     nombre: "",
     descripcion: "",
     precio_mensual: 0,
+    precio_anual: null,
     sucursales_incluidas: 1,
     usuarios_incluidos: null,
     precio_sucursal_adicional: 0,
@@ -592,6 +618,7 @@ function editar(plan) {
         nombre: plan.nombre || "",
         descripcion: plan.descripcion || "",
         precio_mensual: Number(plan.precio_mensual || 0),
+        precio_anual: plan.precio_anual === null ? null : Number(plan.precio_anual),
         sucursales_incluidas: Number(plan.sucursales_incluidas || 1),
         usuarios_incluidos:
             plan.usuarios_incluidos === null

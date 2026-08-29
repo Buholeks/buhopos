@@ -6,6 +6,7 @@ use App\Support\PublicImageStorage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Carbon;
 
 class ProductoVariante extends Model
 {
@@ -79,15 +80,32 @@ class ProductoVariante extends Model
      */
     public function precioVigente(): float
     {
-        if (
-            $this->oferta_activa &&
-            $this->precio_oferta > 0 &&
-            (! $this->oferta_hasta || $this->oferta_hasta->isFuture())
-        ) {
+        if (self::ofertaVigente($this->oferta_activa, $this->precio_oferta, $this->oferta_hasta)) {
             return (float) $this->precio_oferta;
         }
 
         return $this->precio('precio_venta');
+    }
+
+    /**
+     * Determina si una oferta sigue vigente. "oferta_hasta" es una fecha (sin
+     * hora), así que se compara contra el fin de ese día: una oferta con
+     * "válida hasta" hoy debe seguir vigente durante todo el día de hoy, no
+     * solo hasta la medianoche.
+     */
+    public static function ofertaVigente($ofertaActiva, $precioOferta, $ofertaHasta): bool
+    {
+        if (! $ofertaActiva || (float) $precioOferta <= 0) {
+            return false;
+        }
+
+        if (! $ofertaHasta) {
+            return true;
+        }
+
+        $hasta = $ofertaHasta instanceof Carbon ? $ofertaHasta : Carbon::parse($ofertaHasta);
+
+        return $hasta->copy()->endOfDay()->isFuture();
     }
 
     /** Nombre legible: "Rojo / XL" basado en los atributos */

@@ -87,7 +87,9 @@ class FacturacionController extends Controller
                 $inicio = $suscripcion->fecha_vencimiento && $suscripcion->fecha_vencimiento->isFuture()
                     ? $suscripcion->fecha_vencimiento->copy()->addDay()
                     : today();
-                $fin = $inicio->copy()->addMonthNoOverflow()->subDay();
+                $fin = $suscripcion->periodicidad === 'anual'
+                    ? $inicio->copy()->addYear()->subDay()
+                    : $inicio->copy()->addMonthNoOverflow()->subDay();
 
                 $stripe->cambiarACobroManual($suscripcion);
                 $status = 201;
@@ -97,7 +99,7 @@ class FacturacionController extends Controller
                     'plan_id' => $suscripcion->plan_id,
                     'cuenta_cobro_id' => $cuenta->id,
                     'metodo' => $data['metodo'],
-                    'importe' => $suscripcion->precio_acordado ?: $suscripcion->plan->precio_mensual,
+                    'importe' => $suscripcion->precio_acordado ?: $suscripcion->plan->precioPara($suscripcion->periodicidad),
                     'referencia_unica' => 'BUHO-'.str_pad((string) $empresa->id, 5, '0', STR_PAD_LEFT).'-'.strtoupper(Str::random(8)),
                     'periodo_inicio' => $inicio,
                     'periodo_fin' => $fin,
@@ -186,8 +188,13 @@ class FacturacionController extends Controller
     public function cambiarPlan(Request $request, StripeBillingService $stripe, LimitesSuscripcionService $limites): JsonResponse
     {
         abort_unless($request->user()->es_super_admin, 403, 'Solo el superadministrador puede cambiar el plan.');
-        $data = $request->validate(['plan_id' => ['required', 'integer', 'exists:planes,id']]);
+        $data = $request->validate([
+            'plan_id' => ['required', 'integer', 'exists:planes,id'],
+            'periodicidad' => ['sometimes', 'in:mensual,anual'],
+        ]);
+        $data['periodicidad'] ??= 'mensual';
         $plan = Plan::whereKey($data['plan_id'])->where('activo', true)->firstOrFail();
+        abort_if($data['periodicidad'] === 'anual' && $plan->precio_anual === null, 422, 'Este plan no tiene disponible el cobro anual.');
         $empresa = $request->user()->empresa;
         $limites->validarCambio($empresa, $plan);
 
@@ -198,10 +205,12 @@ class FacturacionController extends Controller
                 && today()->lte($suscripcion->fecha_vencimiento);
             $empresa->suscripcion()->updateOrCreate(['empresa_id' => $empresa->id], [
                 'plan_id' => $plan->id,
+                'periodicidad' => $data['periodicidad'],
                 'plan_pendiente_id' => null,
+                'periodicidad_pendiente' => null,
                 'cambio_plan_en' => null,
                 'estado' => $pruebaVigente ? 'prueba' : 'pendiente',
-                'precio_acordado' => $plan->precio_mensual,
+                'precio_acordado' => $plan->precioPara($data['periodicidad']),
             ]);
 
             return response()->json([
@@ -212,7 +221,7 @@ class FacturacionController extends Controller
             ]);
         }
 
-        return $this->ejecutar(fn () => $stripe->cambiarPlan($empresa, $plan));
+        return $this->ejecutar(fn () => $stripe->cambiarPlan($empresa, $plan, $data['periodicidad']));
     }
 
     public function canjearCodigo(Request $request, LimitesSuscripcionService $limites, StripeBillingService $stripe): JsonResponse

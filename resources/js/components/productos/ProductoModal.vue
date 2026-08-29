@@ -100,8 +100,7 @@
                                     <BaseInput
                                         v-model.trim="formProxy.codigo"
                                         placeholder="0001"
-                                          :error="err?.codigo"
-                                          autofocus
+                                        :error="err?.codigo"
                                     />
                                 </div>
                                 <p

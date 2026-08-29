@@ -228,7 +228,7 @@
 
                     <div class="p-4">
                         <div class="grid gap-3 md:grid-cols-2">
-                            <label class="block md:col-span-2">
+                            <label class="block">
                                 <span class="mb-1 block text-xs font-medium text-slate-600">
                                     Plan
                                 </span>
@@ -247,6 +247,14 @@
                                         {{ plan.nombre }} —
                                         {{ dinero.format(plan.precio_mensual) }}
                                     </option>
+                                </select>
+                            </label>
+
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-medium text-slate-600">Periodicidad</span>
+                                <select v-model="suscripcion.periodicidad" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                                    <option value="mensual">Mensual</option>
+                                    <option value="anual">Anual</option>
                                 </select>
                             </label>
 
@@ -1151,6 +1159,7 @@ const hoy = new Date().toISOString().slice(0, 10);
 
 const suscripcion = reactive({
     plan_id: null,
+    periodicidad: "mensual",
     estado: "pendiente",
     fecha_inicio: "",
     fecha_vencimiento: "",
@@ -1300,6 +1309,7 @@ function asignarEmpresa(data) {
 
     Object.assign(suscripcion, {
         plan_id: null,
+        periodicidad: "mensual",
         estado: "pendiente",
         fecha_inicio: "",
         fecha_vencimiento: "",

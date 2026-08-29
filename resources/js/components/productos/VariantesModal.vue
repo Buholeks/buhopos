@@ -103,6 +103,7 @@
                                         {{ variantesInactivas }} inactivas
                                     </span>
                                     <button
+                                        v-if="usarAgrupacion"
                                         type="button"
                                         :disabled="cargandoVar || (variantes ?? []).length === 0"
                                         title="Borra el precio propio de todas las variantes para que vuelvan a usar el precio del producto padre"
@@ -116,7 +117,15 @@
                             </div>
 
                             <div
-                                v-if="variantesAgrupadas.length > 0"
+                                v-if="cargandoVar && variantesAgrupadas.length === 0"
+                                class="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-10 text-sm text-slate-500"
+                            >
+                                <Loader2 class="h-4 w-4 animate-spin" />
+                                Cargando variantes…
+                            </div>
+
+                            <div
+                                v-else-if="variantesAgrupadas.length > 0"
                                 class="space-y-3"
                             >
                                 <div
@@ -161,7 +170,7 @@
                                         />
                                     </button>
 
-                                    <div v-show="!grupoColapsado(grupo.key)" class="space-y-2 p-2">
+                                    <div v-show="!usarAgrupacion || !grupoColapsado(grupo.key)" class="space-y-2 p-2">
                                 <div
                                     v-for="v in grupo.variantes"
                                     :key="v.id"
@@ -676,7 +685,7 @@
                             </div>
 
                             <div
-                                v-else
+                                v-else-if="!cargandoVar"
                                 class="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500"
                             >
                                 Sin variantes todavía.
@@ -1094,7 +1103,21 @@ const variantesFiltradas = computed(() => {
     });
 });
 
+const usarAgrupacion = computed(() => {
+    const tipos = new Set(
+        (props.variantes ?? [])
+            .flatMap((variante) => variante.atributos ?? [])
+            .map((atributo) => atributo.tipo_atributo_id ?? atributo.tipo_atributo?.id)
+            .filter(Boolean)
+            .map(Number),
+    );
+
+    return tipos.size >= 2;
+});
+
 const tipoAgrupadorVisual = computed(() => {
+    if (!usarAgrupacion.value) return null;
+
     const tipos = props.catalogos?.tiposAtributo ?? [];
     const porNombre = tipos.find((tipo) =>
         ["color", "colores", "colors", "colour", "colours"].includes(normalizar(tipo.nombre ?? "")),
@@ -1116,6 +1139,19 @@ const tipoAgrupadorVisual = computed(() => {
 });
 
 const variantesAgrupadas = computed(() => {
+    if (variantesFiltradas.value.length === 0) return [];
+
+    if (!usarAgrupacion.value) {
+        return [{
+            key: "sin-agrupacion",
+            label: "Variantes",
+            tipo: "",
+            imagen_url: null,
+            grupo: null,
+            variantes: [...variantesFiltradas.value].sort(ordenarVariantesDentroDeGrupo),
+        }];
+    }
+
     const tipo = tipoAgrupadorVisual.value;
     const grupos = new Map();
 

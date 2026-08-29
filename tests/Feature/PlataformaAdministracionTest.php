@@ -104,6 +104,33 @@ class PlataformaAdministracionTest extends TestCase
         $this->assertSame(1, $empresa->suscripcion->pagos()->count());
     }
 
+    public function test_plan_anual_cobra_precio_con_descuento_y_cubre_un_anio(): void
+    {
+        $empresa = Empresa::create(['nombre' => 'Cliente anual', 'activo' => true]);
+        $sucursal = Sucursal::create(['empresa_id' => $empresa->id, 'nombre' => 'Matriz', 'activo' => true]);
+        $user = User::create(['empresa_id' => $empresa->id, 'sucursal_id' => $sucursal->id, 'name' => 'Dueño', 'email' => 'anual@example.com', 'password' => 'password-seguro', 'activo' => true, 'es_super_admin' => true]);
+        $plan = Plan::create(['nombre' => 'Básico', 'precio_mensual' => 100, 'precio_anual' => 1000, 'sucursales_incluidas' => 1, 'usuarios_incluidos' => 2, 'precio_sucursal_adicional' => 0, 'activo' => true]);
+        Suscripcion::create(['empresa_id' => $empresa->id, 'estado' => 'pendiente']);
+        CuentaCobroPlataforma::create(['banco' => 'Banco', 'beneficiario' => 'BuhoPOS', 'clabe' => '012345678901234567', 'activa' => true, 'predeterminada' => true]);
+
+        $this->actingAs($user)->postJson('/api/facturacion/plan', ['plan_id' => $plan->id, 'periodicidad' => 'anual'])
+            ->assertOk();
+
+        $solicitud = $this->postJson('/api/facturacion/pago-manual', ['metodo' => 'transferencia'])
+            ->assertCreated()
+            ->assertJsonPath('importe', '1000.00')
+            ->json();
+
+        $this->assertDatabaseHas('suscripciones', [
+            'empresa_id' => $empresa->id,
+            'plan_id' => $plan->id,
+            'periodicidad' => 'anual',
+            'precio_acordado' => 1000,
+        ]);
+        $this->assertSame(today()->toDateString(), substr($solicitud['periodo_inicio'], 0, 10));
+        $this->assertSame(today()->addYear()->subDay()->toDateString(), substr($solicitud['periodo_fin'], 0, 10));
+    }
+
     public function test_cliente_cancela_solicitud_manual_y_regresa_a_tarjeta(): void
     {
         $empresa = Empresa::create(['nombre' => 'Cambio método', 'activo' => true]);

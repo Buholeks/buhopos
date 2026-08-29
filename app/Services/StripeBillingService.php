@@ -74,29 +74,49 @@ class StripeBillingService
             $productId = $stripe->products->create($producto)->id;
         }
 
-        $centavos = (int) round(((float) $plan->precio_mensual) * 100);
         $currency = strtolower(config('services.stripe.currency', 'mxn'));
-        $crearPrecio = true;
-
-        if ($plan->stripe_price_id) {
-            $actual = $stripe->prices->retrieve($plan->stripe_price_id, []);
-            $crearPrecio = $actual->unit_amount !== $centavos || $actual->currency !== $currency || $actual->recurring?->interval !== 'month';
+        $mensualId = $this->sincronizarPrecio($stripe, $productId, $plan->stripe_price_id, (float) $plan->precio_mensual, 'month', $currency, $metadata);
+        $anualId = $plan->precio_anual !== null
+            ? $this->sincronizarPrecio($stripe, $productId, $plan->stripe_price_anual_id, (float) $plan->precio_anual, 'year', $currency, $metadata)
+            : null;
+        if ($plan->precio_anual === null && $plan->stripe_price_anual_id) {
+            $stripe->prices->update($plan->stripe_price_anual_id, ['active' => false]);
         }
 
-        $priceId = $plan->stripe_price_id;
-        if ($crearPrecio) {
-            $priceId = $stripe->prices->create([
-                'product' => $productId, 'currency' => $currency, 'unit_amount' => $centavos,
-                'recurring' => ['interval' => 'month'], 'metadata' => $metadata,
-            ])->id;
-            if ($plan->stripe_price_id) {
-                $stripe->prices->update($plan->stripe_price_id, ['active' => false]);
-            }
-        }
-
-        $plan->update(['stripe_product_id' => $productId, 'stripe_price_id' => $priceId, 'stripe_sincronizado_en' => now()]);
+        $plan->update([
+            'stripe_product_id' => $productId,
+            'stripe_price_id' => $mensualId,
+            'stripe_price_anual_id' => $anualId,
+            'stripe_sincronizado_en' => now(),
+        ]);
 
         return $plan->fresh();
+    }
+
+    private function sincronizarPrecio(StripeClient $stripe, string $productId, ?string $priceId, float $importe, string $intervalo, string $currency, array $metadata): string
+    {
+        $centavos = (int) round($importe * 100);
+        $crear = true;
+        if ($priceId) {
+            $actual = $stripe->prices->retrieve($priceId, []);
+            $crear = $actual->unit_amount !== $centavos || $actual->currency !== $currency || $actual->recurring?->interval !== $intervalo;
+        }
+        if (! $crear) {
+            return $priceId;
+        }
+
+        $nuevoId = $stripe->prices->create([
+            'product' => $productId,
+            'currency' => $currency,
+            'unit_amount' => $centavos,
+            'recurring' => ['interval' => $intervalo],
+            'metadata' => $metadata + ['buhopos_periodicidad' => $intervalo === 'year' ? 'anual' : 'mensual'],
+        ])->id;
+        if ($priceId) {
+            $stripe->prices->update($priceId, ['active' => false]);
+        }
+
+        return $nuevoId;
     }
 
     public function asegurarCliente(Empresa $empresa): string
@@ -225,7 +245,7 @@ class StripeBillingService
         if (! $suscripcion->plan) {
             throw new RuntimeException($mensajeSinPlan);
         }
-        if (! $suscripcion->plan->stripe_price_id) {
+        if (! $suscripcion->plan->stripePricePara($suscripcion->periodicidad)) {
             $this->sincronizarPlan($suscripcion->plan);
         }
         if ($suscripcion->stripe_subscription_id && in_array($suscripcion->stripe_status, ['active', 'trialing', 'past_due'], true)) {
@@ -244,12 +264,13 @@ class StripeBillingService
             // propio) en el Checkout, igual que ya se desactiva con disableLink en el
             // formulario de actualizar tarjeta.
             'payment_method_types' => ['card'],
-            'line_items' => [['price' => $suscripcion->plan->fresh()->stripe_price_id, 'quantity' => 1]],
+            'line_items' => [['price' => $suscripcion->plan->fresh()->stripePricePara($suscripcion->periodicidad), 'quantity' => 1]],
             'client_reference_id' => (string) $empresa->id,
             'metadata' => ['buhopos_empresa_id' => (string) $empresa->id],
             'subscription_data' => ['metadata' => [
                 'buhopos_empresa_id' => (string) $empresa->id,
                 'buhopos_plan_id' => (string) $suscripcion->plan_id,
+                'buhopos_periodicidad' => $suscripcion->periodicidad,
             ]],
             'locale' => 'es',
             'tax_id_collection' => ['enabled' => true],
@@ -257,21 +278,25 @@ class StripeBillingService
         ];
     }
 
-    public function cambiarPlan(Empresa $empresa, Plan $nuevoPlan): array
+    public function cambiarPlan(Empresa $empresa, Plan $nuevoPlan, string $periodicidad): array
     {
         $suscripcion = $empresa->suscripcion()->with('plan')->first();
         if (! $suscripcion?->stripe_subscription_id || ! $suscripcion->plan) {
             throw new RuntimeException('La empresa no tiene una suscripción activa en Stripe.');
         }
-        if ($suscripcion->plan_id === $nuevoPlan->id) {
+        if ($suscripcion->plan_id === $nuevoPlan->id && $suscripcion->periodicidad === $periodicidad) {
             throw new RuntimeException('Ese ya es tu plan actual.');
         }
         if (! $nuevoPlan->activo) {
             throw new RuntimeException('El plan seleccionado no está disponible.');
         }
-        if (! $nuevoPlan->stripe_price_id) {
+        if ($periodicidad === 'anual' && $nuevoPlan->precio_anual === null) {
+            throw new RuntimeException('Este plan no tiene disponible el cobro anual.');
+        }
+        if (! $nuevoPlan->stripePricePara($periodicidad)) {
             $this->sincronizarPlan($nuevoPlan);
         }
+        $nuevoPriceId = $nuevoPlan->fresh()->stripePricePara($periodicidad);
 
         $stripe = $this->cliente();
         $subscription = $stripe->subscriptions->retrieve($suscripcion->stripe_subscription_id, [
@@ -282,22 +307,26 @@ class StripeBillingService
             throw new RuntimeException('Stripe no devolvió el concepto de la suscripción.');
         }
 
-        $esMejora = (float) $nuevoPlan->precio_mensual > (float) $suscripcion->plan->precio_mensual;
+        $actualAnualizado = (float) $suscripcion->plan->precioPara($suscripcion->periodicidad) * ($suscripcion->periodicidad === 'mensual' ? 12 : 1);
+        $nuevoAnualizado = (float) $nuevoPlan->precioPara($periodicidad) * ($periodicidad === 'mensual' ? 12 : 1);
+        $esMejora = $nuevoAnualizado > $actualAnualizado;
         if ($esMejora) {
             if ($suscripcion->stripe_schedule_id) {
                 $stripe->subscriptionSchedules->release($suscripcion->stripe_schedule_id, []);
             }
             $actualizada = $stripe->subscriptions->update($subscription->id, [
-                'items' => [['id' => $item->id, 'price' => $nuevoPlan->stripe_price_id, 'quantity' => 1]],
+                'items' => [['id' => $item->id, 'price' => $nuevoPriceId, 'quantity' => 1]],
                 'proration_behavior' => 'always_invoice',
                 'payment_behavior' => 'pending_if_incomplete',
                 'metadata' => [
                     'buhopos_empresa_id' => (string) $empresa->id,
                     'buhopos_plan_id' => (string) $nuevoPlan->id,
+                    'buhopos_periodicidad' => $periodicidad,
                 ],
             ]);
             $suscripcion->update([
                 'plan_pendiente_id' => $actualizada->pending_update ? $nuevoPlan->id : null,
+                'periodicidad_pendiente' => $actualizada->pending_update ? $periodicidad : null,
                 'cambio_plan_en' => $actualizada->pending_update ? today() : null,
                 'stripe_schedule_id' => null,
             ]);
@@ -330,20 +359,21 @@ class StripeBillingService
                     'end_date' => $periodEnd,
                     'items' => [['price' => $item->price->id, 'quantity' => 1]],
                     'proration_behavior' => 'none',
-                    'metadata' => ['buhopos_empresa_id' => (string) $empresa->id, 'buhopos_plan_id' => (string) $suscripcion->plan_id],
+                    'metadata' => ['buhopos_empresa_id' => (string) $empresa->id, 'buhopos_plan_id' => (string) $suscripcion->plan_id, 'buhopos_periodicidad' => $suscripcion->periodicidad],
                 ],
                 [
                     'start_date' => $periodEnd,
                     'iterations' => 1,
-                    'items' => [['price' => $nuevoPlan->stripe_price_id, 'quantity' => 1]],
+                    'items' => [['price' => $nuevoPriceId, 'quantity' => 1]],
                     'proration_behavior' => 'none',
-                    'metadata' => ['buhopos_empresa_id' => (string) $empresa->id, 'buhopos_plan_id' => (string) $nuevoPlan->id],
+                    'metadata' => ['buhopos_empresa_id' => (string) $empresa->id, 'buhopos_plan_id' => (string) $nuevoPlan->id, 'buhopos_periodicidad' => $periodicidad],
                 ],
             ],
         ]);
         $suscripcion->update([
             'stripe_schedule_id' => $scheduleId,
             'plan_pendiente_id' => $nuevoPlan->id,
+            'periodicidad_pendiente' => $periodicidad,
             'cambio_plan_en' => Carbon::createFromTimestamp($periodEnd)->toDateString(),
         ]);
 
@@ -411,10 +441,15 @@ class StripeBillingService
             'paused' => 'suspendida', default => 'pendiente',
         };
         $planStripeId = $objeto->metadata?->buhopos_plan_id ?? null;
+        $periodicidadStripe = $objeto->metadata?->buhopos_periodicidad ?? null;
         $tieneCambioPendiente = filled($objeto->pending_update ?? null);
         $planId = ! $tieneCambioPendiente && $planStripeId && Plan::whereKey($planStripeId)->exists()
             ? (int) $planStripeId
             : $suscripcion->plan_id;
+        $periodicidad = ! $tieneCambioPendiente && in_array($periodicidadStripe, ['mensual', 'anual'], true)
+            ? $periodicidadStripe
+            : $suscripcion->periodicidad;
+        $planVigente = Plan::find($planId);
         $suscripcion->update([
             'stripe_subscription_id' => $objeto->id, 'stripe_status' => $objeto->status,
             'estado' => $estado, 'cancelar_al_final' => (bool) ($objeto->cancel_at_period_end ?? false),
@@ -423,7 +458,10 @@ class StripeBillingService
             'fecha_vencimiento' => $fin ? Carbon::createFromTimestamp($fin)->toDateString() : $suscripcion->fecha_vencimiento,
             'cancelada_en' => $estado === 'cancelada' ? now() : null,
             'plan_id' => $planId,
+            'periodicidad' => $periodicidad,
+            'precio_acordado' => $planVigente?->precioPara($periodicidad) ?? $suscripcion->precio_acordado,
             'plan_pendiente_id' => $planId !== $suscripcion->plan_id ? null : $suscripcion->plan_pendiente_id,
+            'periodicidad_pendiente' => $planId !== $suscripcion->plan_id || $periodicidad !== $suscripcion->periodicidad ? null : $suscripcion->periodicidad_pendiente,
             'cambio_plan_en' => $planId !== $suscripcion->plan_id ? null : $suscripcion->cambio_plan_en,
         ]);
 

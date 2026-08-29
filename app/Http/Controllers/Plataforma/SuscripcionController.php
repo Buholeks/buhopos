@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Plataforma;
 use App\Http\Controllers\Controller;
 use App\Models\Empresa;
 use App\Models\PagoSuscripcion;
+use App\Models\Plan;
 use App\Models\Suscripcion;
 use App\Models\SolicitudPagoSuscripcion;
 use App\Models\CuentaCobroPlataforma;
@@ -88,6 +89,7 @@ class SuscripcionController extends Controller
     {
         $data = $request->validate([
             'plan_id' => ['nullable', Rule::exists('planes', 'id')],
+            'periodicidad' => ['sometimes', Rule::in(['mensual', 'anual'])],
             'estado' => ['required', Rule::in(['pendiente', 'prueba', 'activa', 'vencida', 'suspendida', 'cancelada'])],
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_vencimiento' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
@@ -95,6 +97,12 @@ class SuscripcionController extends Controller
             'precio_acordado' => ['nullable', 'numeric', 'min:0'],
             'notas' => ['nullable', 'string', 'max:3000'],
         ]);
+        $periodicidad = $data['periodicidad'] ?? $empresa->suscripcion?->periodicidad ?? 'mensual';
+        if ($periodicidad === 'anual' && ! Plan::whereKey($data['plan_id'] ?? $empresa->suscripcion?->plan_id)->whereNotNull('precio_anual')->exists()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'periodicidad' => 'El plan seleccionado no tiene disponible el cobro anual.',
+            ]);
+        }
 
         if ($data['estado'] === 'cancelada') $data['cancelada_en'] = now();
         else $data['cancelada_en'] = null;

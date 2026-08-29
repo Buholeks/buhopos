@@ -20,7 +20,7 @@
                       ? 'border-emerald-500 ring-4 ring-emerald-100'
                       : 'border-slate-200 hover:border-emerald-500',
             ]"
-            @mousedown.prevent="focusInput"
+            @mousedown="onWrapperMousedown"
         >
             <!-- Icon (optional) -->
             <span v-if="$slots.icon" class="shrink-0 text-slate-400">
@@ -99,5 +99,11 @@ const isFocused = ref(false);
 
 function focusInput() {
     inputEl.value?.focus();
+}
+
+function onWrapperMousedown(event) {
+    if (event.target === inputEl.value) return;
+    event.preventDefault();
+    focusInput();
 }
 </script>

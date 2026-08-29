@@ -17,6 +17,7 @@ use App\Models\DevolucionProveedor;
 use App\Models\Marca;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
+use App\Models\ProductoVarianteGrupo;
 use App\Models\Serie;
 use App\Models\Sucursal;
 use App\Models\Traspaso;
@@ -44,6 +45,61 @@ class InventarioConteoController extends Controller
                 ->orderBy('nombre')
                 ->get(['id', 'nombre']),
         ]);
+    }
+
+    public function buscarAlcances(Request $request): JsonResponse
+    {
+        $this->autorizar('inventario.conteos.ver');
+        $data = $request->validate([
+            'tipo' => ['required', 'in:producto,grupo'],
+            'q' => ['required', 'string', 'max:120'],
+        ]);
+        $empresaId = (int) Auth::user()->empresa_id;
+        $q = trim($data['q']);
+
+        if ($data['tipo'] === 'producto') {
+            $resultados = Producto::where('empresa_id', $empresaId)
+                ->where('activo', true)
+                ->where(fn($query) => $query->where('nombre', 'like', "%{$q}%")->orWhere('codigo', 'like', "%{$q}%"))
+                ->orderByRaw('CASE WHEN codigo = ? THEN 0 ELSE 1 END', [$q])
+                ->orderBy('nombre')
+                ->limit(20)
+                ->get(['id', 'nombre', 'codigo'])
+                ->map(fn($producto) => [
+                    'id' => $producto->id,
+                    'label' => $producto->nombre . ' · ' . $producto->codigo,
+                ]);
+
+            return response()->json($resultados);
+        }
+
+        $resultados = ProductoVarianteGrupo::where('producto_variante_grupos.empresa_id', $empresaId)
+            ->join('productos as p', 'p.id', '=', 'producto_variante_grupos.producto_id')
+            ->join('atributos as a', 'a.id', '=', 'producto_variante_grupos.atributo_id')
+            ->join('tipo_atributos as ta', 'ta.id', '=', 'producto_variante_grupos.tipo_atributo_id')
+            ->where('p.activo', true)
+            ->whereNull('p.deleted_at')
+            ->where(fn($query) => $query
+                ->where('producto_variante_grupos.codigo', 'like', "%{$q}%")
+                ->orWhere('p.nombre', 'like', "%{$q}%")
+                ->orWhere('p.codigo', 'like', "%{$q}%")
+                ->orWhere('a.valor', 'like', "%{$q}%"))
+            ->orderByRaw('CASE WHEN producto_variante_grupos.codigo = ? THEN 0 ELSE 1 END', [mb_strtoupper($q)])
+            ->orderBy('p.nombre')
+            ->limit(20)
+            ->get([
+                'producto_variante_grupos.id',
+                'producto_variante_grupos.codigo',
+                'p.nombre as producto',
+                'ta.nombre as tipo_atributo',
+                'a.valor as atributo',
+            ])
+            ->map(fn($grupo) => [
+                'id' => $grupo->id,
+                'label' => "{$grupo->producto} · {$grupo->tipo_atributo}: {$grupo->atributo} · {$grupo->codigo}",
+            ]);
+
+        return response()->json($resultados);
     }
 
     public function index(): JsonResponse
@@ -83,7 +139,7 @@ class InventarioConteoController extends Controller
         abort_if($activo, 422, 'Ya existe un conteo activo en esta sucursal. Ciérralo o cancélalo antes de crear uno nuevo.');
         $data = $request->validate([
             'notas' => ['nullable', 'string', 'max:1000'],
-            'alcance_tipo' => ['nullable', 'in:total,categoria,marca'],
+            'alcance_tipo' => ['nullable', 'in:total,categoria,marca,producto,grupo'],
             'alcance_id' => ['nullable', 'integer'],
         ]);
 
@@ -208,10 +264,10 @@ class InventarioConteoController extends Controller
                 ->where('empresa_id', $conteo->empresa_id)
                 ->where('activo', true)
                 ->where('tiene_variantes', true)
-                ->when(($conteo->alcance_tipo ?? 'total') === 'categoria' && $conteo->alcance_id, fn($s) => $s->where('categoria_id', $conteo->alcance_id))
-                ->when(($conteo->alcance_tipo ?? 'total') === 'marca' && $conteo->alcance_id, fn($s) => $s->where('marca_id', $conteo->alcance_id)))
+                ->tap(fn($query) => $this->aplicarAlcanceProducto($query, $conteo)))
             ->with('producto:id,nombre,codigo,tiene_series')
             ->where('codigo_barras', $q)
+            ->tap(fn($query) => $this->aplicarAlcanceVariante($query, $conteo))
             ->first(['id', 'producto_id', 'sku', 'codigo_barras']);
 
         if ($variante) {
@@ -269,6 +325,7 @@ class InventarioConteoController extends Controller
             $variante = $varianteId
                 ? ProductoVariante::where('producto_id', $producto->id)->findOrFail($varianteId)
                 : null;
+            abort_unless($this->varianteDentroDelAlcance($variante, $conteo), 422, 'La variante no pertenece al alcance de este conteo.');
             $cantidad = (float) ($data['cantidad'] ?? 1);
             $identificador = $data['identificador'] ?? null;
 
@@ -360,9 +417,9 @@ class InventarioConteoController extends Controller
 
         $variantes = ProductoVariante::whereHas('producto', fn($pq) => $pq
                 ->where('empresa_id', $conteo->empresa_id)->where('activo', true)->where('tiene_variantes', true)
-                ->when(($conteo->alcance_tipo ?? 'total') === 'categoria' && $conteo->alcance_id, fn($s) => $s->where('categoria_id', $conteo->alcance_id))
-                ->when(($conteo->alcance_tipo ?? 'total') === 'marca' && $conteo->alcance_id, fn($s) => $s->where('marca_id', $conteo->alcance_id)))
+                ->tap(fn($query) => $this->aplicarAlcanceProducto($query, $conteo)))
             ->with('producto:id,nombre,codigo,tiene_series')
+            ->tap(fn($query) => $this->aplicarAlcanceVariante($query, $conteo))
             ->where(fn($vq) => $vq->where('sku', 'like', "%{$q}%")->orWhere('codigo_barras', 'like', "%{$q}%")
                 ->orWhereHas('producto', fn($pq) => $pq->where('nombre', 'like', "%{$q}%")->orWhere('codigo', 'like', "%{$q}%")))
             ->limit(12)
@@ -384,6 +441,10 @@ class InventarioConteoController extends Controller
             ->where(fn($sq) => $sq->where('imei', $q)->orWhere('imei2', $q)->orWhere('serie', $q))
             ->with(['producto:id,nombre,codigo,tiene_series,categoria_id,marca_id', 'variante:id,producto_id,sku,codigo_barras'])
             ->whereHas('producto', fn($pq) => $this->aplicarAlcanceProducto($pq, $conteo))
+            ->when(($conteo->alcance_tipo ?? 'total') === 'grupo', function ($query) use ($conteo) {
+                $grupo = $this->grupoDelConteo($conteo);
+                $query->whereHas('variante.atributos', fn($atributos) => $atributos->where('atributo_id', $grupo?->atributo_id ?? 0));
+            })
             ->first();
     }
 
@@ -467,9 +528,9 @@ class InventarioConteoController extends Controller
                 ->where('empresa_id', $conteo->empresa_id)
                 ->where('activo', true)
                 ->where('tiene_variantes', true)
-                ->when(($conteo->alcance_tipo ?? 'total') === 'categoria' && $conteo->alcance_id, fn($sub) => $sub->where('categoria_id', $conteo->alcance_id))
-                ->when(($conteo->alcance_tipo ?? 'total') === 'marca' && $conteo->alcance_id, fn($sub) => $sub->where('marca_id', $conteo->alcance_id)))
+                ->tap(fn($query) => $this->aplicarAlcanceProducto($query, $conteo)))
             ->with('producto:id,nombre,codigo,tiene_series')
+            ->tap(fn($query) => $this->aplicarAlcanceVariante($query, $conteo))
             ->where(fn($vq) => $vq
                 ->where('sku', 'like', "%{$q}%")
                 ->orWhere('codigo_barras', 'like', "%{$q}%")
@@ -827,6 +888,32 @@ class InventarioConteoController extends Controller
             return [$tipo, $id, $nombre];
         }
 
+        if ($tipo === 'producto') {
+            $producto = Producto::where('empresa_id', $user->empresa_id)
+                ->where('activo', true)
+                ->find($id, ['id', 'nombre', 'codigo']);
+            abort_unless($producto, 422, 'Articulo no valido.');
+            return [$tipo, $id, "{$producto->nombre} · {$producto->codigo}"];
+        }
+
+        if ($tipo === 'grupo') {
+            $grupo = ProductoVarianteGrupo::where('producto_variante_grupos.empresa_id', $user->empresa_id)
+                ->join('productos as p', 'p.id', '=', 'producto_variante_grupos.producto_id')
+                ->join('atributos as a', 'a.id', '=', 'producto_variante_grupos.atributo_id')
+                ->join('tipo_atributos as ta', 'ta.id', '=', 'producto_variante_grupos.tipo_atributo_id')
+                ->where('p.activo', true)
+                ->whereKey($id)
+                ->first([
+                    'producto_variante_grupos.id',
+                    'producto_variante_grupos.codigo',
+                    'p.nombre as producto',
+                    'ta.nombre as tipo_atributo',
+                    'a.valor as atributo',
+                ]);
+            abort_unless($grupo, 422, 'Grupo o color no valido.');
+            return [$tipo, $id, "{$grupo->producto} · {$grupo->tipo_atributo}: {$grupo->atributo} · {$grupo->codigo}"];
+        }
+
         abort(422, 'Alcance no valido.');
     }
 
@@ -834,10 +921,17 @@ class InventarioConteoController extends Controller
     {
         if ($tipo === 'total' || ! $id) return;
 
-        $query->whereHas('producto', fn($pq) => $this->aplicarAlcanceProducto($pq, (object) [
+        $alcance = (object) [
             'alcance_tipo' => $tipo,
             'alcance_id' => $id,
-        ]));
+        ];
+        $query->whereHas('producto', fn($pq) => $this->aplicarAlcanceProducto($pq, $alcance));
+
+        if ($tipo === 'grupo') {
+            $grupo = $this->grupoDelConteo($alcance);
+            $query->whereNotNull('variante_id')
+                ->whereHas('variante.atributos', fn($atributos) => $atributos->where('atributo_id', $grupo?->atributo_id ?? 0));
+        }
     }
 
     private function aplicarAlcanceProducto($query, $conteo): void
@@ -849,6 +943,23 @@ class InventarioConteoController extends Controller
         if (($conteo->alcance_tipo ?? 'total') === 'marca' && $conteo->alcance_id) {
             $query->where('marca_id', $conteo->alcance_id);
         }
+
+        if (($conteo->alcance_tipo ?? 'total') === 'producto' && $conteo->alcance_id) {
+            $query->whereKey($conteo->alcance_id);
+        }
+
+        if (($conteo->alcance_tipo ?? 'total') === 'grupo' && $conteo->alcance_id) {
+            $query->whereKey($this->grupoDelConteo($conteo)?->producto_id ?? 0);
+        }
+    }
+
+    private function aplicarAlcanceVariante($query, $conteo): void
+    {
+        if (($conteo->alcance_tipo ?? 'total') !== 'grupo' || ! $conteo->alcance_id) return;
+
+        $grupo = $this->grupoDelConteo($conteo);
+        $query->where('producto_id', $grupo?->producto_id ?? 0)
+            ->whereHas('atributos', fn($atributos) => $atributos->where('atributo_id', $grupo?->atributo_id ?? 0));
     }
 
     private function productoDentroDelAlcance(Producto $producto, InventarioConteo $conteo): bool
@@ -856,8 +967,29 @@ class InventarioConteoController extends Controller
         return match ($conteo->alcance_tipo ?? 'total') {
             'categoria' => (int) $producto->categoria_id === (int) $conteo->alcance_id,
             'marca' => (int) $producto->marca_id === (int) $conteo->alcance_id,
+            'producto' => (int) $producto->id === (int) $conteo->alcance_id,
+            'grupo' => (int) $producto->id === (int) ($this->grupoDelConteo($conteo)?->producto_id ?? 0),
             default => true,
         };
+    }
+
+    private function varianteDentroDelAlcance(?ProductoVariante $variante, InventarioConteo $conteo): bool
+    {
+        if (($conteo->alcance_tipo ?? 'total') !== 'grupo') return true;
+        if (! $variante) return false;
+
+        $grupo = $this->grupoDelConteo($conteo);
+        return $grupo
+            && (int) $variante->producto_id === (int) $grupo->producto_id
+            && $variante->atributos()->where('atributo_id', $grupo->atributo_id)->exists();
+    }
+
+    private function grupoDelConteo($conteo): ?ProductoVarianteGrupo
+    {
+        if (($conteo->alcance_tipo ?? null) !== 'grupo' || ! $conteo->alcance_id) return null;
+
+        return ProductoVarianteGrupo::where('empresa_id', Auth::user()->empresa_id)
+            ->find($conteo->alcance_id);
     }
 
     private function registrarEvento(InventarioConteo $conteo, string $tipo, string $descripcion, array $meta = []): void

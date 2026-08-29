@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ProductoVariante;
 use App\Models\TipoAtributo;
+use App\Support\ProductVariantSearch;
 use App\Support\PublicImageStorage;
 use App\Support\VariantImageResolver;
 use Illuminate\Http\JsonResponse;
@@ -61,14 +62,36 @@ class CatalogoPreciosController extends Controller
             ->when($data['marca_id'] ?? null, fn($q, $v) => $q->where('p.marca_id', $v))
             ->when($data['modelo_id'] ?? null, fn($q, $v) => $q->where('p.modelo_id', $v));
 
-        if (! empty($data['buscar'])) {
-            $buscar = trim((string) $data['buscar']);
-            $query->where(function ($q) use ($buscar) {
-                $q->where('p.nombre', 'like', "%{$buscar}%")
-                    ->orWhere('p.codigo', 'like', "%{$buscar}%")
-                    ->orWhere('v.sku', 'like', "%{$buscar}%")
-                    ->orWhere('v.codigo_barras', 'like', "%{$buscar}%");
-            });
+        $buscar = trim((string) ($data['buscar'] ?? ''));
+        $tokens = ProductVariantSearch::tokens($buscar);
+
+        if ($buscar !== '') {
+            // Igual que los buscadores de compra y venta: todas las palabras
+            // deben coincidir, aunque estén repartidas entre producto, código,
+            // variante o atributos (por ejemplo: "iphone azul 128").
+            if ($tokens === []) {
+                $query->whereRaw('1 = 0');
+            }
+
+            foreach ($tokens as $token) {
+                $query->where(function ($q) use ($token) {
+                    $q->where('p.nombre', 'like', "%{$token}%")
+                        ->orWhere('p.codigo', 'like', "%{$token}%")
+                        ->orWhere('v.sku', 'like', "%{$token}%")
+                        ->orWhere('v.codigo_barras', 'like', "%{$token}%")
+                        ->orWhereExists(function ($sub) use ($token) {
+                            $sub->selectRaw('1')
+                                ->from('variante_atributos as va_busqueda')
+                                ->join('atributos as a_busqueda', 'a_busqueda.id', '=', 'va_busqueda.atributo_id')
+                                ->join('tipo_atributos as ta_busqueda', 'ta_busqueda.id', '=', 'va_busqueda.tipo_atributo_id')
+                                ->whereColumn('va_busqueda.variante_id', 'v.id')
+                                ->where(function ($atributoQuery) use ($token) {
+                                    $atributoQuery->where('a_busqueda.valor', 'like', "%{$token}%")
+                                        ->orWhere('ta_busqueda.nombre', 'like', "%{$token}%");
+                                });
+                        });
+                });
+            }
         }
 
         foreach ($atributoIds as $atributoId) {
@@ -108,6 +131,10 @@ class CatalogoPreciosController extends Controller
                 'ma.nombre as marca',
                 'mo.nombre as modelo',
             ])
+            ->when($buscar !== '', fn($q) => $q->orderByRaw(
+                'CASE WHEN v.codigo_barras = ? THEN 0 WHEN v.sku = ? THEN 1 WHEN p.codigo = ? THEN 2 ELSE 3 END',
+                [$buscar, $buscar, $buscar]
+            ))
             ->orderBy('p.nombre')
             ->orderBy('v.id')
             ->paginate($data['per_page'] ?? 24);

@@ -420,7 +420,15 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, h, onMounted, reactive, ref } from "vue";
+import {
+    computed,
+    defineComponent,
+    h,
+    onBeforeUnmount,
+    onMounted,
+    reactive,
+    ref,
+} from "vue";
 import axios from "axios";
 import {
     ChevronLeft,
@@ -460,6 +468,8 @@ const cargando = ref(false);
 const items = ref([]);
 const seleccionado = ref(null);
 const timer = ref(null);
+let controladorBusqueda = null;
+let solicitudActual = 0;
 const pag = ref({ current_page: 1, last_page: 1, total: 0 });
 
 const filtros = reactive({
@@ -549,12 +559,18 @@ function params() {
 }
 
 async function cargar() {
+    controladorBusqueda?.abort();
+    controladorBusqueda = new AbortController();
+    const solicitud = ++solicitudActual;
     cargando.value = true;
 
     try {
         const { data } = await axios.get("/api/productos/catalogo-precios", {
             params: params(),
+            signal: controladorBusqueda.signal,
         });
+
+        if (solicitud !== solicitudActual) return;
 
         items.value = data.catalogo?.data ?? [];
         pag.value = {
@@ -565,8 +581,10 @@ async function cargar() {
         filtros.marcas = data.filtros?.marcas ?? [];
         filtros.modelos = data.filtros?.modelos ?? [];
         filtros.atributos = data.filtros?.atributos ?? [];
+    } catch (error) {
+        if (!axios.isCancel(error)) throw error;
     } finally {
-        cargando.value = false;
+        if (solicitud === solicitudActual) cargando.value = false;
     }
 }
 
@@ -577,7 +595,7 @@ function buscar() {
 
 function debounceBuscar() {
     clearTimeout(timer.value);
-    timer.value = setTimeout(buscar, 350);
+    timer.value = setTimeout(buscar, 250);
 }
 
 function cambiarPagina(page) {
@@ -608,6 +626,10 @@ function fmtStock(v) {
 }
 
 onMounted(cargar);
+onBeforeUnmount(() => {
+    clearTimeout(timer.value);
+    controladorBusqueda?.abort();
+});
 </script>
 
 <style scoped>

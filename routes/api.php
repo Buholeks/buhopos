@@ -382,6 +382,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [InventarioConteoController::class, 'index']);
         Route::post('/', [InventarioConteoController::class, 'store']);
         Route::get('/alcances', [InventarioConteoController::class, 'alcances']);
+        Route::get('/alcances/buscar', [InventarioConteoController::class, 'buscarAlcances']);
         Route::get('/{id}/exportar-pdf', [InventarioConteoController::class, 'exportarPdf']);
         Route::get('/{id}', [InventarioConteoController::class, 'show']);
         Route::get('/{id}/escanear', [InventarioConteoController::class, 'escanear']);

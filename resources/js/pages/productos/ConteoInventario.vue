@@ -130,22 +130,20 @@
         </div>
 
         <div v-if="conteo.estado === 'en_conteo'" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <label class="block">
-            <span class="mb-1 block text-sm font-medium text-slate-700">Buscar o escanear</span>
-            <div class="relative">
-              <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                ref="scanInput"
-                v-model.trim="busqueda"
-                type="text"
-                class="h-12 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-28 text-base outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
-                placeholder="SKU, codigo, nombre, IMEI o serie"
-                autocomplete="off"
-                @keyup.enter="buscarYCapturar"
-              />
+          <BaseInput
+            ref="scanInput"
+            v-model.trim="busqueda"
+            label="Buscar o escanear"
+            placeholder="SKU, código, nombre, IMEI o serie"
+            autocomplete="off"
+            input-class="text-base"
+            @keyup.enter="buscarYCapturar"
+          >
+            <template #icon><Search class="h-4 w-4" /></template>
+            <template #suffix>
               <button
                 type="button"
-                class="absolute right-1.5 top-1.5 inline-flex h-9 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                class="inline-flex h-8 items-center gap-2 rounded-md bg-emerald-600 px-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
                 :disabled="buscando || !busqueda"
                 @click="buscarYCapturar"
               >
@@ -153,8 +151,8 @@
                 <ScanLine v-else class="h-4 w-4" />
                 Enter
               </button>
-            </div>
-          </label>
+            </template>
+          </BaseInput>
 
           <div v-if="resultados.length > 1" class="mt-3 overflow-hidden rounded-lg border border-slate-200">
             <button
@@ -290,15 +288,111 @@
         </div>
       </section>
     </section>
+
+    <div
+      v-if="mostrarNuevoConteo"
+      class="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4"
+      @click.self="cerrarNuevoConteo"
+    >
+      <form class="w-full max-w-lg rounded-2xl bg-white shadow-2xl" @submit.prevent="crearConteo">
+        <div class="border-b border-slate-200 px-6 py-4">
+          <h2 class="text-lg font-semibold text-slate-950">Nuevo conteo físico</h2>
+          <p class="mt-1 text-sm text-slate-500">Selecciona exactamente qué inventario vas a contar.</p>
+        </div>
+
+        <div class="space-y-4 p-6">
+          <BaseSearchSelect
+            v-model="nuevoConteoForm.alcance_tipo"
+            label="Alcance"
+            :items="tiposAlcance"
+            label-key="nombre"
+            value-key="id"
+            required
+            @change="cambiarTipoAlcance"
+          />
+
+          <BaseSearchSelect
+            v-if="nuevoConteoForm.alcance_tipo === 'categoria'"
+            v-model="nuevoConteoForm.alcance_id"
+            label="Categoría"
+            placeholder="Buscar categoría"
+            :items="alcances.categorias"
+            label-key="nombre"
+            value-key="id"
+            required
+          />
+
+          <BaseSearchSelect
+            v-if="nuevoConteoForm.alcance_tipo === 'marca'"
+            v-model="nuevoConteoForm.alcance_id"
+            label="Marca"
+            placeholder="Buscar marca"
+            :items="alcances.marcas"
+            label-key="nombre"
+            value-key="id"
+            required
+          />
+
+          <BaseSearchSelect
+            v-if="nuevoConteoForm.alcance_tipo === 'producto'"
+            v-model="nuevoConteoForm.alcance_id"
+            label="Artículo"
+            placeholder="Buscar por nombre o código"
+            :fetcher="buscarArticulosAlcance"
+            :selected-item="alcanceSeleccionado"
+            label-key="label"
+            value-key="id"
+            :min-chars="1"
+            required
+            @selected="alcanceSeleccionado = $event"
+          />
+
+          <BaseSearchSelect
+            v-if="nuevoConteoForm.alcance_tipo === 'grupo'"
+            v-model="nuevoConteoForm.alcance_id"
+            label="Grupo o color"
+            placeholder="Código de grupo, producto o color"
+            :fetcher="buscarGruposAlcance"
+            :selected-item="alcanceSeleccionado"
+            label-key="label"
+            value-key="id"
+            :min-chars="1"
+            required
+            @selected="alcanceSeleccionado = $event"
+          />
+
+          <BaseInput
+            v-model="nuevoConteoForm.notas"
+            label="Notas"
+            placeholder="Área, responsable o referencia"
+            maxlength="1000"
+          />
+
+          <p v-if="nuevoConteoError" class="text-sm font-medium text-red-600">{{ nuevoConteoError }}</p>
+        </div>
+
+        <div class="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
+          <button type="button" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="cerrarNuevoConteo">
+            Cancelar
+          </button>
+          <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="creando">
+            <Loader2 v-if="creando" class="h-4 w-4 animate-spin" />
+            Crear conteo
+          </button>
+        </div>
+      </form>
+    </div>
   </main>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import { swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
 import { confirm, toastError, toastSuccess, toastWarning } from "@/lib/alert";
 import { useAuthStore } from "@/stores/auth";
+import BaseInput from "@/components/ui/BaseInput.vue";
+import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import {
   Ban,
   CheckCircle2,
@@ -324,6 +418,17 @@ const resultados = ref([]);
 const filtro = ref("diferencias");
 const scanInput = ref(null);
 const alcances = ref({ categorias: [], marcas: [] });
+const mostrarNuevoConteo = ref(false);
+const nuevoConteoError = ref("");
+const alcanceSeleccionado = ref(null);
+const nuevoConteoForm = reactive({ alcance_tipo: "total", alcance_id: null, notas: "" });
+const tiposAlcance = [
+  { id: "total", nombre: "Inventario completo" },
+  { id: "categoria", nombre: "Por categoría" },
+  { id: "marca", nombre: "Por marca" },
+  { id: "producto", nombre: "Por artículo" },
+  { id: "grupo", nombre: "Por grupo o color" },
+];
 
 const filtrosRevision = [
   { key: "todos", label: "Todos" },
@@ -400,87 +505,57 @@ async function exportarPdf() {
   }
 }
 
-async function nuevoConteo() {
-  const categoriaOptions = alcances.value.categorias.map((item) => `<option value="${item.id}">${escapeHtml(item.nombre)}</option>`).join("");
-  const marcaOptions = alcances.value.marcas.map((item) => `<option value="${item.id}">${escapeHtml(item.nombre)}</option>`).join("");
-  const res = await Swal.fire({
-    title: "Nuevo conteo fisico",
-    html: `
-      <div class="space-y-3 text-left">
-        <label class="block">
-          <span class="mb-1 block text-sm font-medium text-slate-700">Alcance</span>
-          <select id="conteo-alcance-tipo" class="swal2-input" style="width:100%;margin:0">
-            <option value="total">Inventario completo</option>
-            <option value="categoria">Por categoria</option>
-            <option value="marca">Por marca</option>
-          </select>
-        </label>
-        <label id="conteo-alcance-categoria-wrap" class="block" style="display:none">
-          <span class="mb-1 block text-sm font-medium text-slate-700">Categoria</span>
-          <select id="conteo-alcance-categoria" class="swal2-input" style="width:100%;margin:0">
-            <option value="">Selecciona categoria</option>
-            ${categoriaOptions}
-          </select>
-        </label>
-        <label id="conteo-alcance-marca-wrap" class="block" style="display:none">
-          <span class="mb-1 block text-sm font-medium text-slate-700">Marca</span>
-          <select id="conteo-alcance-marca" class="swal2-input" style="width:100%;margin:0">
-            <option value="">Selecciona marca</option>
-            ${marcaOptions}
-          </select>
-        </label>
-        <label class="block">
-          <span class="mb-1 block text-sm font-medium text-slate-700">Notas</span>
-          <textarea id="conteo-notas" class="swal2-textarea" style="width:100%;margin:0" placeholder="Area, responsable o referencia"></textarea>
-        </label>
-      </div>
-    `,
-    showCancelButton: true,
-    confirmButtonText: "Crear",
-    cancelButtonText: "Cancelar",
-    reverseButtons: true,
-    didOpen: () => {
-      const tipo = document.getElementById("conteo-alcance-tipo");
-      const categoria = document.getElementById("conteo-alcance-categoria-wrap");
-      const marca = document.getElementById("conteo-alcance-marca-wrap");
-      const sync = () => {
-        categoria.style.display = tipo.value === "categoria" ? "block" : "none";
-        marca.style.display = tipo.value === "marca" ? "block" : "none";
-      };
-      tipo.addEventListener("change", sync);
-      sync();
-    },
-    preConfirm: () => {
-      const tipo = document.getElementById("conteo-alcance-tipo").value;
-      const categoria = document.getElementById("conteo-alcance-categoria").value;
-      const marca = document.getElementById("conteo-alcance-marca").value;
-      if (tipo === "categoria" && !categoria) {
-        Swal.showValidationMessage("Selecciona una categoria.");
-        return false;
-      }
-      if (tipo === "marca" && !marca) {
-        Swal.showValidationMessage("Selecciona una marca.");
-        return false;
-      }
-      return {
-        alcance_tipo: tipo,
-        alcance_id: tipo === "categoria" ? categoria : tipo === "marca" ? marca : null,
-        notas: document.getElementById("conteo-notas").value || null,
-      };
-    },
-  });
-  if (!res.isConfirmed) return;
+function nuevoConteo() {
+  nuevoConteoForm.alcance_tipo = "total";
+  nuevoConteoForm.alcance_id = null;
+  nuevoConteoForm.notas = "";
+  alcanceSeleccionado.value = null;
+  nuevoConteoError.value = "";
+  mostrarNuevoConteo.value = true;
+}
 
+function cerrarNuevoConteo() {
+  if (creando.value) return;
+  mostrarNuevoConteo.value = false;
+}
+
+function cambiarTipoAlcance() {
+  nuevoConteoForm.alcance_id = null;
+  alcanceSeleccionado.value = null;
+  nuevoConteoError.value = "";
+}
+
+async function buscarAlcance(tipo, q) {
+  const { data } = await http.get("/api/inventario-conteos/alcances/buscar", { params: { tipo, q } });
+  return data;
+}
+
+const buscarArticulosAlcance = (q) => buscarAlcance("producto", q);
+const buscarGruposAlcance = (q) => buscarAlcance("grupo", q);
+
+async function crearConteo() {
+  const requiereSeleccion = nuevoConteoForm.alcance_tipo !== "total";
+  if (requiereSeleccion && !nuevoConteoForm.alcance_id) {
+    nuevoConteoError.value = "Selecciona el alcance específico del conteo.";
+    return;
+  }
+
+  nuevoConteoError.value = "";
   creando.value = true;
   try {
-    const { data } = await http.post("/api/inventario-conteos", res.value);
+    const { data } = await http.post("/api/inventario-conteos", {
+      alcance_tipo: nuevoConteoForm.alcance_tipo,
+      alcance_id: nuevoConteoForm.alcance_tipo === "total" ? null : nuevoConteoForm.alcance_id,
+      notas: nuevoConteoForm.notas || null,
+    });
     conteo.value = data;
+    mostrarNuevoConteo.value = false;
     toastSuccess("Conteo creado.");
     await cargarConteos();
     await nextTick();
     scanInput.value?.focus();
   } catch (e) {
-    toastError(e?.response?.data?.message || "No se pudo crear el conteo.");
+    nuevoConteoError.value = e?.response?.data?.message || "No se pudo crear el conteo.";
   } finally {
     creando.value = false;
   }
@@ -771,7 +846,13 @@ function fecha(valor) {
 
 function alcanceLabel(c) {
   if (!c || c.alcance_tipo === "total") return "Inventario completo";
-  return `${c.alcance_tipo === "categoria" ? "Categoria" : "Marca"}: ${c.alcance_nombre || c.alcance_id}`;
+  const etiquetas = {
+    categoria: "Categoria",
+    marca: "Marca",
+    producto: "Articulo",
+    grupo: "Grupo/color",
+  };
+  return `${etiquetas[c.alcance_tipo] || "Alcance"}: ${c.alcance_nombre || c.alcance_id}`;
 }
 
 function movimientosTexto(m) {
@@ -788,14 +869,6 @@ function movimientosTexto(m) {
     .join(", ");
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 </script>
 
 <script>

@@ -130,6 +130,29 @@
         </div>
 
         <div v-if="conteo.estado === 'en_conteo'" class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            v-if="ultimoEvento"
+            class="mb-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+            :class="ultimoEvento.tipo === 'capturado'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-700'"
+          >
+            <CheckCircle2 v-if="ultimoEvento.tipo === 'capturado'" class="h-4 w-4 shrink-0" />
+            <AlertTriangle v-else class="h-4 w-4 shrink-0" />
+            <div class="min-w-0 flex-1 truncate">
+              <template v-if="ultimoEvento.tipo === 'capturado'">
+                Último capturado:
+                <strong>{{ ultimoEvento.nombre }}</strong>
+                <span v-if="ultimoEvento.nombre_variante"> - {{ ultimoEvento.nombre_variante }}</span>
+                <span class="ml-1 font-mono text-xs opacity-70">({{ ultimoEvento.sku || ultimoEvento.codigo }})</span>
+                · x1 · Total {{ fmt(ultimoEvento.cantidad_fisica) }}
+              </template>
+              <template v-else>
+                No se encontró ningún producto para <strong>"{{ ultimoEvento.busqueda }}"</strong>
+              </template>
+            </div>
+          </div>
+
           <BaseInput
             ref="scanInput"
             v-model.trim="busqueda"
@@ -393,7 +416,9 @@ import { confirm, toastError, toastSuccess, toastWarning } from "@/lib/alert";
 import { useAuthStore } from "@/stores/auth";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
+import { playSonidoError, playSonidoExito } from "@/lib/sound";
 import {
+  AlertTriangle,
   Ban,
   CheckCircle2,
   ClipboardCheck,
@@ -415,6 +440,7 @@ const exportando = ref(false);
 const buscando = ref(false);
 const busqueda = ref("");
 const resultados = ref([]);
+const ultimoEvento = ref(null);
 const filtro = ref("diferencias");
 const scanInput = ref(null);
 const alcances = ref({ categorias: [], marcas: [] });
@@ -449,7 +475,7 @@ onMounted(async () => {
   await cargarAlcances();
   await cargarConteos();
   await nextTick();
-  scanInput.value?.focus();
+  scanInput.value?.focus?.();
 });
 
 async function cargarAlcances() {
@@ -476,6 +502,7 @@ async function abrirConteo(id) {
     const { data } = await http.get(`/api/inventario-conteos/${id}`);
     conteo.value = data;
     resultados.value = [];
+    ultimoEvento.value = null;
     if (data.estado !== "en_conteo") filtro.value = "diferencias";
   } catch (e) {
     toastError(e?.response?.data?.message || "No se pudo abrir el conteo.");
@@ -553,7 +580,7 @@ async function crearConteo() {
     toastSuccess("Conteo creado.");
     await cargarConteos();
     await nextTick();
-    scanInput.value?.focus();
+    scanInput.value?.focus?.();
   } catch (e) {
     nuevoConteoError.value = e?.response?.data?.message || "No se pudo crear el conteo.";
   } finally {
@@ -573,11 +600,13 @@ async function buscarYCapturar() {
     if (data.tipo === "capturado") {
       busqueda.value = "";
       actualizarDetalleLocal(data.detalle);
+      registrarCapturaExitosa(data.detalle);
       await nextTick();
-      scanInput.value?.focus();
+      scanInput.value?.focus?.();
       return;
     }
     if (data.tipo === "no_encontrado" || !data.resultados?.length) {
+      registrarNoEncontrado(q);
       toastWarning("Producto no encontrado.");
       return;
     }
@@ -587,6 +616,7 @@ async function buscarYCapturar() {
     }
     resultados.value = data.resultados;
   } catch (e) {
+    playSonidoError();
     toastError(e?.response?.data?.message || "No se pudo buscar el producto.");
   } finally {
     buscando.value = false;
@@ -595,12 +625,14 @@ async function buscarYCapturar() {
 
 async function capturarResultado(item) {
   if (item.tiene_series && !item.identificador) {
+    playSonidoError();
     toastWarning("Escanea el IMEI o serie para productos seriados.");
     return;
   }
 
+  let data;
   try {
-    const { data } = await http.post(`/api/inventario-conteos/${conteo.value.id}/capturar`, {
+    const respuesta = await http.post(`/api/inventario-conteos/${conteo.value.id}/capturar`, {
       producto_id: item.producto_id,
       variante_id: item.variante_id,
       cantidad: 1,
@@ -608,14 +640,19 @@ async function capturarResultado(item) {
       serie_id: item.serie_id,
       identificador: item.identificador,
     });
-    busqueda.value = "";
-    resultados.value = [];
-    actualizarDetalleLocal(data);
-    await nextTick();
-    scanInput.value?.focus();
+    data = respuesta.data;
   } catch (e) {
+    playSonidoError();
     toastError(e?.response?.data?.message || "No se pudo capturar.");
+    return;
   }
+
+  busqueda.value = "";
+  resultados.value = [];
+  actualizarDetalleLocal(data);
+  registrarCapturaExitosa(data);
+  await nextTick();
+  scanInput.value?.focus?.();
 }
 
 async function reemplazarCantidad(detalle, valor) {
@@ -629,8 +666,19 @@ async function reemplazarCantidad(detalle, valor) {
     });
     actualizarDetalleLocal(data);
   } catch (e) {
+    playSonidoError();
     toastError(e?.response?.data?.message || "No se pudo actualizar la cantidad.");
   }
+}
+
+function registrarCapturaExitosa(detalle) {
+  ultimoEvento.value = { tipo: "capturado", timestamp: Date.now(), ...detalle };
+  playSonidoExito();
+}
+
+function registrarNoEncontrado(q) {
+  ultimoEvento.value = { tipo: "no_encontrado", timestamp: Date.now(), busqueda: q };
+  playSonidoError();
 }
 
 function actualizarDetalleLocal(detalleActualizado) {
@@ -684,7 +732,7 @@ async function reabrirConteo() {
     toastSuccess("Conteo reabierto.");
     await cargarConteos();
     await nextTick();
-    scanInput.value?.focus();
+    scanInput.value?.focus?.();
   } catch (e) {
     toastError(e?.response?.data?.message || "No se pudo reabrir el conteo.");
   }
@@ -757,7 +805,7 @@ async function eliminarLinea(detalle) {
     });
     conteo.value = data;
     await nextTick();
-    scanInput.value?.focus();
+    scanInput.value?.focus?.();
   } catch (e) {
     toastError(e?.response?.data?.message || "No se pudo eliminar la línea.");
   }

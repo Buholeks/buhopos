@@ -153,8 +153,8 @@
             </td>
             <td>{{ $d->sku ?? '—' }}</td>
             <td class="text-right">{{ $d->cantidad }}</td>
-            <td class="text-right">{{ $fmt($d->precio_compra) }}</td>
-            <td class="text-right">{{ $fmt($d->precio_venta) }}</td>
+            <td class="text-right">{{ $fmt($d->precio_compra) }}@if ($d->precio_compra_max > $d->precio_compra) – {{ $fmt($d->precio_compra_max) }}@endif</td>
+            <td class="text-right">{{ $fmt($d->precio_venta) }}@if ($d->precio_venta_max > $d->precio_venta) – {{ $fmt($d->precio_venta_max) }}@endif</td>
             <td class="text-right">{{ $fmt($d->subtotal) }}</td>
         </tr>
         @endforeach

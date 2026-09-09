@@ -371,14 +371,24 @@ class ReporteComprasController extends Controller
         $series = $this->seriesDeCompra($compraId, $empresaId)
             ->groupBy(fn($s) => $s->producto_id . ':' . ($s->variante_id ?? ''));
 
-        return $detalles->map(function ($detalle) use ($series) {
+        return $detalles
+            ->groupBy(fn($d) => $d->producto_id . ':' . ($d->variante_id ?? ''))
+            ->map(function ($grupo) use ($series) {
+            $detalle = clone $grupo->first();
+            $detalle->cantidad = round($grupo->sum('cantidad'), 3);
+            $detalle->subtotal = round($grupo->sum('subtotal'), 2);
+            foreach (['precio_compra', 'precio_venta'] as $campo) {
+                $precios = $grupo->pluck($campo)->filter(fn($p) => $p !== null)->map(fn($p) => (float) $p);
+                $detalle->{$campo} = $precios->min();
+                $detalle->{$campo . '_max'} = $precios->max();
+            }
             $clave = $detalle->producto_id . ':' . ($detalle->variante_id ?? '');
             $detalle->series = $series->get($clave, collect())
                 ->map(fn($s) => $s->imei ?: ($s->serie ?: $s->imei2))
                 ->filter()->unique()->values()->all();
 
             return $detalle;
-        });
+        })->values();
     }
 
     private function seriesDeCompra(int $compraId, int $empresaId)

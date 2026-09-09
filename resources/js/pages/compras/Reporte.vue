@@ -922,11 +922,13 @@
                                                 class="px-4 py-3 text-right text-slate-600"
                                             >
                                                 {{ fmt(d.precio_compra) }}
+                                                <span v-if="d.precio_compra_max > d.precio_compra"> – {{ fmt(d.precio_compra_max) }}</span>
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-right text-slate-600"
                                             >
                                                 {{ fmt(d.precio_venta) }}
+                                                <span v-if="d.precio_venta_max > d.precio_venta"> – {{ fmt(d.precio_venta_max) }}</span>
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-right font-semibold text-slate-900"

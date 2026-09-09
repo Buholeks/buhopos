@@ -143,7 +143,14 @@
     <tbody>
         @foreach ($detalles as $d)
         <tr>
-            <td>{{ $d->producto }}</td>
+            <td>
+                {{ $d->producto }}
+                @if (!empty($d->series))
+                <div style="margin-top:3px;font-size:8px;font-weight:normal;line-height:1.4;color:#64748b;word-wrap:break-word;">
+                    IMEI / Serie: {{ implode(', ', $d->series) }}
+                </div>
+                @endif
+            </td>
             <td>{{ $d->sku ?? '—' }}</td>
             <td class="text-right">{{ $d->cantidad }}</td>
             <td class="text-right">{{ $fmt($d->precio_compra) }}</td>

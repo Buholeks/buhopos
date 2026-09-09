@@ -887,6 +887,26 @@
                                                 class="px-4 py-3 font-medium text-slate-800"
                                             >
                                                 {{ d.producto }}
+                                                <div v-if="d.series?.length" class="mt-1 max-w-md text-xs font-normal leading-relaxed text-slate-500">
+                                                    <span>IMEI / Serie: </span>
+                                                    <template v-for="(serie, index) in (seriesExpandidas[d.id] ? d.series : d.series.slice(0, 3))" :key="serie">
+                                                        <span v-if="index">, </span>
+                                                        <button
+                                                            type="button"
+                                                            class="break-all rounded font-mono hover:text-indigo-700 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
+                                                            :aria-label="`Copiar IMEI o serie ${serie}`"
+                                                            title="Copiar IMEI / serie"
+                                                            @click.stop="copiarSerie(serie)"
+                                                        >{{ serie }}</button>
+                                                    </template>
+                                                    <button
+                                                        v-if="d.series.length > 3"
+                                                        type="button"
+                                                        class="ml-2 font-medium text-indigo-600 hover:underline"
+                                                        :aria-expanded="!!seriesExpandidas[d.id]"
+                                                        @click.stop="seriesExpandidas[d.id] = !seriesExpandidas[d.id]"
+                                                    >{{ seriesExpandidas[d.id] ? 'Ver menos' : `Ver los ${d.series.length}` }}</button>
+                                                </div>
                                             </td>
                                             <td
                                                 class="px-4 py-3 text-slate-500"
@@ -1319,7 +1339,7 @@
 <script setup>
 import { computed, defineComponent, h, onMounted, ref } from "vue";
 import axios from "axios";
-import { confirm, toastError, toastWarning } from "@/lib/alert";
+import { confirm, toastError, toastWarning, toastSuccess } from "@/lib/alert";
 
 import {
     AlertTriangle,
@@ -1417,6 +1437,16 @@ const tabActivo = ref(props.vista === "pagos" ? "cuentas" : "compras");
 const datos = ref(null);
 const datosCuentas = ref(null);
 const detalle = ref(null);
+const seriesExpandidas = ref({});
+
+async function copiarSerie(serie) {
+    try {
+        await navigator.clipboard.writeText(String(serie));
+        toastSuccess('IMEI / serie copiado');
+    } catch {
+        toastError('No se pudo copiar. Selecciona el IMEI o serie y cópialo manualmente.');
+    }
+}
 const datosPagos = ref(null);
 const compraActual = ref(null);
 const proveedores = ref([]);
@@ -1718,6 +1748,7 @@ async function cambiarPaginaCuentas(page) {
 }
 
 async function verDetalle(compra) {
+    seriesExpandidas.value = {};
     modalAbierto.value = true;
     cargandoDetalle.value = true;
     detalle.value = null;

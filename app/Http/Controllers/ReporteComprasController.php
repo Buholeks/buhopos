@@ -147,6 +147,8 @@ class ReporteComprasController extends Controller
             ->where('c.sucursal_id', $user->sucursal_id)
             ->select(
                 'cd.id',
+                'cd.producto_id',
+                'cd.variante_id',
                 'p.nombre as producto',
                 'v.sku as sku',
                 'cd.cantidad',
@@ -180,7 +182,7 @@ class ReporteComprasController extends Controller
 
         return response()->json([
             'compra'   => $compra,
-            'detalles' => $detalles,
+            'detalles' => $this->agregarSeries($detalles, $id, $user->empresa_id),
             'pagos'    => $pagos,
         ]);
     }
@@ -321,7 +323,7 @@ class ReporteComprasController extends Controller
             ->join('productos as p', 'cd.producto_id', '=', 'p.id')
             ->leftJoin('producto_variantes as v', 'cd.variante_id', '=', 'v.id')
             ->where('cd.compra_id', $id)
-            ->select('p.nombre as producto', 'v.sku', 'cd.cantidad', 'cd.precio_compra', 'cd.precio_venta', 'cd.subtotal')
+            ->select('cd.producto_id', 'cd.variante_id', 'p.nombre as producto', 'v.sku', 'cd.cantidad', 'cd.precio_compra', 'cd.precio_venta', 'cd.subtotal')
             ->orderBy('cd.id')
             ->get();
 
@@ -347,7 +349,7 @@ class ReporteComprasController extends Controller
         $pdf = Pdf::loadView('pdf.compra-detalle', [
             'titulo'            => 'Compra ' . ($compra->folio ?? "#{$id}"),
             'compra'            => $compra,
-            'detalles'          => $detalles,
+            'detalles'          => $this->agregarSeries($detalles, $id, $user->empresa_id),
             'pagos'             => $pagos,
             'fmt'               => $fmt,
             'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
@@ -362,6 +364,35 @@ class ReporteComprasController extends Controller
         $nombre = 'compra_' . ($compra->folio ?? $id) . '_' . now()->format('Ymd_His');
 
         return $pdf->download("{$nombre}.pdf");
+    }
+
+    private function agregarSeries($detalles, int $compraId, int $empresaId)
+    {
+        $series = $this->seriesDeCompra($compraId, $empresaId)
+            ->groupBy(fn($s) => $s->producto_id . ':' . ($s->variante_id ?? ''));
+
+        return $detalles->map(function ($detalle) use ($series) {
+            $clave = $detalle->producto_id . ':' . ($detalle->variante_id ?? '');
+            $detalle->series = $series->get($clave, collect())
+                ->map(fn($s) => $s->imei ?: ($s->serie ?: $s->imei2))
+                ->filter()->unique()->values()->all();
+
+            return $detalle;
+        });
+    }
+
+    private function seriesDeCompra(int $compraId, int $empresaId)
+    {
+        // La sucursal actual de una serie puede cambiar después de un traspaso.
+        // La compra ya fue validada contra la empresa y sucursal del usuario.
+        return DB::table('series as s')
+            ->where('s.compra_id', $compraId)
+            ->where('s.empresa_id', $empresaId)
+            ->select('s.id', 's.producto_id', 's.variante_id', 's.imei', 's.imei2', 's.serie')
+            ->orderBy('s.producto_id')
+            ->orderBy('s.variante_id')
+            ->orderBy('s.id')
+            ->get();
     }
 
     private function mapCompraRow(object $c): object

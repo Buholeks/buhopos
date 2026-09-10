@@ -171,7 +171,7 @@ const routes = [
       { path: "reportes-ventas-agrupado",name: "reportes-ventas-agrupado",component: VentasAgrupado,    meta: { title: "Ventas agrupadas",    permiso: "ventas.ver" } },
       { path: "reportes-utilidades",     name: "reportes-utilidades",     component: ReporteUtilidades, meta: { title: "Reporte de utilidades",permiso: "reportes.utilidades" } },
       { path: "reportes-articulo",       name: "reportes-articulo",       component: HistorialArticulo, meta: { title: "Consulta de articulo", permiso: "reportes.ver" } },
-      { path: "reportes-inventario",     name: "reportes-inventario",     component: ReporteInventario, meta: { title: "Inversion en mercancia", permiso: "reportes.ver" } },
+      { path: "reportes-inventario",     name: "reportes-inventario",     component: ReporteInventario, meta: { title: "Reporte de productos y existencias", permiso: "reportes.ver" } },
 
       { path: "configuracion", name: "configuracion", component: ConfiguracionIndex, meta: { title: "Configuración" } },
       { path: "configuracion/vigencia-pedidos", name: "vigencia-pedidos", component: VigenciaPedidos, meta: { title: "Vigencia de pedidos y apartados", permiso: "empresa.editar" } },

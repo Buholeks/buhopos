@@ -122,7 +122,7 @@ const reportes = [
         permiso: "reportes.utilidades",
     },
     {
-        label: "Inversión en mercancía",
+        label: "Reporte de productos y existencias",
         icon: PackageSearch,
         to: { name: "reportes-inventario" },
         badge: "Disponible",

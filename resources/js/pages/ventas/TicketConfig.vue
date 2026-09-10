@@ -32,6 +32,7 @@
                 <!-- Zona activa + campos -->
                 <section class="rounded-2xl bg-white p-4 shadow-sm">
                     <h2 class="mb-3 text-sm font-black">Campos arrastrables</h2>
+                    <p class="mb-3 text-xs text-slate-500">El campo «Logo / nombre empresa» imprime automáticamente el logo cargado en el perfil de la empresa en lugar del nombre. Sin logo, imprime el nombre. Ajusta su ancho y alto en el lienzo para cambiar el tamaño del logo.</p>
                     <div class="mb-3 flex gap-1 rounded-xl bg-slate-100 p-1 text-xs font-bold">
                         <button
                             :class="['flex-1 rounded-lg py-1.5 transition-all', zonaActiva === 'encabezado' ? 'bg-white shadow text-sky-700' : 'text-slate-500']"
@@ -334,6 +335,9 @@ import { conectar, isConectado, listarImpresoras, obtenerImpresoraTicket, guarda
 import { obtenerConfigTicket, guardarConfigTicket, cargarConfigTicketDesdeServidor, imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import TicketCanvasVista from "@/components/ventas/TicketCanvasVista.vue";
+import { useAuthStore } from "@/stores/auth";
+
+const auth = useAuthStore();
 
 const escala = 3;
 
@@ -349,7 +353,7 @@ const variables = [
     {
         grupo: "Empresa",
         items: [
-            { campo: "empresa.nombre", label: "Nombre empresa" },
+            { campo: "empresa.nombre", label: "Logo / nombre empresa" },
             { campo: "empresa.rfc", label: "RFC" },
         ],
     },
@@ -431,7 +435,7 @@ const anchoInterior = computed(() => cfg.ancho_mm - 2 * cfg.margen_mm);
 const muestra = crearTicketVenta({
     folio: "VTA-000123",
     created_at: new Date().toISOString(),
-    empresa: { nombre: "Mi Empresa S.A.", rfc: "XAXX010101000" },
+    empresa: auth.user?.empresa ?? { nombre: "Mi Empresa S.A.", rfc: "XAXX010101000" },
     sucursal: { nombre: "Sucursal Centro", direccion: "Calle 5 de Mayo #10", telefono: "55 1234 5678" },
     vendedor: { name: "Vendedor" },
     cliente: null,

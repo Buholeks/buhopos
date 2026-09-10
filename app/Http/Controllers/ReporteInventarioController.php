@@ -6,6 +6,7 @@ use App\Exportaciones\InventarioExportacion;
 use App\Exportaciones\ServicioExportacion;
 use App\Models\Empresa;
 use App\Models\Sucursal;
+use App\Servicios\InventarioReporteConsulta;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,34 +37,31 @@ class ReporteInventarioController extends Controller
         $agrupar = $data['agrupar'] ?? 'producto';
         $perPage = (int) ($data['por_pagina'] ?? 30);
 
-        $base = $this->base($request, $user->empresa_id, $user->sucursal_id);
-        $costo = $this->costoSql();
-        $precioVenta = $this->precioVentaSql();
-        $comprometido = \App\Servicios\InventarioComprometidoReporte::sql();
-        $disponible = \App\Servicios\InventarioComprometidoReporte::disponibleSql();
+        $filtrosBase = [
+            'categoria_id' => $data['categoria_id'] ?? null,
+            'q'            => $data['q'] ?? null,
+            'series'       => $data['series'] ?? 'todos',
+            'filtro'       => $data['filtro'] ?? 'todos',
+        ];
 
-        $resumen = (clone $base)
-            ->selectRaw("
-                COUNT(*) AS articulos,
-                COALESCE(SUM(inv.stock), 0) AS unidades,
-                COALESCE(SUM({$comprometido}), 0) AS comprometidas,
-                COALESCE(SUM({$disponible}), 0) AS disponibles,
-                COALESCE(SUM(inv.stock * {$costo}), 0) AS invertido,
-                COALESCE(SUM(inv.stock * {$precioVenta}), 0) AS valor_venta,
-                COALESCE(SUM(CASE WHEN {$costo} <= 0 THEN 1 ELSE 0 END), 0) AS sin_costo,
-                COALESCE(SUM(CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN 1 ELSE 0 END), 0) AS bajo_minimo
-            ")
-            ->first();
+        $base = InventarioReporteConsulta::base($user->empresa_id, $user->sucursal_id, $filtrosBase);
+        $baseResumen = InventarioReporteConsulta::base($user->empresa_id, $user->sucursal_id, $filtrosBase, false);
+        $costo = InventarioReporteConsulta::costoSql();
+        $precioVenta = InventarioReporteConsulta::precioVentaSql();
+        $resumen = InventarioReporteConsulta::resumen($baseResumen);
 
+        $direccion = $data['direccion'] ?? 'desc';
         $rows = match ($agrupar) {
-            'categoria' => $this->porCategoria($base, $costo, $precioVenta, $perPage),
-            'proveedor' => $this->porProveedor($base, $costo, $precioVenta, $perPage),
-            default => $this->porProducto(clone $base, $costo, $precioVenta, $perPage, $data['orden'] ?? 'invertido', $data['direccion'] ?? 'desc'),
+            'categoria' => $this->porCategoria($base, $costo, $precioVenta, $perPage, $direccion),
+            'proveedor' => $this->porProveedor($base, $costo, $precioVenta, $perPage, $direccion),
+            default => $this->porProducto(clone $base, $costo, $precioVenta, $perPage, $data['orden'] ?? 'invertido', $direccion),
         };
 
         if ($agrupar === 'producto') {
-            $series = \App\Servicios\SeriesInventarioReporte::porProducto($user->empresa_id, $user->sucursal_id, $rows->getCollection()->pluck('producto_id')->all());
-            $variantes = $this->detalleVariantes(clone $base, $rows->getCollection()->pluck('producto_id')->all(), $user->empresa_id, $user->sucursal_id);
+            $productoIds = $rows->getCollection()->pluck('producto_id')->all();
+            $seriesFilas = \App\Servicios\SeriesInventarioReporte::filas($user->empresa_id, $user->sucursal_id, $productoIds);
+            $series = \App\Servicios\SeriesInventarioReporte::etiquetasPorProducto($seriesFilas);
+            $variantes = $this->detalleVariantes(clone $base, $productoIds, $user->empresa_id, $seriesFilas);
             $rows->through(function ($row) use ($series, $variantes) {
                 $row['series'] = $series->get($row['producto_id'], []);
                 $row['detalle_variantes'] = $variantes->get($row['producto_id'], []);
@@ -73,19 +71,7 @@ class ReporteInventarioController extends Controller
 
         return response()->json([
             'categorias' => DB::table('categorias')->where('empresa_id', $user->empresa_id)->whereNull('deleted_at')->orderBy('nombre')->get(['id', 'nombre']),
-            'resumen' => [
-                'articulos' => (int) $resumen->articulos,
-                'unidades' => (float) $resumen->unidades,
-                'comprometidas' => (float) $resumen->comprometidas,
-                'disponibles' => (float) $resumen->disponibles,
-                'invertido' => (float) $resumen->invertido,
-                'valor_venta' => (float) $resumen->valor_venta,
-                'margen_potencial' => (float) $resumen->valor_venta > 0
-                    ? round((((float) $resumen->valor_venta - (float) $resumen->invertido) / (float) $resumen->valor_venta) * 100, 2)
-                    : 0,
-                'sin_costo' => (int) $resumen->sin_costo,
-                'bajo_minimo' => (int) $resumen->bajo_minimo,
-            ],
+            'resumen' => $resumen,
             'agrupar' => $agrupar,
             'items' => $rows,
         ]);
@@ -124,38 +110,8 @@ class ReporteInventarioController extends Controller
         $exportacion = new InventarioExportacion($user->empresa_id, $user->sucursal_id, $agrupar, $filtros);
 
         if ($data['formato'] === 'pdf') {
-            $base    = $this->base($request, $user->empresa_id, $user->sucursal_id);
-            $costo       = $this->costoSql();
-            $precioVenta = $this->precioVentaSql();
-            $comprometido = \App\Servicios\InventarioComprometidoReporte::sql();
-            $disponible = \App\Servicios\InventarioComprometidoReporte::disponibleSql();
-
-            $resumenRaw = (clone $base)
-                ->selectRaw("
-                    COUNT(*) AS articulos,
-                    COALESCE(SUM(inv.stock), 0) AS unidades,
-                    COALESCE(SUM({$comprometido}), 0) AS comprometidas,
-                    COALESCE(SUM({$disponible}), 0) AS disponibles,
-                    COALESCE(SUM(inv.stock * {$costo}), 0) AS invertido,
-                    COALESCE(SUM(inv.stock * {$precioVenta}), 0) AS valor_venta,
-                    COALESCE(SUM(CASE WHEN {$costo} <= 0 THEN 1 ELSE 0 END), 0) AS sin_costo,
-                    COALESCE(SUM(CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN 1 ELSE 0 END), 0) AS bajo_minimo
-                ")
-                ->first();
-
-            $inv       = (float) $resumenRaw->invertido;
-            $vv        = (float) $resumenRaw->valor_venta;
-            $resumen   = [
-                'articulos'        => (int) $resumenRaw->articulos,
-                'unidades'         => (float) $resumenRaw->unidades,
-                'comprometidas'    => (float) $resumenRaw->comprometidas,
-                'disponibles'      => (float) $resumenRaw->disponibles,
-                'invertido'        => $inv,
-                'valor_venta'      => $vv,
-                'margen_potencial' => $vv > 0 ? round((($vv - $inv) / $vv) * 100, 2) : 0,
-                'sin_costo'        => (int) $resumenRaw->sin_costo,
-                'bajo_minimo'      => (int) $resumenRaw->bajo_minimo,
-            ];
+            $baseResumen = InventarioReporteConsulta::base($user->empresa_id, $user->sucursal_id, $filtros, false);
+            $resumen     = InventarioReporteConsulta::resumen($baseResumen);
 
             $rawItems = $agrupar === 'producto'
                 ? $exportacion->datosCompletosProducto()->toArray()
@@ -223,69 +179,7 @@ class ReporteInventarioController extends Controller
         return $servicio->exportar($exportacion, 'excel', $nombre);
     }
 
-    private function base(Request $request, int $empresaId, int $sucursalId)
-    {
-        $ultimoProveedor = DB::table('compra_detalles as cd')
-            ->join('compras as c', 'c.id', '=', 'cd.compra_id')
-            ->where('c.empresa_id', $empresaId)
-            ->where('c.sucursal_id', $sucursalId)
-            ->whereIn('c.estado', ['confirmada', 'devuelta_parcial'])
-            ->selectRaw('cd.producto_id, cd.variante_id, MAX(c.id) AS ultima_compra_id')
-            ->groupBy('cd.producto_id', 'cd.variante_id');
-
-        $query = DB::table('inventario as inv')
-            ->join('productos as p', 'p.id', '=', 'inv.producto_id')
-            ->leftJoin('producto_variantes as v', 'v.id', '=', 'inv.variante_id')
-            ->leftJoin('categorias as cat', 'cat.id', '=', 'p.categoria_id')
-            ->leftJoinSub($ultimoProveedor, 'up', function ($join) {
-                $join->on('up.producto_id', '=', 'inv.producto_id')
-                    ->whereRaw('(up.variante_id = inv.variante_id OR (up.variante_id IS NULL AND inv.variante_id IS NULL))');
-            })
-            ->leftJoin('compras as uc', 'uc.id', '=', 'up.ultima_compra_id')
-            ->leftJoin('proveedores as pr', 'pr.id', '=', 'uc.proveedor_id')
-            ->where('inv.empresa_id', $empresaId)
-            ->where('inv.sucursal_id', $sucursalId);
-
-        if ($request->filled('categoria_id')) {
-            $query->where('p.categoria_id', $request->integer('categoria_id'));
-        }
-
-        match ($request->input('series', 'todos')) {
-            'con_series' => $query->where('p.tiene_series', true),
-            'sin_series' => $query->where('p.tiene_series', false),
-            default => null,
-        };
-
-        if ($request->filled('q')) {
-            $texto = trim((string) $request->q);
-            $query->where(function ($q) use ($texto, $empresaId, $sucursalId) {
-                $q->where('p.nombre', 'like', "%{$texto}%")
-                    ->orWhere('p.codigo', 'like', "%{$texto}%")
-                    ->orWhere('v.sku', 'like', "%{$texto}%")
-                    ->orWhereExists(\App\Servicios\SeriesInventarioReporte::consulta($empresaId, $sucursalId)
-                        ->selectRaw('1')->whereColumn('series.producto_id', 'inv.producto_id')
-                        ->whereRaw('(series.variante_id = inv.variante_id OR (series.variante_id IS NULL AND inv.variante_id IS NULL))')
-                        ->where(fn($s) => $s->where('imei', 'like', "%{$texto}%")->orWhere('imei2', 'like', "%{$texto}%")->orWhere('serie', 'like', "%{$texto}%")))
-                    ->orWhere('v.codigo_barras', 'like', "%{$texto}%")
-                    ->orWhere('cat.nombre', 'like', "%{$texto}%")
-                    ->orWhere('pr.nombre_comercial', 'like', "%{$texto}%")
-                    ->orWhere('pr.razon_social', 'like', "%{$texto}%");
-            });
-        }
-
-        $costo = $this->costoSql();
-        match ($request->input('filtro', 'todos')) {
-            'con_existencia' => $query->where('inv.stock', '>', 0),
-            'agotados' => $query->where('inv.stock', '<=', 0),
-            'sin_costo' => $query->whereRaw("{$costo} <= 0"),
-            'bajo_minimo' => $query->where('inv.stock_minimo', '>', 0)->whereColumn('inv.stock', '<=', 'inv.stock_minimo'),
-            default => null,
-        };
-
-        return \App\Servicios\InventarioComprometidoReporte::aplicar($query, $empresaId, $sucursalId);
-    }
-
-    private function detalleVariantes($base, array $productoIds, int $empresaId, int $sucursalId)
+    private function detalleVariantes($base, array $productoIds, int $empresaId, \Illuminate\Support\Collection $seriesFilas)
     {
         if (!$productoIds) return collect();
 
@@ -298,10 +192,7 @@ class ReporteInventarioController extends Controller
         $variantes = \App\Models\ProductoVariante::withTrashed()
             ->where('empresa_id', $empresaId)->whereIn('id', $inventario->pluck('variante_id')->filter())
             ->with(['atributos.tipoAtributo', 'atributos.atributo'])->get()->keyBy('id');
-        $series = \App\Servicios\SeriesInventarioReporte::consulta($empresaId, $sucursalId)
-            ->whereIn('producto_id', $productoIds)->orderBy('id')
-            ->get(['producto_id', 'variante_id', 'imei', 'imei2', 'serie'])
-            ->groupBy(fn($s) => $s->producto_id . ':' . ($s->variante_id ?? ''));
+        $series = $seriesFilas->groupBy(fn($s) => $s->producto_id . ':' . ($s->variante_id ?? ''));
 
         return $inventario->map(function ($fila) use ($variantes, $series) {
             $fila->nombre = $fila->variante_id
@@ -358,52 +249,42 @@ class ReporteInventarioController extends Controller
             ->through(fn($row) => $this->mapProducto($row));
     }
 
-    private function porCategoria($base, string $costo, string $precioVenta, int $perPage)
+    private function porCategoria($base, string $costo, string $precioVenta, int $perPage, string $direccion = 'desc')
     {
         return $base
             ->selectRaw("
                 cat.id,
                 COALESCE(cat.nombre, 'Sin categoria') AS nombre,
-                COUNT(*) AS articulos,
+                COUNT(DISTINCT p.id) AS articulos,
                 COALESCE(SUM(inv.stock), 0) AS unidades,
                 COALESCE(SUM(inv.stock * {$costo}), 0) AS invertido,
                 COALESCE(SUM(inv.stock * {$precioVenta}), 0) AS valor_venta,
-                COALESCE(SUM(CASE WHEN {$costo} <= 0 THEN 1 ELSE 0 END), 0) AS sin_costo,
-                COALESCE(SUM(CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN 1 ELSE 0 END), 0) AS bajo_minimo
+                COUNT(DISTINCT CASE WHEN {$costo} <= 0 THEN p.id END) AS sin_costo,
+                COUNT(DISTINCT CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN p.id END) AS bajo_minimo
             ")
             ->groupBy('cat.id', 'cat.nombre')
-            ->orderByDesc('invertido')
+            ->orderBy('invertido', $direccion === 'asc' ? 'asc' : 'desc')
             ->paginate($perPage)
             ->through(fn($row) => $this->mapGrupo($row));
     }
 
-    private function porProveedor($base, string $costo, string $precioVenta, int $perPage)
+    private function porProveedor($base, string $costo, string $precioVenta, int $perPage, string $direccion = 'desc')
     {
         return $base
             ->selectRaw("
                 pr.id,
                 COALESCE(pr.nombre_comercial, pr.razon_social, 'Sin proveedor') AS nombre,
-                COUNT(*) AS articulos,
+                COUNT(DISTINCT p.id) AS articulos,
                 COALESCE(SUM(inv.stock), 0) AS unidades,
                 COALESCE(SUM(inv.stock * {$costo}), 0) AS invertido,
                 COALESCE(SUM(inv.stock * {$precioVenta}), 0) AS valor_venta,
-                COALESCE(SUM(CASE WHEN {$costo} <= 0 THEN 1 ELSE 0 END), 0) AS sin_costo,
-                COALESCE(SUM(CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN 1 ELSE 0 END), 0) AS bajo_minimo
+                COUNT(DISTINCT CASE WHEN {$costo} <= 0 THEN p.id END) AS sin_costo,
+                COUNT(DISTINCT CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN p.id END) AS bajo_minimo
             ")
             ->groupBy('pr.id', 'pr.nombre_comercial', 'pr.razon_social')
-            ->orderByDesc('invertido')
+            ->orderBy('invertido', $direccion === 'asc' ? 'asc' : 'desc')
             ->paginate($perPage)
             ->through(fn($row) => $this->mapGrupo($row));
-    }
-
-    private function costoSql(): string
-    {
-        return 'COALESCE(v.precio_costo, p.precio_costo, 0)';
-    }
-
-    private function precioVentaSql(): string
-    {
-        return 'COALESCE(v.precio_venta, p.precio_venta, 0)';
     }
 
     private function mapProducto(object $row): array

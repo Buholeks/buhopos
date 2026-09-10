@@ -127,7 +127,7 @@
 
 @if ($ver('alertas') && $resumen['sin_costo'] > 0)
 <div style="background:#fffbeb;border:1px solid #fcd34d;padding:5px 8px;font-size:8px;color:#92400e;margin-bottom:10px;">
-    ⚠ {{ $resumen['sin_costo'] }} artículos sin costo capturado; el total invertido puede estar incompleto.
+    ⚠ {{ $resumen['sin_costo'] }} artículos de todo el inventario (incluye agotados) sin costo capturado; el total invertido puede estar incompleto.
 </div>
 @endif
 

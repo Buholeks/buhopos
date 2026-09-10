@@ -27,11 +27,29 @@ class SeriesInventarioReporte
             return collect();
         }
 
+        return self::etiquetasPorProducto(self::filas($empresaId, $sucursalId, $productoIds));
+    }
+
+    /**
+     * Filas crudas de series (producto_id, variante_id, imei, imei2, serie) para un
+     * conjunto de productos. Pensado para pedirse una sola vez y reutilizarse tanto
+     * a nivel producto como a nivel variante, evitando consultar la tabla dos veces.
+     */
+    public static function filas(int $empresaId, int $sucursalId, array $productoIds): Collection
+    {
+        if (!$productoIds) {
+            return collect();
+        }
+
         return self::consulta($empresaId, $sucursalId)
             ->whereIn('producto_id', $productoIds)
             ->orderBy('id')
-            ->get(['producto_id', 'imei', 'imei2', 'serie'])
-            ->groupBy('producto_id')
+            ->get(['producto_id', 'variante_id', 'imei', 'imei2', 'serie']);
+    }
+
+    public static function etiquetasPorProducto(Collection $filas): Collection
+    {
+        return $filas->groupBy('producto_id')
             ->map(fn($series) => $series
                 ->map(fn($serie) => $serie->imei ?: ($serie->serie ?: $serie->imei2))
                 ->filter()->unique()->values()->all());

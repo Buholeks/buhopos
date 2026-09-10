@@ -16,7 +16,9 @@
                 margin-bottom: 6px;
             "
         >
+            <img v-if="ticket.empresa?.logo_url" :src="ticket.empresa.logo_url" alt="Logo" style="display:block;max-width:100%;height:18mm;object-fit:contain;margin:0 auto 2mm;">
             <div
+                v-else
                 style="
                     font-size: 14px;
                     font-weight: 800;

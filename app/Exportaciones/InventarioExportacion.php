@@ -79,65 +79,10 @@ class InventarioExportacion extends ExportacionBase
             return $this->cache;
         }
 
-        $costo       = 'COALESCE(v.precio_costo, p.precio_costo, 0)';
-        $precioVenta = 'COALESCE(v.precio_venta, p.precio_venta, 0)';
+        $costo       = \App\Servicios\InventarioReporteConsulta::costoSql();
+        $precioVenta = \App\Servicios\InventarioReporteConsulta::precioVentaSql();
 
-        $ultimoProveedor = DB::table('compra_detalles as cd')
-            ->join('compras as c', 'c.id', '=', 'cd.compra_id')
-            ->where('c.empresa_id', $this->empresaId)
-            ->where('c.sucursal_id', $this->sucursalId)
-            ->whereIn('c.estado', ['confirmada', 'devuelta_parcial'])
-            ->selectRaw('cd.producto_id, cd.variante_id, MAX(c.id) AS ultima_compra_id')
-            ->groupBy('cd.producto_id', 'cd.variante_id');
-
-        $base = DB::table('inventario as inv')
-            ->join('productos as p', 'p.id', '=', 'inv.producto_id')
-            ->leftJoin('producto_variantes as v', 'v.id', '=', 'inv.variante_id')
-            ->leftJoin('categorias as cat', 'cat.id', '=', 'p.categoria_id')
-            ->leftJoinSub($ultimoProveedor, 'up', function ($join) {
-                $join->on('up.producto_id', '=', 'inv.producto_id')
-                    ->whereRaw('(up.variante_id = inv.variante_id OR (up.variante_id IS NULL AND inv.variante_id IS NULL))');
-            })
-            ->leftJoin('compras as uc', 'uc.id', '=', 'up.ultima_compra_id')
-            ->leftJoin('proveedores as pr', 'pr.id', '=', 'uc.proveedor_id')
-            ->where('inv.empresa_id', $this->empresaId)
-            ->where('inv.sucursal_id', $this->sucursalId);
-        $base = \App\Servicios\InventarioComprometidoReporte::aplicar($base, $this->empresaId, $this->sucursalId);
-
-        if (!empty($this->filtros['categoria_id'])) {
-            $base->where('p.categoria_id', $this->filtros['categoria_id']);
-        }
-
-        match ($this->filtros['series'] ?? 'todos') {
-            'con_series' => $base->where('p.tiene_series', true),
-            'sin_series' => $base->where('p.tiene_series', false),
-            default => null,
-        };
-        if (!empty($this->filtros['q'])) {
-            $texto = trim((string) $this->filtros['q']);
-            $base->where(function ($q) use ($texto) {
-                $q->where('p.nombre', 'like', "%{$texto}%")
-                    ->orWhere('p.codigo', 'like', "%{$texto}%")
-                    ->orWhere('v.sku', 'like', "%{$texto}%")
-                    ->orWhereExists(\App\Servicios\SeriesInventarioReporte::consulta($this->empresaId, $this->sucursalId)
-                        ->selectRaw('1')->whereColumn('series.producto_id', 'inv.producto_id')
-                        ->whereRaw('(series.variante_id = inv.variante_id OR (series.variante_id IS NULL AND inv.variante_id IS NULL))')
-                        ->where(fn($s) => $s->where('imei', 'like', "%{$texto}%")->orWhere('imei2', 'like', "%{$texto}%")->orWhere('serie', 'like', "%{$texto}%")))
-                    ->orWhere('v.codigo_barras', 'like', "%{$texto}%")
-                    ->orWhere('cat.nombre', 'like', "%{$texto}%")
-                    ->orWhere('pr.nombre_comercial', 'like', "%{$texto}%")
-                    ->orWhere('pr.razon_social', 'like', "%{$texto}%");
-            });
-        }
-
-        $filtro = $this->filtros['filtro'] ?? 'todos';
-        match ($filtro) {
-            'con_existencia' => $base->where('inv.stock', '>', 0),
-            'agotados'       => $base->where('inv.stock', '<=', 0),
-            'sin_costo'      => $base->whereRaw("{$costo} <= 0"),
-            'bajo_minimo'    => $base->where('inv.stock_minimo', '>', 0)->whereColumn('inv.stock', '<=', 'inv.stock_minimo'),
-            default          => null,
-        };
+        $base = \App\Servicios\InventarioReporteConsulta::base($this->empresaId, $this->sucursalId, $this->filtros);
 
         $series = $this->agrupar === 'producto'
             ? \App\Servicios\SeriesInventarioReporte::porProducto($this->empresaId, $this->sucursalId, (clone $base)->distinct()->pluck('p.id')->all())
@@ -147,15 +92,15 @@ class InventarioExportacion extends ExportacionBase
             'categoria' => $base
                 ->selectRaw("
                     COALESCE(cat.nombre, 'Sin categoría') AS nombre,
-                    COUNT(*) AS articulos,
+                    COUNT(DISTINCT p.id) AS articulos,
                     COALESCE(SUM(inv.stock), 0) AS unidades,
                     COALESCE(SUM(inv.stock * {$costo}), 0) AS invertido,
                     COALESCE(SUM(inv.stock * {$precioVenta}), 0) AS valor_venta,
-                    COALESCE(SUM(CASE WHEN {$costo} <= 0 THEN 1 ELSE 0 END), 0) AS sin_costo,
-                    COALESCE(SUM(CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN 1 ELSE 0 END), 0) AS bajo_minimo
+                    COUNT(DISTINCT CASE WHEN {$costo} <= 0 THEN p.id END) AS sin_costo,
+                    COUNT(DISTINCT CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN p.id END) AS bajo_minimo
                 ")
                 ->groupBy('cat.id', 'cat.nombre')
-                ->orderByDesc('invertido')
+                ->orderBy('invertido', ($this->filtros['direccion'] ?? 'desc') === 'asc' ? 'asc' : 'desc')
                 ->get()
                 ->map(function ($row) {
                     $inv  = (float) $row->invertido;
@@ -167,15 +112,15 @@ class InventarioExportacion extends ExportacionBase
             'proveedor' => $base
                 ->selectRaw("
                     COALESCE(pr.nombre_comercial, pr.razon_social, 'Sin proveedor') AS nombre,
-                    COUNT(*) AS articulos,
+                    COUNT(DISTINCT p.id) AS articulos,
                     COALESCE(SUM(inv.stock), 0) AS unidades,
                     COALESCE(SUM(inv.stock * {$costo}), 0) AS invertido,
                     COALESCE(SUM(inv.stock * {$precioVenta}), 0) AS valor_venta,
-                    COALESCE(SUM(CASE WHEN {$costo} <= 0 THEN 1 ELSE 0 END), 0) AS sin_costo,
-                    COALESCE(SUM(CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN 1 ELSE 0 END), 0) AS bajo_minimo
+                    COUNT(DISTINCT CASE WHEN {$costo} <= 0 THEN p.id END) AS sin_costo,
+                    COUNT(DISTINCT CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN p.id END) AS bajo_minimo
                 ")
                 ->groupBy('pr.id', 'pr.nombre_comercial', 'pr.razon_social')
-                ->orderByDesc('invertido')
+                ->orderBy('invertido', ($this->filtros['direccion'] ?? 'desc') === 'asc' ? 'asc' : 'desc')
                 ->get()
                 ->map(function ($row) {
                     $inv  = (float) $row->invertido;

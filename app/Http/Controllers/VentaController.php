@@ -559,13 +559,13 @@ class VentaController extends Controller
 
     private function cargarVentaCompleta(Venta $venta): Venta
     {
-        return $venta->load([
+        $venta->load([
             'detalles.producto',
             'detalles.variante',
             'detalles.variante.atributos.tipoAtributo:id,nombre',
             'detalles.variante.atributos.atributo:id,valor',
             'detalles.serie',
-            'empresa:id,nombre,rfc,direccion,telefono',
+            'empresa:id,nombre,rfc,direccion,telefono,logo',
             'sucursal:id,nombre,direccion,telefono',
             'cliente:id,nombre,telefono',
             'vendedor:id,name',
@@ -573,6 +573,13 @@ class VentaController extends Controller
             'pagos.cuentaBancaria:id,nombre,banco',
             'pagos.terminalPago:id,nombre,banco',
         ]);
+        if ($venta->empresa) {
+            $venta->empresa->setAttribute('logo_url', $venta->empresa->logo
+                ? \Illuminate\Support\Facades\Storage::disk('public')->url($venta->empresa->logo)
+                : null);
+        }
+
+        return $venta;
     }
 
     // Crea las líneas de venta_pagos: una por cada método que envió el cajero,

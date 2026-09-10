@@ -23,6 +23,13 @@
                 <!-- eslint-disable-next-line vue/no-v-html -->
                 <div class="w-full h-full" v-html="barcodeHtml(el)"></div>
             </template>
+            <img
+                v-else-if="el.tipo === 'campo' && el.campo === 'empresa.nombre' && datos.empresa?.logo_url"
+                :src="datos.empresa.logo_url"
+                alt="Logo"
+                class="h-full w-full object-contain"
+                :style="{ objectPosition: el.alineacion === 'derecha' ? 'right' : el.alineacion === 'centro' ? 'center' : 'left' }"
+            >
             <span v-else class="w-full self-center overflow-hidden">{{ valor(el) }}</span>
             <button
                 v-if="editable && seleccionado === el.id"

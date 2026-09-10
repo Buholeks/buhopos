@@ -43,10 +43,10 @@ export async function imprimirTicketVenta(ticket, impresoraQz = null) {
 
     const ventana = window.open("", "ticket_venta", "width=420,height=720");
     if (!ventana) throw new Error("No se pudo abrir la ventana de impresion.");
+    ventana.onload = () => { ventana.print(); ventana.close(); };
     ventana.document.write(html);
     ventana.document.close();
     ventana.focus();
-    ventana.onload = () => { ventana.print(); ventana.close(); };
 }
 
 export function crearHtmlTicket(ticket, cfg = {}) {
@@ -138,6 +138,10 @@ function renderCanvasHtml(elementos, ticket, altoMm, interiorMm) {
 
 function renderElementoHtml(el, ticket) {
     const base = `position:absolute;left:${el.x}mm;top:${el.y}mm;width:${el.ancho}mm;height:${el.alto}mm;overflow:hidden;`;
+    if (el.tipo === "campo" && el.campo === "empresa.nombre" && ticket.empresa?.logo_url) {
+        const posicion = el.alineacion === "derecha" ? "right" : el.alineacion === "centro" ? "center" : "left";
+        return `<div style="${base}"><img src="${escapeHtml(ticket.empresa.logo_url)}" alt="Logo" style="width:100%;height:100%;object-fit:contain;object-position:${posicion};"></div>`;
+    }
     if (el.tipo === "separador") {
         const yMid = Number(el.y) + Number(el.alto) / 2;
         return `<div style="position:absolute;left:${el.x}mm;top:${yMid}mm;width:${el.ancho}mm;height:0;border-top:1px dashed #0f172a;"></div>`;
@@ -245,7 +249,7 @@ function crearHtmlTicketLegacy(ticket, cfg) {
 </style></head><body>
 <main class="ticket">
     <section class="marca">
-        <div class="empresa">${escapeHtml(ticket.empresa?.nombre ?? "BuhoPOS")}</div>
+        ${ticket.empresa?.logo_url ? `<img src="${escapeHtml(ticket.empresa.logo_url)}" alt="Logo" style="display:block;max-width:100%;width:auto;height:18mm;object-fit:contain;margin:0 auto 2mm;">` : `<div class="empresa">${escapeHtml(ticket.empresa?.nombre ?? "BuhoPOS")}</div>`}
         ${mostrarRfc && ticket.empresa?.rfc ? `<div>RFC: ${escapeHtml(ticket.empresa.rfc)}</div>` : ""}
         ${ticket.sucursal?.nombre ? `<div class="sucursal">${escapeHtml(ticket.sucursal.nombre)}</div>` : ""}
         ${ticket.reimpresion ? `<div class="copia">Copia / reimpresion</div>` : ""}

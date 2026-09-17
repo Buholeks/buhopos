@@ -1122,7 +1122,7 @@ async function reimprimirVenta(id) {
         await imprimirTicketVenta(crearTicketVenta({ ...data, reimpresion: true }), obtenerImpresoraTicket());
     } catch (e) {
         console.error("reimprimirVenta", e);
-        toastError("No se pudo reimprimir el ticket.");
+        toastError(e.message ?? "Error de impresión: no se pudo reimprimir el ticket.");
     } finally {
         reimprimiendoVentaId.value = null;
     }

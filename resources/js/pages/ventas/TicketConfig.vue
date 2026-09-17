@@ -355,6 +355,7 @@ import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import { obtenerPrinterConfig, guardarPrinterConfig } from "@/helpers/printing/printerConfig.js";
 import { imprimirDocumento } from "@/helpers/printing/printerService.js";
 import { crearHtmlTicket } from "@/helpers/printing/ticketRenderer.js";
+import { printErrorTitle } from "@/helpers/printing/printErrors.js";
 import { crearDiagnostico, crearPruebaCorte } from "@/helpers/printing/escpos.js";
 import TicketCanvasVista from "@/components/ventas/TicketCanvasVista.vue";
 import { useAuthStore } from "@/stores/auth";
@@ -610,13 +611,14 @@ async function probarTransporte(tipo) {
             if (!decision.isConfirmed) return;
         }
         const config = { ...printerCfg, autoCut: true, mode: tipo === 'html' ? 'qz-html' : 'qz-raw' };
-        await imprimirDocumento({ config, paperWidth: cfg.ancho_mm,
-            html: tipo === 'html' ? crearHtmlTicket(muestra, cfg) : undefined,
+        const result = await imprimirDocumento({ config, paperWidth: cfg.ancho_mm,
+            renderHtml: tipo === 'html' ? (onWarning) => crearHtmlTicket(muestra, cfg, { onWarning }) : undefined,
             raw: tipo === 'raw' ? crearDiagnostico(config) : tipo === 'cut' ? crearPruebaCorte(config) : undefined });
         estadoPrueba.value = 'Trabajo enviado a QZ. Comprueba físicamente texto, avance y corte; el envío no confirma la impresión.';
+        if (result.warnings?.length) estadoPrueba.value += ' Aviso: hay elementos fuera de sus cajas; se conservaron sus posiciones. Revisa los bordes y textos.';
     } catch (error) {
         // No fallback automático: una respuesta incierta podría duplicar papel.
-        const decision = await Swal.fire({ title: 'No se pudo completar la prueba', text: error.message,
+        const decision = await Swal.fire({ title: printErrorTitle(error), text: error.message,
             showCancelButton: true, confirmButtonText: 'Reintentar', cancelButtonText: 'Cerrar',
             showDenyButton: tipo !== 'cut', denyButtonText: 'Imprimir con método clásico' });
         if (decision.isConfirmed) {
@@ -625,9 +627,9 @@ async function probarTransporte(tipo) {
         }
         if (decision.isDenied) {
             try {
-                await imprimirDocumento({ html: crearHtmlTicket(muestra, cfg), config: { mode: 'browser' } });
+                await imprimirTicketVenta(muestra, null, cfg);
             } catch (classicError) {
-                await Swal.fire({ title: 'No se pudo abrir el método clásico', text: classicError.message, icon: 'error' });
+                await Swal.fire({ title: printErrorTitle(classicError), text: classicError.message, icon: 'error' });
             }
         }
     } finally { imprimiendoPrueba.value = false; }
@@ -639,7 +641,7 @@ async function imprimirPrueba() {
     try {
         await imprimirTicketVenta(muestra, impresoraLocal.value || null, cfg);
     } catch (err) {
-        Swal.fire("Error", err.message, "error");
+        Swal.fire(printErrorTitle(err), err.message, "error");
     } finally {
         imprimiendoPrueba.value = false;
     }

@@ -1,5 +1,6 @@
 import qz from "qz-tray";
 import http from "@/lib/http";
+import { printError } from './printing/printErrors.js';
 
 const STORAGE_KEY = (perfilId) => `buhopos_qz_impresora_${perfilId}`;
 let seguridadConfigurada = false;
@@ -58,14 +59,22 @@ export async function conectar() {
 
 async function asegurarConexion() {
     const conectado = await conectar();
-    if (!conectado) throw new Error("QZ Tray no está conectado.");
+    if (!conectado) throw printError('QZ_UNAVAILABLE', 'Inicia QZ Tray y vuelve a conectar.');
 }
 
 // Transporte compartido: el contenido y los comandos pertenecen al llamador.
 export async function enviarQz(nombreImpresora, opciones, datos) {
     await asegurarConexion();
-    if (!nombreImpresora) throw new Error('Selecciona una impresora.');
-    await qz.print(qz.configs.create(nombreImpresora, opciones), datos);
+    if (!nombreImpresora) throw printError('PRINTER_NOT_FOUND', 'Selecciona una impresora.');
+    let found;
+    try { found = await qz.printers.find(); }
+    catch (error) { throw printError('PRINT_ERROR', `No se pudo consultar la lista de impresoras QZ. No se envió el trabajo. ${error.message ?? error}`, error); }
+    const printers = Array.isArray(found) ? found : [found];
+    if (!printers.includes(nombreImpresora)) throw printError('PRINTER_NOT_FOUND', `La cola «${nombreImpresora}» no está disponible en este equipo.`);
+    try { await qz.print(qz.configs.create(nombreImpresora, opciones), datos); }
+    catch (error) {
+        throw printError('QZ_SEND_FAILED', `${error.message ?? error}. Revisa la cola y el papel antes de reintentar; el trabajo podría haber sido recibido.`, error);
+    }
     return { status: 'submitted' }; // no confirma salida física
 }
 

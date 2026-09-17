@@ -1,7 +1,19 @@
 import { crearSvgBarcode } from "@/helpers/etiquetas";
-import { altoZona, validarZona } from "./ticketLayout.js";
+import { altoZona, validarZona, numeroDiseno } from "./ticketLayout.js";
+import { printError } from "./printErrors.js";
 
-export function crearHtmlTicket(ticket, cfg = {}) {
+export function crearHtmlTicket(ticket, cfg = {}, { onWarning = warning => console.warn('[ticket]', warning) } = {}) {
+    if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) throw printError('INVALID_DESIGN', 'La configuración debe ser un objeto.');
+    const ancho = numeroDiseno(cfg.ancho_mm ?? 80, 'ancho de papel');
+    const margen = numeroDiseno(cfg.margen_mm ?? 3.5, 'margen');
+    if (ancho <= 0 || margen < 0 || ancho - 2 * margen <= 0) throw printError('INVALID_DESIGN', 'Papel y márgenes no dejan un ancho disponible positivo.');
+    for (const zona of ['encabezado', 'pie']) {
+        if (cfg[zona] == null) continue;
+        if (typeof cfg[zona] !== 'object' || Array.isArray(cfg[zona])) throw printError('INVALID_DESIGN', `${zona} debe ser un objeto.`);
+        const alto = numeroDiseno(cfg[zona].alto_mm ?? (zona === 'pie' ? 22 : 32), `${zona}.alto_mm`);
+        if (alto < 0) throw printError('INVALID_DESIGN', `${zona}: altura negativa.`);
+        for (const warning of validarZona(cfg[zona].elementos ?? [], ancho - 2 * margen, zona)) onWarning(warning);
+    }
     if (cfg.encabezado && typeof cfg.encabezado === "object") {
         return crearHtmlTicketCanvas(ticket, cfg);
     }
@@ -83,7 +95,6 @@ function crearHtmlTicketCanvas(ticket, cfg) {
 }
 
 function renderCanvasHtml(elementos, ticket, altoMm, interiorMm) {
-    validarZona(elementos, interiorMm);
     altoMm = altoZona(elementos, altoMm);
     if (!elementos?.length) return `<div style="height:${altoMm}mm;"></div>`;
     const items = elementos.map((el) => renderElementoHtml(el, ticket)).join("");
@@ -91,6 +102,8 @@ function renderCanvasHtml(elementos, ticket, altoMm, interiorMm) {
 }
 
 function renderElementoHtml(el, ticket) {
+    // Acepta números serializados como strings sin modificar la configuración.
+    el = { ...el, ...Object.fromEntries(['x', 'y', 'ancho', 'alto'].map(key => [key, Number(el[key])])) };
     const base = `position:absolute;left:${el.x}mm;top:${el.y}mm;width:${el.ancho}mm;height:${el.alto}mm;overflow:visible;`;
     if (el.tipo === "campo" && el.campo === "empresa.nombre" && ticket.empresa?.logo_url) {
         const posicion = el.alineacion === "derecha" ? "right" : el.alineacion === "centro" ? "center" : "left";

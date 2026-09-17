@@ -2,6 +2,7 @@ import { imprimirDocumento } from "../printing/printerService.js";
 import { obtenerPrinterConfig } from "../printing/printerConfig.js";
 import { crearHtmlTicket } from "../printing/ticketRenderer.js";
 import http from "@/lib/http";
+import { toastWarning, swal } from "@/lib/alert";
 
 const CONFIG_KEY = "buhopos_ticket_config";
 
@@ -36,9 +37,17 @@ export async function guardarConfigTicket(config) {
 export { crearHtmlTicket } from "../printing/ticketRenderer.js";
 
 export async function imprimirTicketVenta(ticket, impresoraQz = null, config = obtenerConfigTicket()) {
-    return imprimirDocumento({
-        html: crearHtmlTicket(ticket, config),
-        config: obtenerPrinterConfig(impresoraQz),
-        paperWidth: Number(config.ancho_mm ?? 80),
+    const terminal = obtenerPrinterConfig(impresoraQz);
+    const result = await imprimirDocumento({
+        renderHtml: (onWarning) => crearHtmlTicket(ticket, config, { onWarning }),
+        config: terminal,
+        paperWidth: Number(config?.ancho_mm ?? 80),
     });
+    if (result.warnings?.length) {
+        const message = 'El diseño tiene elementos fuera de sus cajas. Se conservó su posición; revisa los bordes y textos impresos.';
+        // Un toast SweetAlert reemplazaría el diálogo activo de venta/cambio.
+        if (swal.isVisible()) swal.update({ footer: message });
+        else toastWarning(message);
+    }
+    return result;
 }

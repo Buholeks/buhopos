@@ -5,6 +5,146 @@ import { createHash } from 'node:crypto';
 import * as esc from '../resources/js/helpers/printing/escpos.js';
 import { obtenerPrinterConfig, guardarPrinterConfig } from '../resources/js/helpers/printing/printerConfig.js';
 import { altoZona, validarZona } from '../resources/js/helpers/printing/ticketLayout.js';
+import { crearTicketVenta } from '../resources/js/helpers/tickets/ticketVenta.js';
+import { printErrorTitle } from '../resources/js/helpers/printing/printErrors.js';
+
+const sourceUrl = (source) => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+async function sourceWithDependencies(file, replacements) {
+    let source = await readFile(new URL(file, import.meta.url), 'utf8');
+    for (const [from, to] of replacements) source = source.replaceAll(from, to);
+    return sourceUrl(source);
+}
+async function regressionModules() {
+    const errorsUrl = new URL('../resources/js/helpers/printing/printErrors.js', import.meta.url).href;
+    const rendererUrl = await sourceWithDependencies('../resources/js/helpers/printing/ticketRenderer.js', [
+        ['import { crearSvgBarcode } from "@/helpers/etiquetas";', 'const crearSvgBarcode = () => "<img alt=barcode>";'],
+        ['"./ticketLayout.js"', JSON.stringify(new URL('../resources/js/helpers/printing/ticketLayout.js', import.meta.url).href)],
+        ['"./printErrors.js"', JSON.stringify(errorsUrl)],
+    ]);
+    const configUrl = new URL('../resources/js/helpers/printing/printerConfig.js', import.meta.url).href;
+    const serviceUrl = await sourceWithDependencies('../resources/js/helpers/printing/printerService.js', [
+        ["import { enviarQz } from '../qzTray.js';", 'const enviarQz = (...args) => globalThis.__regressionTransport(...args);'],
+        ["'./printerConfig.js'", JSON.stringify(configUrl)],
+        ["'./escpos.js'", JSON.stringify(new URL('../resources/js/helpers/printing/escpos.js', import.meta.url).href)],
+        ["'./printErrors.js'", JSON.stringify(errorsUrl)],
+    ]);
+    const entryUrl = await sourceWithDependencies('../resources/js/helpers/tickets/imprimirTicketVenta.js', [
+        ['"../printing/printerService.js"', JSON.stringify(serviceUrl)],
+        ['"../printing/printerConfig.js"', JSON.stringify(configUrl)],
+        ['"../printing/ticketRenderer.js"', JSON.stringify(rendererUrl)],
+        ['import http from "@/lib/http";', 'const http = { put() { throw new Error("No modificar configuración"); } };'],
+        ['import { toastWarning, swal } from "@/lib/alert";', 'const toastWarning = message => globalThis.__regressionWarnings.push(message); const swal = { isVisible: () => globalThis.__saleDialogVisible, update: value => { globalThis.__saleDialogFooter = value.footer; } };'],
+    ]);
+    return { renderer: await import(rendererUrl), service: await import(serviceUrl), entry: await import(entryUrl) };
+}
+
+test('geometría: tolerancia, margen histórico y números string son avisos; datos corruptos son fatales', () => {
+    const element = { id: 'borde', tipo: 'campo', x: 0, y: 0, ancho: 72, alto: 4 };
+    assert.deepEqual(validarZona([element], 72), []);
+    for (const ancho of [72.000001, 72.02, 76, 80]) {
+        const input = { ...element, ancho };
+        const before = structuredClone(input);
+        assert.equal(validarZona([input], 72)[0].code, 'CANVAS_OVERFLOW');
+        assert.deepEqual(input, before);
+    }
+    assert.deepEqual(validarZona([{ ...element, x: '0', ancho: '72', alto: '4' }], 72), []);
+    assert.equal(validarZona([{ ...element, x: -0.01 }], 72)[0].code, 'CANVAS_OVERFLOW');
+    assert.deepEqual(validarZona([{ ...element, tipo: 'separador', alto: 0 }], 72), []);
+    for (const field of ['x', 'y', 'ancho', 'alto']) {
+        for (const invalid of [NaN, Infinity, -Infinity, 'NaN', 'Infinity', undefined, null, '', false, [], {}]) {
+            assert.throws(() => validarZona([{ ...element, [field]: invalid }], 72), { code: 'INVALID_DESIGN' });
+        }
+    }
+    for (const invalid of [0, -1]) {
+        assert.throws(() => validarZona([{ ...element, ancho: invalid }], 72), { code: 'INVALID_DESIGN' });
+        assert.throws(() => validarZona([{ ...element, alto: invalid }], 72), { code: 'INVALID_DESIGN' });
+    }
+    assert.throws(() => validarZona({}, 72), { code: 'INVALID_DESIGN' });
+    assert.throws(() => validarZona([null], 72), { code: 'INVALID_DESIGN' });
+});
+
+test('config real empresa 10: venta y ambas reimpresiones llegan a browser/QZ HTML sin modificar diseño', async () => {
+    const { entry, service, renderer } = await regressionModules();
+    const historical = JSON.parse(await readFile(new URL('./fixtures/ticket-config-historico.json', import.meta.url), 'utf8'));
+    const snapshot = JSON.stringify(historical);
+    const jobs = [], browserHtml = [];
+    let printed = 0, framesRemoved = 0;
+    globalThis.__regressionWarnings = [];
+    globalThis.__saleDialogVisible = false;
+    globalThis.__regressionTransport = async (...args) => { jobs.push(args); return { status: 'submitted' }; };
+    globalThis.localStorage = { getItem: key => key === 'buhopos_ticket_config' ? snapshot : null,
+        setItem() { throw new Error('No escribir preferencias al imprimir'); }, removeItem() { throw new Error('No borrar preferencias al imprimir'); } };
+    const fakeDoc = () => ({
+        body: { offsetHeight: 200 }, images: [], fonts: { ready: Promise.resolve() },
+        open() {}, write(html) { this.html = html; }, close() {},
+        // Reproduce la segunda barrera fatal: texto de pie más alto que su caja.
+        querySelectorAll: () => [{ getBoundingClientRect: () => ({ height: 15 }),
+            firstElementChild: { getBoundingClientRect: () => ({ height: 20 }) } }],
+    });
+    globalThis.document = {
+        body: { appendChild() {} },
+        createElement: () => ({ style: {}, contentDocument: fakeDoc(), remove() { framesRemoved++; } }),
+    };
+    globalThis.window = { open: () => {
+        const doc = fakeDoc();
+        return { document: doc, focus() {}, close() {}, print() { printed++; browserHtml.push(doc.html); } };
+    } };
+    const originalWarn = console.warn;
+    console.warn = () => {};
+    try {
+        for (const impresora of [null, 'Epson TM-T88V']) {
+            for (const flujo of ['venta', 'ultima', 'reportes']) {
+                const ticket = crearTicketVenta({ folio: 'TKT-001', reimpresion: flujo !== 'venta',
+                    empresa: { nombre: 'Empresa de prueba' }, detalles: [{ producto_nombre: 'Producto', cantidad: 1, precio_venta: 10 }],
+                    total: 10, pagos: [] });
+                const result = await entry.imprimirTicketVenta(ticket, impresora);
+                assert.equal(result.status, impresora ? 'submitted' : 'dialog-opened');
+                assert.equal(result.warnings.filter(w => w.code === 'CANVAS_OVERFLOW').length, 8);
+                assert.ok(result.warnings.some(w => w.code === 'TEXT_OVERFLOW'));
+                assert.equal(result.warnings[0].id, 'ba9f83dc-4ff1-4fb3-a5fa-952526d2ccad');
+            }
+        }
+        assert.equal(printed, 3);
+        assert.equal(jobs.length, 3);
+        assert.equal(framesRemoved, 3);
+        assert.equal(globalThis.__regressionWarnings.length, 6);
+        const htmls = [...browserHtml, ...jobs.map(j => j[2][0].data)];
+        for (const html of htmls) {
+            assert.ok(html.includes('left:0mm;top:0mm;width:76mm;height:17mm;overflow:visible'));
+            assert.ok(html.includes('Conserve este ticket para Cambios o aclaración'));
+            assert.ok(html.includes('left:2.5mm;top:16mm;width:67mm;height:10mm;'));
+        }
+        assert.equal(JSON.stringify(historical), snapshot);
+        // Fallback browser también funciona con la configuración explícita del diseñador.
+        await entry.imprimirTicketVenta(crearTicketVenta({}), null, historical);
+        assert.equal(printed, 4);
+        globalThis.__saleDialogVisible = true;
+        await entry.imprimirTicketVenta(crearTicketVenta({}), null, historical);
+        assert.equal(globalThis.__regressionWarnings.length, 7, 'No reemplazar el modal de cobro por un toast');
+        assert.match(globalThis.__saleDialogFooter, /Se conservó su posición/);
+        globalThis.__saleDialogVisible = false;
+        const invalid = structuredClone(historical);
+        invalid.encabezado.elementos[0].x = Infinity;
+        for (const impresora of [null, 'Epson TM-T88V']) {
+            await assert.rejects(entry.imprimirTicketVenta(crearTicketVenta({}), impresora, invalid), { code: 'INVALID_DESIGN' });
+            await assert.rejects(entry.imprimirTicketVenta(crearTicketVenta({}), impresora, null), { code: 'INVALID_DESIGN' });
+        }
+        assert.equal(jobs.length, 3);
+        assert.throws(() => renderer.crearHtmlTicket(crearTicketVenta({}), { encabezado: { elementos: {} } }), { code: 'INVALID_DESIGN' });
+        globalThis.window.open = () => null;
+        await assert.rejects(entry.imprimirTicketVenta(crearTicketVenta({}), null, historical), { code: 'POPUP_BLOCKED' });
+        globalThis.__regressionTransport = async () => { throw Object.assign(new Error('QZ no disponible'), { code: 'QZ_UNAVAILABLE' }); };
+        await assert.rejects(service.imprimirDocumento({ raw: 'A\n', config: { mode: 'qz-raw', printerName: 'Epson' } }), { code: 'QZ_UNAVAILABLE' });
+    } finally { console.warn = originalWarn; }
+});
+
+test('títulos de error no confunden validación con popup ni transporte', () => {
+    for (const [code, title] of Object.entries({ INVALID_DESIGN: 'Diseño inválido', QZ_UNAVAILABLE: 'QZ no disponible',
+        PRINTER_NOT_FOUND: 'Impresora no encontrada', QZ_SEND_FAILED: 'Fallo al enviar a QZ',
+        POPUP_BLOCKED: 'Popup del navegador bloqueado', PRINT_ERROR: 'Error de impresión' })) {
+        assert.equal(printErrorTitle({ code }), title);
+    }
+});
 
 test('RAW: bytes, un corte final, énfasis y ningún pulso de cajón', () => {
     const cfg = { printerName: 'Qian\x1b p', feedAfterPrint: 4, autoCut: true, cutType: 'partial' };
@@ -31,11 +171,11 @@ test('configuración conserva selección clásica y separa diseño de terminal',
     assert.equal(store.get('buhopos_ticket_config'), '{"encabezado":{}}');
 });
 
-test('canvas crece con elementos y rechaza desbordamiento horizontal', () => {
+test('canvas crece con elementos y advierte sin bloquear desbordamiento horizontal', () => {
     const elements = [{ x: 0, y: 21, ancho: 70, alto: 10 }];
     assert.equal(altoZona(elements, 22), 31);
     validarZona(elements, 73);
-    assert.throws(() => validarZona(elements, 58));
+    assert.equal(validarZona(elements, 58)[0].code, 'CANVAS_OVERFLOW');
 });
 
 test('QZ 2.2.6: firma valida JSON completo y etiquetas mantienen esquema pixel', async () => {
@@ -46,6 +186,7 @@ test('QZ 2.2.6: firma valida JSON completo y etiquetas mantienen esquema pixel',
         api: { setSha256Type(fn) { hasher = fn; } },
         websocket: { isActive: () => false, connect: async () => {} },
         configs: { create: (name, options) => ({ name, options }) },
+        printers: { find: async () => ['Brother', 'Epson'] },
         print: async (config, data) => { jobs.push({ config, data }); },
     };
     globalThis.__qzTest = qz;
@@ -55,7 +196,8 @@ test('QZ 2.2.6: firma valida JSON completo y etiquetas mantienen esquema pixel',
     } };
     let source = await readFile(new URL('../resources/js/helpers/qzTray.js', import.meta.url), 'utf8');
     source = source.replace('import qz from "qz-tray";', 'const qz = globalThis.__qzTest;')
-        .replace('import http from "@/lib/http";', 'const http = globalThis.__httpTest;');
+        .replace('import http from "@/lib/http";', 'const http = globalThis.__httpTest;')
+        .replace("'./printing/printErrors.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printErrors.js', import.meta.url).href));
     const mod = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
     await mod.conectar();
     const payload = JSON.stringify({ call: 'printers.find', params: {}, timestamp: Date.now() });
@@ -65,6 +207,11 @@ test('QZ 2.2.6: firma valida JSON completo y etiquetas mantienen esquema pixel',
     await mod.imprimirHtml('Brother', '<p>Etiqueta</p>', 62, 29);
     assert.equal(jobs[0].config.options.size.height, 29);
     assert.deepEqual(jobs[0].data, [{ type: 'pixel', format: 'html', flavor: 'plain', data: '<p>Etiqueta</p>' }]);
+    await assert.rejects(mod.enviarQz('missing', {}, []), { code: 'PRINTER_NOT_FOUND' });
+    qz.print = async () => { throw new Error('Spool error'); };
+    await assert.rejects(mod.enviarQz('Epson', {}, []), { code: 'QZ_SEND_FAILED' });
+    qz.websocket.connect = async () => { throw new Error('Offline'); };
+    await assert.rejects(mod.enviarQz('Epson', {}, []), { code: 'QZ_UNAVAILABLE' });
 });
 
 test('servicio RAW: un envío, sin reintento ni navegador, y bloqueo de ticket gráfico', async () => {
@@ -75,7 +222,8 @@ test('servicio RAW: un envío, sin reintento ni navegador, y bloqueo de ticket g
     let source = await readFile(new URL('../resources/js/helpers/printing/printerService.js', import.meta.url), 'utf8');
     source = source.replace("import { enviarQz } from '../qzTray.js';", 'const enviarQz = (...args) => globalThis.__printTransport(...args);')
         .replace("'./printerConfig.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printerConfig.js', import.meta.url).href))
-        .replace("'./escpos.js'", JSON.stringify(new URL('../resources/js/helpers/printing/escpos.js', import.meta.url).href));
+        .replace("'./escpos.js'", JSON.stringify(new URL('../resources/js/helpers/printing/escpos.js', import.meta.url).href))
+        .replace("'./printErrors.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printErrors.js', import.meta.url).href));
     const service = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
     const config = { mode: 'qz-raw', printerName: 'Qian' };
     await assert.rejects(service.imprimirDocumento({ config, raw: '\x1b@\x0a' }), /podría haber sido recibido/);
@@ -85,13 +233,14 @@ test('servicio RAW: un envío, sin reintento ni navegador, y bloqueo de ticket g
     await assert.rejects(service.imprimirDocumento({ config, html: '<p>Venta</p>' }), /solo está habilitado/);
     assert.equal(jobs.length, 1);
     globalThis.__printTransport = async () => ({ status: 'submitted' });
-    assert.deepEqual(await service.imprimirDocumento({ config, raw: 'A\n' }), { status: 'submitted' });
+    assert.deepEqual(await service.imprimirDocumento({ config, raw: 'A\n', renderHtml: () => { throw new Error('RAW no debe validar HTML'); } }), { status: 'submitted' });
 });
 
 test('render conserva 50 productos y pagos, amplía pie y no introduce altura de página fija', async () => {
     let source = await readFile(new URL('../resources/js/helpers/printing/ticketRenderer.js', import.meta.url), 'utf8');
     source = source.replace('import { crearSvgBarcode } from "@/helpers/etiquetas";', 'const crearSvgBarcode = () => "<img>";')
-        .replace('"./ticketLayout.js"', JSON.stringify(new URL('../resources/js/helpers/printing/ticketLayout.js', import.meta.url).href));
+        .replace('"./ticketLayout.js"', JSON.stringify(new URL('../resources/js/helpers/printing/ticketLayout.js', import.meta.url).href))
+        .replace('"./printErrors.js"', JSON.stringify(new URL('../resources/js/helpers/printing/printErrors.js', import.meta.url).href));
     const { crearHtmlTicket } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
     const ticket = { folio: 'TEST', fecha: '2026-09-17', total: 50, pagos: [{ forma_pago: 'tarjeta', monto: 50 }],
         productos: Array.from({ length: 50 }, (_, n) => ({ nombre: `Producto-${n}`, importe: 1, cantidad: 1, precio_unitario: 1 })) };

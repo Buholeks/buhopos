@@ -101,6 +101,13 @@ const consultasInventario = [
 
 const reportes = [
     {
+        label: "Venta general",
+        icon: BarChart3,
+        to: { name: "reportes-venta-general" },
+        badge: "Disponible",
+        permiso: "reportes.venta_general",
+    },
+    {
         label: "Reporte de caja",
         icon: Landmark,
         to: { name: "reportes-caja" },

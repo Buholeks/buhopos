@@ -175,23 +175,19 @@
                         <button
                             type="button"
                             class="inline-flex items-center justify-center px-2.5 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-                            :disabled="det.cantidad <= 1 || det.cantidad_fija"
-                            @click="
-                                det.cantidad > 1 &&
-                                !det.cantidad_fija &&
-                                (det.cantidad--, $emit('recalcularLinea', idx))
-                            "
+                            :disabled="det.cantidad <= minimoCantidad(det) || det.cantidad_fija"
+                            @click="restarCantidad(det, idx)"
                             title="Restar"
                         >
                             <Minus class="h-4 w-4" />
                         </button>
 
                         <input
-                            v-model="det.cantidad"
+                            v-model.number="det.cantidad"
                             type="number"
-                            min="1"
-                            step="1"
-                            inputmode="numeric"
+                            :min="minimoCantidad(det)"
+                            :step="pasoCantidad(det)"
+                            :inputmode="esDecimal(det) ? 'decimal' : 'numeric'"
                             class="w-12 border-x border-slate-200 bg-white px-1 py-1.5 text-center font-mono text-[13px] outline-none focus:bg-slate-50/40 disabled:bg-slate-50 disabled:text-slate-400"
                             :disabled="det.cantidad_fija"
                             @input="$emit('recalcularLinea', idx)"
@@ -201,14 +197,15 @@
                             type="button"
                             class="inline-flex items-center justify-center px-2.5 text-slate-400 transition hover:bg-slate-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
                             :disabled="det.cantidad_fija"
-                            @click="
-                                !det.cantidad_fija &&
-                                (det.cantidad++, $emit('recalcularLinea', idx))
-                            "
+                            @click="sumarCantidad(det, idx)"
                             title="Sumar"
                         >
                             <Plus class="h-4 w-4" />
                         </button>
+                    </div>
+
+                    <div v-if="det.unidad_abreviatura" class="mt-1 text-center text-[10px] text-slate-400">
+                        {{ det.unidad_abreviatura }}
                     </div>
 
                     <div
@@ -486,7 +483,7 @@ defineProps({
     preciosValidos: { type: Function, required: true },
 });
 
-defineEmits([
+const emit = defineEmits([
     "recalcularLinea",
     "quitarDetalle",
     "abrirPopoverPrecio",
@@ -496,4 +493,31 @@ defineEmits([
     "precioBlur",
     "update:descuento",
 ]);
+
+function esDecimal(det) {
+    return Boolean(det.unidad_tipo) && det.unidad_tipo !== "cantidad";
+}
+
+function pasoCantidad(det) {
+    return esDecimal(det) ? 0.1 : 1;
+}
+
+function minimoCantidad(det) {
+    return esDecimal(det) ? 0.001 : 1;
+}
+
+function restarCantidad(det, idx) {
+    if (det.cantidad_fija) return;
+    const min = minimoCantidad(det);
+    const nueva = Math.round((det.cantidad - pasoCantidad(det)) * 1000) / 1000;
+    if (nueva < min) return;
+    det.cantidad = nueva;
+    emit("recalcularLinea", idx);
+}
+
+function sumarCantidad(det, idx) {
+    if (det.cantidad_fija) return;
+    det.cantidad = Math.round((det.cantidad + pasoCantidad(det)) * 1000) / 1000;
+    emit("recalcularLinea", idx);
+}
 </script>

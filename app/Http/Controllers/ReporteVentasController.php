@@ -135,7 +135,7 @@ class ReporteVentasController extends Controller
                 'user:id,name',
                 'pagos.cuentaBancaria:id,nombre,banco',
                 'pagos.terminalPago:id,nombre,banco',
-                'empresa:id,nombre,rfc,direccion,telefono',
+                'empresa:id,nombre,rfc,direccion,telefono,logo',
                 'sucursal:id,nombre,direccion,telefono',
                 'cliente:id,nombre,telefono',
                 'vendedor:id,name',
@@ -148,6 +148,12 @@ class ReporteVentasController extends Controller
             ->findOrFail($id);
 
         // Inyectar nombre legible de variante en cada detalle
+        if ($venta->empresa) {
+            $venta->empresa->setAttribute('logo_url', $venta->empresa->logo
+                ? \Illuminate\Support\Facades\Storage::disk('public')->url($venta->empresa->logo)
+                : null);
+        }
+
         $venta->detalles->each(function ($d) {
             $d->nombre_variante = $d->variante?->nombreVariante() ?: null;
             $d->makeHidden('precio_costo');

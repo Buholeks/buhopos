@@ -122,6 +122,24 @@
                         <option v-for="p in impresoras" :key="p" :value="p">{{ p }}</option>
                     </select>
                     <p v-if="impresoraLocal" class="mt-1 text-xs font-semibold text-emerald-700">✓ Impresión directa activa en esta PC</p>
+                    <div class="mt-3 space-y-2 border-t pt-3 text-xs">
+                        <p class="text-slate-500">Tickets: método clásico. RAW: solo diagnóstico hasta validar la impresora.</p>
+                        <label class="block">Avance al terminar (líneas)
+                            <input v-model.number="printerCfg.feedAfterPrint" type="number" min="0" max="20" class="input" @change="guardarTerminal">
+                        </label>
+                        <label class="block">Corte de prueba
+                            <select v-model="printerCfg.cutType" class="input" @change="guardarTerminal">
+                                <option value="partial">Parcial</option><option value="full">Completo</option>
+                            </select>
+                        </label>
+                        <label class="flex gap-2"><input v-model="printerCfg.forceRaw" type="checkbox" @change="guardarTerminal"> RAW directo (si el driver no admite RAW)</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('html')">Prueba HTML QZ</button>
+                            <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('raw')">Prueba texto RAW</button>
+                            <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('cut')">Probar avance y corte</button>
+                        </div>
+                        <p v-if="estadoPrueba" role="status" class="text-slate-600">{{ estadoPrueba }}</p>
+                    </div>
                 </section>
             </aside>
 
@@ -334,6 +352,10 @@ import { swal as Swal } from "@/lib/alert";
 import { conectar, isConectado, listarImpresoras, obtenerImpresoraTicket, guardarImpresoraTicket } from "@/helpers/qzTray";
 import { obtenerConfigTicket, guardarConfigTicket, cargarConfigTicketDesdeServidor, imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
+import { obtenerPrinterConfig, guardarPrinterConfig } from "@/helpers/printing/printerConfig.js";
+import { imprimirDocumento } from "@/helpers/printing/printerService.js";
+import { crearHtmlTicket } from "@/helpers/printing/ticketRenderer.js";
+import { crearDiagnostico, crearPruebaCorte } from "@/helpers/printing/escpos.js";
 import TicketCanvasVista from "@/components/ventas/TicketCanvasVista.vue";
 import { useAuthStore } from "@/stores/auth";
 
@@ -429,6 +451,8 @@ const conectado = ref(false);
 const impresoras = ref([]);
 const impresoraLocal = ref("");
 const imprimiendoPrueba = ref(false);
+const printerCfg = reactive(obtenerPrinterConfig());
+const estadoPrueba = ref('');
 
 const anchoInterior = computed(() => cfg.ancho_mm - 2 * cfg.margen_mm);
 
@@ -566,13 +590,54 @@ async function intentarConectar() {
 async function recargarImpresoras() {
     try { impresoras.value = await listarImpresoras(); } catch { impresoras.value = []; }
 }
-function guardarImpresora() { guardarImpresoraTicket(impresoraLocal.value); }
+function guardarImpresora() { guardarImpresoraTicket(impresoraLocal.value); guardarTerminal(); }
+
+function guardarTerminal() {
+    Object.assign(printerCfg, guardarPrinterConfig({ ...printerCfg,
+        printerName: impresoraLocal.value, mode: impresoraLocal.value ? 'qz-html' : 'browser' }));
+}
+
+async function probarTransporte(tipo) {
+    if (imprimiendoPrueba.value) return;
+    imprimiendoPrueba.value = true;
+    estadoPrueba.value = '';
+    try {
+        guardarTerminal();
+        if (tipo === 'cut') {
+            const decision = await Swal.fire({ title: 'Probar avance y corte',
+                text: `Se avanzarán ${printerCfg.feedAfterPrint} líneas y se enviará un corte ${printerCfg.cutType === 'full' ? 'completo' : 'parcial'} a ${impresoraLocal.value}.`,
+                showCancelButton: true, confirmButtonText: 'Enviar corte', cancelButtonText: 'Cancelar' });
+            if (!decision.isConfirmed) return;
+        }
+        const config = { ...printerCfg, autoCut: true, mode: tipo === 'html' ? 'qz-html' : 'qz-raw' };
+        await imprimirDocumento({ config, paperWidth: cfg.ancho_mm,
+            html: tipo === 'html' ? crearHtmlTicket(muestra, cfg) : undefined,
+            raw: tipo === 'raw' ? crearDiagnostico(config) : tipo === 'cut' ? crearPruebaCorte(config) : undefined });
+        estadoPrueba.value = 'Trabajo enviado a QZ. Comprueba físicamente texto, avance y corte; el envío no confirma la impresión.';
+    } catch (error) {
+        // No fallback automático: una respuesta incierta podría duplicar papel.
+        const decision = await Swal.fire({ title: 'No se pudo completar la prueba', text: error.message,
+            showCancelButton: true, confirmButtonText: 'Reintentar', cancelButtonText: 'Cerrar',
+            showDenyButton: tipo !== 'cut', denyButtonText: 'Imprimir con método clásico' });
+        if (decision.isConfirmed) {
+            imprimiendoPrueba.value = false;
+            return probarTransporte(tipo);
+        }
+        if (decision.isDenied) {
+            try {
+                await imprimirDocumento({ html: crearHtmlTicket(muestra, cfg), config: { mode: 'browser' } });
+            } catch (classicError) {
+                await Swal.fire({ title: 'No se pudo abrir el método clásico', text: classicError.message, icon: 'error' });
+            }
+        }
+    } finally { imprimiendoPrueba.value = false; }
+}
 
 async function imprimirPrueba() {
     if (imprimiendoPrueba.value) return;
     imprimiendoPrueba.value = true;
     try {
-        await imprimirTicketVenta(muestra, impresoraLocal.value || null);
+        await imprimirTicketVenta(muestra, impresoraLocal.value || null, cfg);
     } catch (err) {
         Swal.fire("Error", err.message, "error");
     } finally {

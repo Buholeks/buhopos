@@ -17,11 +17,19 @@ function configurarSeguridad() {
     });
 
     qz.security.setSignatureAlgorithm("SHA512");
-
-    qz.security.setSignaturePromise((toSign) => (resolve, reject) => {
-        http.post("/api/etiquetas/qztray/sign", { request: toSign })
-            .then((response) => resolve(response.data.signature))
-            .catch(reject);
+    // QZ 2.2.6 firma el SHA256 hexadecimal del JSON. El hook permite validar
+    // el mensaje completo en servidor, incluso en desarrollo HTTP sin WebCrypto.
+    const firmas = new Map();
+    qz.api.setSha256Type(async (payload) => {
+        const { data } = await http.post('/api/etiquetas/qztray/sign', { request: payload });
+        firmas.set(data.hash, data.signature);
+        return data.hash;
+    });
+    qz.security.setSignaturePromise((hash) => (resolve, reject) => {
+        const signature = firmas.get(hash);
+        firmas.delete(hash);
+        if (signature) resolve(signature);
+        else reject(new Error('No se autorizó el mensaje QZ.'));
     });
 
     seguridadConfigurada = true;
@@ -51,6 +59,14 @@ export async function conectar() {
 async function asegurarConexion() {
     const conectado = await conectar();
     if (!conectado) throw new Error("QZ Tray no está conectado.");
+}
+
+// Transporte compartido: el contenido y los comandos pertenecen al llamador.
+export async function enviarQz(nombreImpresora, opciones, datos) {
+    await asegurarConexion();
+    if (!nombreImpresora) throw new Error('Selecciona una impresora.');
+    await qz.print(qz.configs.create(nombreImpresora, opciones), datos);
+    return { status: 'submitted' }; // no confirma salida física
 }
 
 export function isConectado() {
@@ -99,7 +115,7 @@ export async function imprimirTicketHtml(nombreImpresora, html, anchomm = 80) {
         rasterize: false,
     });
 
-    await qz.print(config, [{ type: "html", format: "plain", data: html }]);
+    await qz.print(config, [{ type: "pixel", format: "html", flavor: "plain", data: html }]);
 }
 
 export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {

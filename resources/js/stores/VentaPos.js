@@ -139,9 +139,18 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         ),
     );
 
+    function esUnidadDecimal(d) {
+        return Boolean(d.unidad_tipo) && d.unidad_tipo !== "cantidad";
+    }
+
     function normalizeLinea(d) {
-        const c = parseInt(d.cantidad || 1, 10);
-        d.cantidad = Number.isFinite(c) ? Math.max(1, c) : 1;
+        if (esUnidadDecimal(d)) {
+            const c = Number(d.cantidad);
+            d.cantidad = Number.isFinite(c) && c > 0 ? Math.round(c * 1000) / 1000 : 0.001;
+        } else {
+            const c = parseInt(d.cantidad || 1, 10);
+            d.cantidad = Number.isFinite(c) ? Math.max(1, c) : 1;
+        }
 
         const p = Number(d.precio_venta || 0);
         d.precio_venta = Number.isFinite(p) ? Math.max(0, p) : 0;
@@ -181,7 +190,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
 
         if (existe) {
             if (Number(existe.cantidad) < Number(existe.stock_disponible)) {
-                existe.cantidad = Number(existe.cantidad) + 1;
+                existe.cantidad = Number(existe.cantidad) + (esUnidadDecimal(existe) ? 0.1 : 1);
                 normalizeLinea(existe);
             }
             return existe;
@@ -222,6 +231,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
             motivo_precio: null,
             era_exhibido: false,
             tiene_series: false,
+            unidad_tipo: r.unidad_tipo ?? "cantidad",
+            unidad_abreviatura: r.unidad_abreviatura ?? null,
         };
 
         normalizeLinea(det);
@@ -262,6 +273,8 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
             motivo_precio: null,
             era_exhibido: false,
             tiene_series: true,
+            unidad_tipo: "cantidad",
+            unidad_abreviatura: null,
         };
 
         normalizeLinea(det);
@@ -411,7 +424,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
                     serie_id: d.serie_id ?? null,
                     pedido_id: d.pedido_id ?? null,
                     pedido_detalle_id: d.pedido_detalle_id ?? null,
-                    cantidad: parseInt(d.cantidad, 10),
+                    cantidad: Number(d.cantidad),
                     precio_venta: Number(d.precio_venta),
                     lista_precio_usada: d.precio_lista_sel ?? null,
                     motivo_precio: d.motivo_precio ?? null,
@@ -474,6 +487,7 @@ export const useVentaPosStore = defineStore("VentaPos", () => {
         pagoInsuficiente,
         hayExcedido,
         normalizeLinea,
+        esUnidadDecimal,
         setCliente,
         clearCliente,
         setVendedor,

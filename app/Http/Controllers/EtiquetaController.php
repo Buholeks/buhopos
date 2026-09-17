@@ -121,13 +121,20 @@ class EtiquetaController extends Controller
 
     public function qzFirmar(Request $request): JsonResponse
     {
-        $datos = $request->input('request', '');
+        $user = $request->user();
+        abort_unless($user && collect(['etiquetas.imprimir', 'etiquetas.disenar', 'ventas.crear', 'reportes.ver'])
+            ->contains(fn ($permiso) => $user->tienePermiso($permiso)), 403, 'Sin permiso de impresión.');
+        $request->validate(['request' => ['required', 'string', 'max:8388608']]);
+        $datos = $request->input('request');
+        app(\App\Services\QzMessageValidator::class)->validate($datos);
+        $hash = hash('sha256', $datos);
         $keyPath = storage_path('qztray/private-key.pem');
         abort_unless(file_exists($keyPath), 404, 'Clave privada QZ Tray no encontrada.');
         $privateKey = openssl_pkey_get_private(file_get_contents($keyPath));
         abort_unless($privateKey, 500, 'No se pudo leer la clave privada.');
-        openssl_sign($datos, $firma, $privateKey, OPENSSL_ALGO_SHA512);
-        return response()->json(['signature' => base64_encode($firma)]);
+        abort_unless(openssl_sign($hash, $firma, $privateKey, OPENSSL_ALGO_SHA512), 500, 'No se pudo firmar.');
+        return response()->json(['hash' => $hash, 'signature' => base64_encode($firma)])
+            ->header('Cache-Control', 'no-store');
     }
 
     public function configuracion(): JsonResponse

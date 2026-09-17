@@ -1,13 +1,13 @@
 <template>
     <div
-        class="relative overflow-hidden bg-white text-black"
+        class="relative bg-white text-black"
         :style="{ width: `${anchoPx}px`, height: `${altoPx}px` }"
         @click.self="$emit('seleccionar', null)"
     >
         <div
             v-for="el in elementos"
             :key="el.id"
-            class="absolute flex overflow-hidden"
+            class="absolute flex"
             :class="{
                 'ring-2 ring-sky-500': editable && seleccionado === el.id,
                 'cursor-move hover:ring-1 hover:ring-sky-400': editable,
@@ -30,7 +30,7 @@
                 class="h-full w-full object-contain"
                 :style="{ objectPosition: el.alineacion === 'derecha' ? 'right' : el.alineacion === 'centro' ? 'center' : 'left' }"
             >
-            <span v-else class="w-full self-center overflow-hidden">{{ valor(el) }}</span>
+            <span v-else class="w-full self-center" style="overflow-wrap:anywhere">{{ valor(el) }}</span>
             <button
                 v-if="editable && seleccionado === el.id"
                 type="button"
@@ -43,6 +43,7 @@
 
 <script setup>
 import { computed } from "vue";
+import { altoZona } from "@/helpers/printing/ticketLayout.js";
 import { crearSvgBarcode } from "@/helpers/etiquetas";
 
 const props = defineProps({
@@ -57,7 +58,7 @@ const props = defineProps({
 const emit = defineEmits(["seleccionar", "cambiar"]);
 
 const anchoPx = computed(() => props.anchoMm * props.escala);
-const altoPx = computed(() => props.altoMm * props.escala);
+const altoPx = computed(() => altoZona(props.elementos, props.altoMm) * props.escala);
 const mm = (n) => `${Number(n) * props.escala}px`;
 
 const estiloEl = (el) => ({

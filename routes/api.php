@@ -38,6 +38,7 @@ use App\Http\Controllers\PagoProveedorController;
 use App\Http\Controllers\ReporteCajaController;
 use App\Http\Controllers\ReporteComprasController;
 use App\Http\Controllers\ReporteVentasController;
+use App\Http\Controllers\ReporteVentaGeneralController;
 use App\Http\Controllers\ReporteVentasAgrupadoController;
 use App\Http\Controllers\ReporteUtilidadesController;
 use App\Http\Controllers\ReporteInventarioController;
@@ -100,12 +101,12 @@ Route::prefix('plataforma')->group(function () {
     });
 });
 
-// Públicos — sin autenticación (cert y firma son operaciones de handshake de QZ Tray)
+// El certificado público y su instalador no requieren sesión. La firma sí.
 Route::get('/etiquetas/qztray/cert', [EtiquetaController::class, 'qzCertificado']);
 Route::get('/etiquetas/qztray/instalador', [EtiquetaController::class, 'qzInstalador']);
-Route::post('/etiquetas/qztray/sign', [EtiquetaController::class, 'qzFirmar']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/etiquetas/qztray/sign', [EtiquetaController::class, 'qzFirmar']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/facturacion', [FacturacionController::class, 'show']);
@@ -500,6 +501,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/proveedores', [ReporteVentasAgrupadoController::class, 'porProveedor']);
         });
 
+        Route::get('/venta-general/exportar', [ReporteVentaGeneralController::class, 'exportar']);
+        Route::get('/venta-general', [ReporteVentaGeneralController::class, 'index']);
         Route::get('/utilidades/exportar', [ReporteUtilidadesController::class, 'exportar']);
         Route::get('/utilidades', [ReporteUtilidadesController::class, 'index']);
         Route::get('/articulo/buscar-productos', [ReporteArticuloController::class, 'buscarProductos']);

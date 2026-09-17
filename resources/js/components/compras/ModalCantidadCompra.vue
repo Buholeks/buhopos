@@ -54,9 +54,9 @@
                 ref="inputCantidad"
                 v-model.number="cantidad"
                 type="number"
-                min="1"
-                step="1"
-                inputmode="numeric"
+                min="0.001"
+                step="0.001"
+                inputmode="decimal"
                 @keydown.enter="confirmar"
                 class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-2xl font-extrabold text-slate-900 outline-none
                        focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
@@ -207,7 +207,7 @@ const requiereSeleccionPedido = computed(() =>
 );
 const puedeConfirmar = computed(() =>
   !props.cargandoPedidos
-  && cantidad.value >= 1
+  && cantidad.value >= 0.001
   && cantidadPedidosSeleccionados.value <= cantidad.value
   && (!requiereSeleccionPedido.value || pedidoDetalleIds.value.length > 0)
 );
@@ -256,7 +256,7 @@ function confirmar() {
   if (!puedeConfirmar.value) return;
 
   emit("confirmar", {
-    cantidad: Math.round(cantidad.value),
+    cantidad: Math.round(cantidad.value * 1000) / 1000,
     precio_compra: parseMoney(precioCompraRaw.value),
     precio_venta: parseMoney(precioVentaRaw.value),
     pedido_detalle_ids: pedidoDetalleIds.value,

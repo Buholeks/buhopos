@@ -52,6 +52,7 @@ class PermisosSeeder extends Seeder
 
             // ── Reportes ──────────────────────────────────────────────────────
             ['modulo' => 'reportes',   'clave' => 'reportes.ver',             'descripcion' => 'Acceder a reportes generales'],
+            ['modulo' => 'reportes',   'clave' => 'reportes.venta_general',    'descripcion' => 'Ver venta general de todas las sucursales'],
             ['modulo' => 'reportes',   'clave' => 'reportes.utilidades',      'descripcion' => 'Ver reportes con costos y utilidades'],
 
             // ── Inventario ────────────────────────────────────────────────────

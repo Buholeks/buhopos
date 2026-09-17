@@ -112,7 +112,7 @@ class VentaController extends Controller
             'detalles'                 => ['required', 'array', 'min:1'],
             'detalles.*.variante_id'   => ['nullable', 'exists:producto_variantes,id'],
             'detalles.*.producto_id'   => ['required', 'exists:productos,id'],
-            'detalles.*.cantidad'      => ['required', 'integer', 'min:1'],
+            'detalles.*.cantidad'      => ['required', 'numeric', 'min:0.001'],
             'detalles.*.precio_venta'  => ['required', 'numeric', 'min:0'],
             'detalles.*.lista_precio_usada' => ['nullable', 'string', 'max:30'],
             'detalles.*.motivo_precio' => ['nullable', 'string', 'max:255'],
@@ -214,7 +214,7 @@ class VentaController extends Controller
         unset($det);
 
         $subtotalCalculado = collect($datos['detalles'])
-            ->sum(fn($det) => ((float) $det['precio_venta']) * ((int) $det['cantidad']));
+            ->sum(fn($det) => ((float) $det['precio_venta']) * ((float) $det['cantidad']));
 
         $descuento = (float) ($datos['descuento'] ?? 0);
         $totalCalculado = max(0, $subtotalCalculado - $descuento);
@@ -244,7 +244,7 @@ class VentaController extends Controller
             $pedidoTopes = collect($datos['detalles'])
                 ->filter(fn ($detalle) => ! empty($detalle['pedido_id']))
                 ->groupBy(fn ($detalle) => (int) $detalle['pedido_id'])
-                ->map(fn ($lineas) => round((float) $lineas->sum(fn ($detalle) => (float) $detalle['precio_venta'] * (int) $detalle['cantidad']), 2));
+                ->map(fn ($lineas) => round((float) $lineas->sum(fn ($detalle) => (float) $detalle['precio_venta'] * (float) $detalle['cantidad']), 2));
             $todosSonPedido = count($datos['detalles']) > 0
                 && collect($datos['detalles'])->every(fn ($detalle) => ! empty($detalle['pedido_id']));
             $resumenSaldo = $servicioSaldo->resumen($empresaId, $sucursalId, (int) $datos['cliente_id']);
@@ -331,7 +331,7 @@ class VentaController extends Controller
             foreach ($datos['detalles'] as $det) {
                 $productoId  = (int) $det['producto_id'];
                 $varianteId  = !empty($det['variante_id']) ? (int) $det['variante_id'] : null;
-                $cantidad    = (int) $det['cantidad'];
+                $cantidad    = (float) $det['cantidad'];
                 $precioVenta = (float) $det['precio_venta'];
 
                 $inv = Inventario::where([
@@ -645,7 +645,7 @@ class VentaController extends Controller
         Venta $venta,
         int $productoId,
         ?int $varianteId,
-        int $cantidad
+        float $cantidad
     ): void {
         $detalle = PedidoDetalle::where('id', $pedidoDetalleId)
             ->where('producto_id', $productoId)
@@ -658,7 +658,7 @@ class VentaController extends Controller
             ->lockForUpdate()
             ->firstOrFail();
 
-        if ((float) $detalle->cantidad !== (float) $cantidad) {
+        if (abs((float) $detalle->cantidad - $cantidad) > 0.0001) {
             throw new \RuntimeException('La cantidad vendida no coincide con la cantidad del pedido.');
         }
 
@@ -834,6 +834,8 @@ class VentaController extends Controller
                 'tiene_series'    => true,
                 'serie_id'        => $serie->id,   // ← para venta directa por IMEI
                 'imei'            => $serie->imei,
+                'unidad_tipo'     => 'cantidad',
+                'unidad_abreviatura' => null,
                 'precio_venta'    => $precioVenta,
                 'precio_costo'    => (float)($serie->precio_costo ?? $serie->producto->precio_costo ?? 0),
                 'precio1'         => null,
@@ -871,8 +873,10 @@ class VentaController extends Controller
                 'precio4',
                 'precio5',
                 'imagen',
-                'tiene_series'
+                'tiene_series',
+                'unidad_medida_id'
             )
+            ->with('unidadMedida:id,abreviatura,tipo')
             ->limit(40)
             ->get()
             ->filter(fn($p) => ProductVariantSearch::matches($tokens, ProductVariantSearch::productoText($p)))
@@ -907,6 +911,8 @@ class VentaController extends Controller
                 'inventario_exhibicion_id' => $exhibicion?->id,
                 'tiene_series'    => (bool) $p->tiene_series,
                 'serie_id'        => null,
+                'unidad_tipo'     => $p->unidadMedida?->tipo ?? 'cantidad',
+                'unidad_abreviatura' => $p->unidadMedida?->abreviatura,
                 'precio_venta'    => (float) ($p->precio_venta ?? 0),
                 'precio_costo'    => (float) ($p->precio_costo ?? 0),
                 'precio1'         => $p->precio1 ? (float)$p->precio1 : null,
@@ -930,7 +936,8 @@ class VentaController extends Controller
                 ->where('tiene_variantes', true)
         )
             ->with([
-                'producto:id,nombre,codigo,precio_costo,precio_venta,imagen,precio1,precio2,precio3,precio4,precio5,tiene_series',
+                'producto:id,nombre,codigo,precio_costo,precio_venta,imagen,precio1,precio2,precio3,precio4,precio5,tiene_series,unidad_medida_id',
+                'producto.unidadMedida:id,abreviatura,tipo',
                 'atributos.tipoAtributo:id,nombre',
                 'atributos.atributo:id,valor',
             ])
@@ -993,6 +1000,8 @@ class VentaController extends Controller
                 'inventario_exhibicion_id' => $exhibicion?->id,
                 'tiene_series'    => (bool) $v->producto->tiene_series,
                 'serie_id'        => null,
+                'unidad_tipo'     => $v->producto->unidadMedida?->tipo ?? 'cantidad',
+                'unidad_abreviatura' => $v->producto->unidadMedida?->abreviatura,
                 'precio_venta'    => $resolverPrecio($v->precio_venta,  $v->producto->precio_venta)  ?? 0,
                 'precio_costo'    => $resolverPrecio($v->precio_costo,  $v->producto->precio_costo)  ?? 0,
                 'precio1'         => $resolverPrecio($v->precio1, $v->producto->precio1),

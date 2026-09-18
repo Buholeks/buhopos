@@ -85,7 +85,7 @@ export async function imprimirDocumento({ html, renderHtml, raw, config, paperWi
                 // Rasteriza el ticket ya maquetado por el navegador y lo envía como
                 // imagen ESC/POS + corte propios: evita depender del driver de Windows.
                 const elemento = doc.querySelector('.ticket') ?? doc.body;
-                const bitmap = await capturarBitmap(elemento, cfg.dpi);
+                const bitmap = await capturarBitmap(elemento, { dpi: cfg.dpi, printableWidth: cfg.printableWidth });
                 const result = await enviarTrabajo(cfg.printerName, { copies: 1, forceRaw: cfg.forceRaw }, [
                     { type: 'raw', format: 'command', flavor: 'hex', data: aHex(ticketAEscpos(bitmap, cfg)) },
                 ]);

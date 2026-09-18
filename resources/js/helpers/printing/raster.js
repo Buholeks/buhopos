@@ -54,9 +54,16 @@ export function ticketAEscpos(bitmap, config) {
 
 // Captura el elemento ya maquetado por el navegador (no reimplementa el layout:
 // lee las cajas ya calculadas) y lo escala al DPI de la impresora. 1mm CSS = 96/25.4 px.
-export async function capturarBitmap(elemento, dpi = 203) {
+// El ticket puede diseñarse un poco más ancho que lo que el cabezal imprime de verdad
+// (p. ej. 73mm de zona interior en un papel de 80mm); si no se limita a printableWidth
+// (72mm por defecto: el máximo típico y seguro en térmicas ESC/POS de 80mm), cada línea
+// queda unos puntos más ancha que el buffer del cabezal, el desfase se acumula y el
+// final del ticket —incluido el corte— llega corrupto.
+export async function capturarBitmap(elemento, { dpi = 203, printableWidth } = {}) {
     const { default: html2canvas } = await import('html2canvas');
-    const escala = Math.max(1, Number(dpi) || 203) / 96;
+    const anchoRenderMm = elemento.getBoundingClientRect().width * 25.4 / 96;
+    const anchoObjetivoMm = printableWidth ? Math.min(anchoRenderMm, Number(printableWidth)) : anchoRenderMm;
+    const escala = (anchoObjetivoMm / anchoRenderMm) * (Math.max(1, Number(dpi) || 203) / 96);
     const canvas = await html2canvas(elemento, { scale: escala, backgroundColor: '#ffffff', useCORS: true, logging: false });
     const { width, height } = canvas;
     if (!width || !height) throw new Error('No se pudo capturar el ticket para rasterizar.');

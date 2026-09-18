@@ -283,7 +283,7 @@ test('servicio qz-raster: rasteriza el DOM ya cargado y envía imagen+corte por 
     globalThis.__printTransport = async (...args) => { jobs.push(args); return { status: 'submitted' }; };
     let capturado = null;
     globalThis.__rasterStub = {
-        capturarBitmap: async (elemento, dpi) => { capturado = { elemento, dpi }; return { widthBytes: 1, height: 1, bytes: new Uint8Array([0xff]) }; },
+        capturarBitmap: async (elemento, opciones) => { capturado = { elemento, opciones }; return { widthBytes: 1, height: 1, bytes: new Uint8Array([0xff]) }; },
         ticketAEscpos: (bitmap, cfg) => `IMG(${bitmap.widthBytes}x${bitmap.height})+CUT(${cfg.feedAfterPrint})`,
     };
     const fakeDoc = () => ({
@@ -302,7 +302,7 @@ test('servicio qz-raster: rasteriza el DOM ya cargado y envía imagen+corte por 
         .replace("import { capturarBitmap, ticketAEscpos } from './raster.js';", 'const { capturarBitmap, ticketAEscpos } = globalThis.__rasterStub;')
         .replace("'./printErrors.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printErrors.js', import.meta.url).href));
     const service = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
-    const config = { mode: 'qz-raster', printerName: 'Qian', feedAfterPrint: 6, dpi: 300, forceRaw: true };
+    const config = { mode: 'qz-raster', printerName: 'Qian', feedAfterPrint: 6, dpi: 300, printableWidth: 72, forceRaw: true };
     const result = await service.imprimirDocumento({ html: '<main class="ticket">x</main>', config });
     assert.equal(result.status, 'submitted');
     assert.equal(jobs.length, 1);
@@ -310,7 +310,7 @@ test('servicio qz-raster: rasteriza el DOM ya cargado y envía imagen+corte por 
     assert.deepEqual(jobs[0][1], { copies: 1, forceRaw: true });
     assert.deepEqual(jobs[0][2], [{ type: 'raw', format: 'command', flavor: 'hex',
         data: Buffer.from('IMG(1x1)+CUT(6)', 'latin1').toString('hex') }]);
-    assert.deepEqual(capturado, { elemento: { marcador: 'raiz-ticket' }, dpi: 300 });
+    assert.deepEqual(capturado, { elemento: { marcador: 'raiz-ticket' }, opciones: { dpi: 300, printableWidth: 72 } });
     assert.equal(framesRemoved, 1);
 });
 

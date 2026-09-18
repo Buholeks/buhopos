@@ -5,8 +5,9 @@ const LEGACY_KEY = 'buhopos_qz_impresora_ticket';
 export function obtenerPrinterConfig(printerName = localStorage.getItem(LEGACY_KEY)) {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { /* defaults */ }
-    return normalizarPrinterConfig({ ...saved, printerName: printerName || '',
-        mode: printerName ? 'qz-html' : 'browser' });
+    // Solo qz-html/qz-raster pueden imprimir el ticket real; RAW de diagnóstico nunca se conserva aquí.
+    const mode = !printerName ? 'browser' : (saved.mode === 'qz-raster' ? 'qz-raster' : 'qz-html');
+    return normalizarPrinterConfig({ ...saved, printerName: printerName || '', mode });
 }
 
 export function normalizarPrinterConfig(value = {}) {
@@ -19,13 +20,13 @@ export function normalizarPrinterConfig(value = {}) {
         paperWidth,
         printableWidth: number(value.printableWidth, Math.min(72, paperWidth), 20, paperWidth),
         dpi: number(value.dpi, 203, 100, 600),
-        mode: ['browser', 'qz-html', 'qz-raw'].includes(value.mode) ? value.mode : 'browser',
+        mode: ['browser', 'qz-html', 'qz-raw', 'qz-raster'].includes(value.mode) ? value.mode : 'browser',
         autoCut: value.autoCut !== false,
         cutType: value.cutType === 'full' ? 'full' : 'partial',
         feedAfterPrint: Math.round(number(value.feedAfterPrint, 4, 0, 20)), // líneas, no mm
         openCashDrawer: false, // reservado; nunca se activa en esta iteración
         forceRaw: value.forceRaw === true,
-        raster: { enabled: false, blockHeight: 128 }, // pendiente de validación física
+        raster: { blockHeight: Math.round(number(value.raster?.blockHeight, 128, 8, 500)) },
     };
 }
 

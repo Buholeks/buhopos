@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import * as esc from '../resources/js/helpers/printing/escpos.js';
+import * as raster from '../resources/js/helpers/printing/raster.js';
 import { obtenerPrinterConfig, guardarPrinterConfig } from '../resources/js/helpers/printing/printerConfig.js';
 import { altoZona, validarZona } from '../resources/js/helpers/printing/ticketLayout.js';
 import { crearTicketVenta } from '../resources/js/helpers/tickets/ticketVenta.js';
@@ -26,6 +27,7 @@ async function regressionModules() {
         ["import { enviarQz } from '../qzTray.js';", 'const enviarQz = (...args) => globalThis.__regressionTransport(...args);'],
         ["'./printerConfig.js'", JSON.stringify(configUrl)],
         ["'./escpos.js'", JSON.stringify(new URL('../resources/js/helpers/printing/escpos.js', import.meta.url).href)],
+        ["'./raster.js'", JSON.stringify(new URL('../resources/js/helpers/printing/raster.js', import.meta.url).href)],
         ["'./printErrors.js'", JSON.stringify(errorsUrl)],
     ]);
     const entryUrl = await sourceWithDependencies('../resources/js/helpers/tickets/imprimirTicketVenta.js', [
@@ -160,6 +162,39 @@ test('RAW: bytes, un corte final, énfasis y ningún pulso de cajón', () => {
     assert.throws(() => esc.feed(-1));
 });
 
+test('escpos: GS v 0 arma encabezado little-endian y valida ancho/alto contra los datos', () => {
+    const esperado = ['1d', '76', '30', '00', '01', '00', '02', '00', '00', 'ff'].join('');
+    assert.equal(esc.aHex(esc.rasterImage(1, 2, '\x00\xff')), esperado);
+    assert.throws(() => esc.rasterImage(0, 1, ''), /Ancho/);
+    assert.throws(() => esc.rasterImage(1, 1, 'AB'), /tamaño/);
+    assert.throws(() => esc.rasterImage(1, 1, ''), /tamaño/);
+});
+
+test('raster: empaqueta 1 bit por punto (alfa bajo = blanco), trocea por bloques y envuelve con init+corte', () => {
+    const data = new Uint8ClampedArray([
+        0, 0, 0, 255, 255, 255, 255, 255, // fila 0: negro, blanco
+        0, 0, 0, 0, 0, 0, 0, 255,         // fila 1: transparente (cuenta como blanco), negro
+    ]);
+    const bitmap = raster.empaquetarMonocromo({ width: 2, height: 2, data });
+    assert.equal(bitmap.widthBytes, 1);
+    assert.deepEqual(Array.from(bitmap.bytes), [0x80, 0x40]);
+    assert.throws(() => raster.empaquetarMonocromo({ width: 0, height: 1, data }), /Dimensiones/);
+
+    const bloques = raster.trocear({ widthBytes: 1, height: 5, bytes: new Uint8Array([1, 2, 3, 4, 5]) }, 2);
+    assert.deepEqual(bloques.map((b) => b.height), [2, 2, 1]);
+    assert.deepEqual(Array.from(bloques[2].bytes), [5]);
+
+    // 1 bloque por fila con blockHeight=1: dos comandos GS v 0 de 9 bytes cada uno.
+    assert.equal(raster.imagenAEscpos(bitmap, 1).length, 18);
+    // blockHeight por defecto (128) agrupa ambas filas en un solo comando.
+    assert.equal(raster.imagenAEscpos(bitmap).length, 10);
+
+    const ticket = raster.ticketAEscpos(bitmap, { feedAfterPrint: 3, autoCut: true, cutType: 'partial' });
+    assert.ok(ticket.startsWith('\x1b@'), 'debe iniciar con initialize()');
+    assert.ok(ticket.endsWith('\x1dV\x01'), 'debe terminar con el corte de finalizar()');
+    assert.equal(ticket.length, 2 + 10 + 6);
+});
+
 test('configuración conserva selección clásica y separa diseño de terminal', () => {
     const store = new Map([['buhopos_qz_impresora_ticket', 'Epson'], ['buhopos_ticket_config', '{"encabezado":{}}']]);
     globalThis.localStorage = { getItem: key => store.get(key) ?? null, setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) };
@@ -169,6 +204,12 @@ test('configuración conserva selección clásica y separa diseño de terminal',
     guardarPrinterConfig({ mode: 'browser' });
     assert.equal(obtenerPrinterConfig().mode, 'browser');
     assert.equal(store.get('buhopos_ticket_config'), '{"encabezado":{}}');
+
+    guardarPrinterConfig({ printerName: 'Qian', mode: 'qz-raster', raster: { blockHeight: 64 } });
+    assert.equal(obtenerPrinterConfig().mode, 'qz-raster', 'qz-raster sí se conserva como modo real del terminal');
+    assert.equal(obtenerPrinterConfig().raster.blockHeight, 64);
+    guardarPrinterConfig({ printerName: '', mode: 'qz-raster' });
+    assert.equal(obtenerPrinterConfig('').mode, 'browser', 'sin impresora nunca puede quedar un modo QZ activo');
 });
 
 test('canvas crece con elementos y advierte sin bloquear desbordamiento horizontal', () => {
@@ -223,6 +264,7 @@ test('servicio RAW: un envío, sin reintento ni navegador, y bloqueo de ticket g
     source = source.replace("import { enviarQz } from '../qzTray.js';", 'const enviarQz = (...args) => globalThis.__printTransport(...args);')
         .replace("'./printerConfig.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printerConfig.js', import.meta.url).href))
         .replace("'./escpos.js'", JSON.stringify(new URL('../resources/js/helpers/printing/escpos.js', import.meta.url).href))
+        .replace("'./raster.js'", JSON.stringify(new URL('../resources/js/helpers/printing/raster.js', import.meta.url).href))
         .replace("'./printErrors.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printErrors.js', import.meta.url).href));
     const service = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
     const config = { mode: 'qz-raw', printerName: 'Qian' };
@@ -234,6 +276,42 @@ test('servicio RAW: un envío, sin reintento ni navegador, y bloqueo de ticket g
     assert.equal(jobs.length, 1);
     globalThis.__printTransport = async () => ({ status: 'submitted' });
     assert.deepEqual(await service.imprimirDocumento({ config, raw: 'A\n', renderHtml: () => { throw new Error('RAW no debe validar HTML'); } }), { status: 'submitted' });
+});
+
+test('servicio qz-raster: rasteriza el DOM ya cargado y envía imagen+corte por RAW (no pixel/html)', async () => {
+    const jobs = [];
+    globalThis.__printTransport = async (...args) => { jobs.push(args); return { status: 'submitted' }; };
+    let capturado = null;
+    globalThis.__rasterStub = {
+        capturarBitmap: async (elemento, dpi) => { capturado = { elemento, dpi }; return { widthBytes: 1, height: 1, bytes: new Uint8Array([0xff]) }; },
+        ticketAEscpos: (bitmap, cfg) => `IMG(${bitmap.widthBytes}x${bitmap.height})+CUT(${cfg.feedAfterPrint})`,
+    };
+    const fakeDoc = () => ({
+        body: { offsetHeight: 10 }, images: [], fonts: { ready: Promise.resolve() },
+        open() {}, write(html) { this.html = html; }, close() {},
+        querySelector: (sel) => (sel === '.ticket' ? { marcador: 'raiz-ticket' } : null),
+        querySelectorAll: () => [],
+    });
+    let framesRemoved = 0;
+    globalThis.document = { body: { appendChild() {} },
+        createElement: () => ({ style: {}, contentDocument: fakeDoc(), remove() { framesRemoved++; } }) };
+    let source = await readFile(new URL('../resources/js/helpers/printing/printerService.js', import.meta.url), 'utf8');
+    source = source.replace("import { enviarQz } from '../qzTray.js';", 'const enviarQz = (...args) => globalThis.__printTransport(...args);')
+        .replace("'./printerConfig.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printerConfig.js', import.meta.url).href))
+        .replace("'./escpos.js'", JSON.stringify(new URL('../resources/js/helpers/printing/escpos.js', import.meta.url).href))
+        .replace("import { capturarBitmap, ticketAEscpos } from './raster.js';", 'const { capturarBitmap, ticketAEscpos } = globalThis.__rasterStub;')
+        .replace("'./printErrors.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printErrors.js', import.meta.url).href));
+    const service = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+    const config = { mode: 'qz-raster', printerName: 'Qian', feedAfterPrint: 6, dpi: 300, forceRaw: true };
+    const result = await service.imprimirDocumento({ html: '<main class="ticket">x</main>', config });
+    assert.equal(result.status, 'submitted');
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0][0], 'Qian');
+    assert.deepEqual(jobs[0][1], { copies: 1, forceRaw: true });
+    assert.deepEqual(jobs[0][2], [{ type: 'raw', format: 'command', flavor: 'hex',
+        data: Buffer.from('IMG(1x1)+CUT(6)', 'latin1').toString('hex') }]);
+    assert.deepEqual(capturado, { elemento: { marcador: 'raiz-ticket' }, dpi: 300 });
+    assert.equal(framesRemoved, 1);
 });
 
 test('render conserva 50 productos y pagos, amplía pie y no introduce altura de página fija', async () => {

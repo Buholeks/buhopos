@@ -123,7 +123,13 @@
                     </select>
                     <p v-if="impresoraLocal" class="mt-1 text-xs font-semibold text-emerald-700">✓ Impresión directa activa en esta PC</p>
                     <div class="mt-3 space-y-2 border-t pt-3 text-xs">
-                        <p class="text-slate-500">Tickets: método clásico. RAW: solo diagnóstico hasta validar la impresora.</p>
+                        <p class="text-slate-500">Tickets: HTML (clásico, depende del driver) o raster (imagen ESC/POS, controlado por BuhoPOS). RAW de texto: solo diagnóstico.</p>
+                        <label v-if="impresoraLocal" class="block">Modo de impresión de tickets en este terminal
+                            <select v-model="printerCfg.mode" class="input" @change="guardarTerminal">
+                                <option value="qz-html">HTML (clásico QZ)</option>
+                                <option value="qz-raster">Raster ESC/POS (usar si el driver no termina el ticket)</option>
+                            </select>
+                        </label>
                         <label class="block">Avance al terminar (líneas)
                             <input v-model.number="printerCfg.feedAfterPrint" type="number" min="0" max="20" class="input" @change="guardarTerminal">
                         </label>
@@ -135,6 +141,7 @@
                         <label class="flex gap-2"><input v-model="printerCfg.forceRaw" type="checkbox" @change="guardarTerminal"> RAW directo (si el driver no admite RAW)</label>
                         <div class="flex flex-wrap gap-2">
                             <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('html')">Prueba HTML QZ</button>
+                            <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('raster')">Prueba raster QZ</button>
                             <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('raw')">Prueba texto RAW</button>
                             <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('cut')">Probar avance y corte</button>
                         </div>
@@ -591,11 +598,15 @@ async function intentarConectar() {
 async function recargarImpresoras() {
     try { impresoras.value = await listarImpresoras(); } catch { impresoras.value = []; }
 }
-function guardarImpresora() { guardarImpresoraTicket(impresoraLocal.value); guardarTerminal(); }
+function guardarImpresora() {
+    guardarImpresoraTicket(impresoraLocal.value);
+    if (!impresoraLocal.value) printerCfg.mode = 'browser';
+    else if (printerCfg.mode === 'browser') printerCfg.mode = 'qz-html';
+    guardarTerminal();
+}
 
 function guardarTerminal() {
-    Object.assign(printerCfg, guardarPrinterConfig({ ...printerCfg,
-        printerName: impresoraLocal.value, mode: impresoraLocal.value ? 'qz-html' : 'browser' }));
+    Object.assign(printerCfg, guardarPrinterConfig({ ...printerCfg, printerName: impresoraLocal.value }));
 }
 
 async function probarTransporte(tipo) {
@@ -610,9 +621,10 @@ async function probarTransporte(tipo) {
                 showCancelButton: true, confirmButtonText: 'Enviar corte', cancelButtonText: 'Cancelar' });
             if (!decision.isConfirmed) return;
         }
-        const config = { ...printerCfg, autoCut: true, mode: tipo === 'html' ? 'qz-html' : 'qz-raw' };
+        const config = { ...printerCfg, autoCut: true,
+            mode: tipo === 'html' ? 'qz-html' : tipo === 'raster' ? 'qz-raster' : 'qz-raw' };
         const result = await imprimirDocumento({ config, paperWidth: cfg.ancho_mm,
-            renderHtml: tipo === 'html' ? (onWarning) => crearHtmlTicket(muestra, cfg, { onWarning }) : undefined,
+            renderHtml: (tipo === 'html' || tipo === 'raster') ? (onWarning) => crearHtmlTicket(muestra, cfg, { onWarning }) : undefined,
             raw: tipo === 'raw' ? crearDiagnostico(config) : tipo === 'cut' ? crearPruebaCorte(config) : undefined });
         estadoPrueba.value = 'Trabajo enviado a QZ. Comprueba físicamente texto, avance y corte; el envío no confirma la impresión.';
         if (result.warnings?.length) estadoPrueba.value += ' Aviso: hay elementos fuera de sus cajas; se conservaron sus posiciones. Revisa los bordes y textos.';

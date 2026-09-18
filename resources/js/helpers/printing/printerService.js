@@ -1,6 +1,7 @@
 import { enviarQz } from '../qzTray.js';
 import { normalizarPrinterConfig } from './printerConfig.js';
 import { aHex } from './escpos.js';
+import { capturarBitmap, ticketAEscpos } from './raster.js';
 import { printError, asPrintError } from './printErrors.js';
 
 async function esperarRecursos(doc, onWarning) {
@@ -80,6 +81,16 @@ export async function imprimirDocumento({ html, renderHtml, raw, config, paperWi
             const doc = frame.contentDocument;
             doc.open(); doc.write(html); doc.close();
             await esperarRecursos(doc, onWarning);
+            if (cfg.mode === 'qz-raster') {
+                // Rasteriza el ticket ya maquetado por el navegador y lo envía como
+                // imagen ESC/POS + corte propios: evita depender del driver de Windows.
+                const elemento = doc.querySelector('.ticket') ?? doc.body;
+                const bitmap = await capturarBitmap(elemento, cfg.dpi);
+                const result = await enviarTrabajo(cfg.printerName, { copies: 1, forceRaw: cfg.forceRaw }, [
+                    { type: 'raw', format: 'command', flavor: 'hex', data: aHex(ticketAEscpos(bitmap, cfg)) },
+                ]);
+                return { ...result, warnings };
+            }
             const result = await enviarTrabajo(cfg.printerName, {
                 // Conserva el tamaño clásico QZ en esta primera iteración.
                 size: { width: paperWidth ?? cfg.paperWidth, height: 3000 }, units: 'mm',

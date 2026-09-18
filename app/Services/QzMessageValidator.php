@@ -40,7 +40,9 @@ class QzMessageValidator
             $raw = ($item['type'] ?? '') === 'raw' && ($item['format'] ?? '') === 'command' && ($item['flavor'] ?? '') === 'hex';
             $this->check($html || $raw, 'Solo se permite HTML inline o comandos RAW hexadecimales.');
             if ($raw) {
-                $this->check(strlen($item['data']) > 0 && strlen($item['data']) <= 32768
+                // 4,000,000 caracteres hex (~2 MB de bytes) cubre un ticket rasterizado largo a 600 DPI
+                // sin permitir payloads arbitrariamente grandes.
+                $this->check(strlen($item['data']) > 0 && strlen($item['data']) <= 4_000_000
                     && strlen($item['data']) % 2 === 0 && ctype_xdigit($item['data']), 'Comandos RAW inválidos.');
             } else {
                 $this->check(!preg_match('/<\s*(script|iframe|object|embed)\b|\bon\w+\s*=|(?:file|javascript):/i', $item['data']), 'HTML activo o archivos locales no permitidos.');

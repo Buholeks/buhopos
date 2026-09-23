@@ -42,7 +42,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, onBeforeUnmount } from "vue";
 import { altoZona } from "@/helpers/printing/ticketLayout.js";
 import { crearSvgBarcode } from "@/helpers/etiquetas";
 
@@ -101,8 +101,11 @@ function barcodeHtml(el) {
 
 function iniciarMovimiento(event, el) { arrastrar(event, el, false); }
 function iniciarRedimension(event, el) { arrastrar(event, el, true); }
+let limpiarMovimiento;
+onBeforeUnmount(() => limpiarMovimiento?.());
 
 function arrastrar(event, el, resize) {
+    limpiarMovimiento?.();
     emit("seleccionar", el.id);
     const inicio = { x: event.clientX, y: event.clientY, el: { ...el } };
     const mover = (e) => {
@@ -111,15 +114,19 @@ function arrastrar(event, el, resize) {
         emit("cambiar", {
             id: el.id,
             cambio: resize
-                ? { ancho: Math.max(5, inicio.el.ancho + dx), alto: Math.max(2, inicio.el.alto + dy) }
-                : { x: Math.max(0, inicio.el.x + dx), y: Math.max(0, inicio.el.y + dy) },
+                ? { ancho: Math.max(5, Number(inicio.el.ancho) + dx), alto: Math.max(2, Number(inicio.el.alto) + dy) }
+                : { x: Math.max(0, Number(inicio.el.x) + dx), y: Math.max(0, Number(inicio.el.y) + dy) },
         });
     };
     const terminar = () => {
         window.removeEventListener("pointermove", mover);
         window.removeEventListener("pointerup", terminar);
+        window.removeEventListener('pointercancel', terminar);
+        limpiarMovimiento = null;
     };
+    limpiarMovimiento = terminar;
     window.addEventListener("pointermove", mover);
     window.addEventListener("pointerup", terminar);
+    window.addEventListener('pointercancel', terminar);
 }
 </script>

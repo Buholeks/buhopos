@@ -151,7 +151,7 @@ const routes = [
       { path: "apartados/consulta",name: "apartados-consulta",component: ConsultaApartados,meta: { title: "Consulta de apartados", permiso: "pedidos.ver" } },
 
       { path: "ventas",                    name: "ventas",                    component: NuevaVenta,               meta: { title: "Ventas",                     permiso: "ventas.crear" } },
-      { path: "ticket/configurar",         name: "ticket-config",             component: TicketConfig,             meta: { title: "Configuración del ticket",    permiso: "ventas.crear" } },
+      { path: "ticket/configurar",         name: "ticket-config",             component: TicketConfig,             meta: { title: "Configuración del ticket",    permiso: "empresa.editar" } },
       { path: "cancelaciones-devoluciones",name: "cancelaciones-devoluciones",component: CancelacionesDevoluciones,meta: { title: "Cancelaciones y devoluciones",permiso: "ventas.cancelar" } },
 
       { path: "compras",                   name: "compras",                   component: NuevaCompra,       meta: { title: "Compras",                   permiso: "compras.crear" } },

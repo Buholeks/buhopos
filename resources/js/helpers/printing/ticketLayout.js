@@ -24,6 +24,20 @@ export function validarZona(elementos = [], ancho, zona = 'canvas') {
             throw printError('INVALID_DESIGN', `Elemento corrupto en ${zona}.`);
         }
         const label = `${zona}: ${el.id ?? el.tipo ?? 'elemento'}`;
+        if (el.tipo != null && !['campo', 'texto', 'separador', 'codigo_barras'].includes(el.tipo)) {
+            throw printError('INVALID_DESIGN', `${label}: tipo desconocido.`);
+        }
+        for (const field of ['fuente', 'fuente_barcode']) {
+            if (el[field] == null || el[field] === '') continue;
+            const size = numeroDiseno(el[field], `${label}.${field}`);
+            if (size < 1 || size > 100) throw printError('INVALID_DESIGN', `${label}: la fuente debe estar entre 1 y 100 pt.`);
+        }
+        if (el.campo != null && (typeof el.campo !== 'string' || (el.campo && !/^[a-zA-Z_][a-zA-Z0-9_.]*$/.test(el.campo)))) {
+            throw printError('INVALID_DESIGN', `${label}: campo inválido.`);
+        }
+        if (el.familia_fuente && !/^[a-zA-Z0-9 ,'"-]+$/.test(el.familia_fuente)) {
+            throw printError('INVALID_DESIGN', `${label}: familia de fuente inválida.`);
+        }
         const [x, y, width, height] = ['x', 'y', 'ancho', 'alto'].map(field => numeroDiseno(el[field], `${label}.${field}`));
         if (width <= 0 || height < 0 || (height === 0 && el.tipo !== 'separador')) {
             throw printError('INVALID_DESIGN', `${label}: ancho/alto no permiten renderizar el elemento.`);

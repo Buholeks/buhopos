@@ -65,6 +65,7 @@ function crearHtmlTicketCanvas(ticket, cfg) {
     .pago { padding-top: 1mm; border-top: 1px dotted #cbd5e1; }
 </style></head><body>
 <main class="ticket">
+    ${ticket.reimpresion ? '<div style="text-align:center;font-weight:700">Copia / reimpresión</div>' : ''}
     ${renderCanvasHtml(encEls, ticket, encAlto, interior)}
     <div class="sep"></div>
     <div class="datos">
@@ -107,7 +108,7 @@ function renderElementoHtml(el, ticket) {
     const base = `position:absolute;left:${el.x}mm;top:${el.y}mm;width:${el.ancho}mm;height:${el.alto}mm;overflow:visible;`;
     if (el.tipo === "campo" && el.campo === "empresa.nombre" && ticket.empresa?.logo_url) {
         const posicion = el.alineacion === "derecha" ? "right" : el.alineacion === "centro" ? "center" : "left";
-        return `<div style="${base}"><img src="${escapeHtml(ticket.empresa.logo_url)}" alt="Logo" style="width:100%;height:100%;object-fit:contain;object-position:${posicion};"></div>`;
+        return `<div style="${base}"><img src="${escapeHtml(ticket.empresa.logo_url)}" alt="Logo" data-ticket-logo data-logo-fallback="${escapeHtml(ticket.empresa.nombre ?? 'Empresa')}" style="width:100%;height:100%;object-fit:contain;object-position:${posicion};"></div>`;
     }
     if (el.tipo === "separador") {
         const yMid = Number(el.y) + Number(el.alto) / 2;
@@ -121,7 +122,7 @@ function renderElementoHtml(el, ticket) {
     const alin = el.alineacion === "centro" ? "center" : el.alineacion === "derecha" ? "right" : "left";
     const ff = el.familia_fuente ? escapeHtml(el.familia_fuente) : "Arial,Helvetica,sans-serif";
     const val = el.tipo === "texto" ? escapeHtml(el.texto || "") : escapeHtml(resolverCampoTicket(ticket, el.campo));
-    return `<div data-ticket-text style="${base}font-size:${el.fuente || 10}pt;font-weight:${el.negrita ? 700 : 400};font-family:${ff};text-align:${alin};display:flex;align-items:center;"><span style="width:100%;overflow-wrap:anywhere;">${val}</span></div>`;
+    return `<div data-ticket-text style="${base}font-size:${Number(el.fuente || 10)}pt;font-weight:${el.negrita ? 700 : 400};font-family:${ff};text-align:${alin};display:flex;align-items:center;"><span style="width:100%;overflow-wrap:anywhere;">${val}</span></div>`;
 }
 
 function resolverCampoTicket(ticket, campo) {
@@ -140,11 +141,11 @@ function renderProductoHtml(p, cfg = {}) {
         mostrarVariante && p.variante ? `<span>${escapeHtml(p.variante)}</span>` : "",
         mostrarId && p.identificador ? `<span>Serie: ${escapeHtml(p.identificador)}</span>` : "",
     ].filter(Boolean).join("");
-    const precios = mostrarPrecio ? [
-        `<span>${fmtCantidad(p.cantidad)} × ${fmt(p.precio_unitario)}</span>`,
-        p.lista_precio_usada ? `<span>${escapeHtml(p.lista_precio_usada)}</span>` : "",
+    const precios = [
+        mostrarPrecio ? `<span>${fmtCantidad(p.cantidad)} × ${fmt(p.precio_unitario)}</span>` : `<span>Cantidad: ${fmtCantidad(p.cantidad)}</span>`,
+        mostrarPrecio && p.lista_precio_usada ? `<span>${escapeHtml(p.lista_precio_usada)}</span>` : "",
         mostrarDesc && p.descuento > 0 ? `<span>Desc. ${fmt(p.descuento)}</span>` : "",
-    ].filter(Boolean).join("") : "";
+    ].filter(Boolean).join("");
     return `<div class="producto"><div class="prod-top"><div class="prod-nombre">${escapeHtml(p.nombre)}</div><div class="prod-importe">${fmt(p.importe)}</div></div>${meta ? `<div class="prod-meta">${meta}</div>` : ""}${precios ? `<div class="prod-meta">${precios}</div>` : ""}</div>`;
 }
 
@@ -216,7 +217,7 @@ function crearHtmlTicketLegacy(ticket, cfg) {
 </style></head><body>
 <main class="ticket">
     <section class="marca">
-        ${ticket.empresa?.logo_url ? `<img src="${escapeHtml(ticket.empresa.logo_url)}" alt="Logo" style="display:block;max-width:100%;width:auto;height:18mm;object-fit:contain;margin:0 auto 2mm;">` : `<div class="empresa">${escapeHtml(ticket.empresa?.nombre ?? "BuhoPOS")}</div>`}
+        ${ticket.empresa?.logo_url ? `<img src="${escapeHtml(ticket.empresa.logo_url)}" alt="Logo" data-ticket-logo data-logo-fallback="${escapeHtml(ticket.empresa?.nombre ?? "Empresa")}" style="display:block;max-width:100%;width:auto;height:18mm;object-fit:contain;margin:0 auto 2mm;">` : `<div class="empresa">${escapeHtml(ticket.empresa?.nombre ?? "BuhoPOS")}</div>`}
         ${mostrarRfc && ticket.empresa?.rfc ? `<div>RFC: ${escapeHtml(ticket.empresa.rfc)}</div>` : ""}
         ${ticket.sucursal?.nombre ? `<div class="sucursal">${escapeHtml(ticket.sucursal.nombre)}</div>` : ""}
         ${ticket.reimpresion ? `<div class="copia">Copia / reimpresion</div>` : ""}

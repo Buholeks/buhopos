@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import http from "../lib/http";
 import { toastSuccess } from "../lib/alert";
+import { establecerEmpresaTicket, cargarConfigTicketDesdeServidor } from '../helpers/tickets/ticketConfigStore.js';
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
@@ -124,9 +125,12 @@ export const useAuthStore = defineStore("auth", {
       // Guardar el user sin la clave 'permisos' para no duplicar en el estado
       const { permisos, ...rest } = data;
       this.user = rest;
+      establecerEmpresaTicket(rest.empresa_id);
+      void cargarConfigTicketDesdeServidor().catch(() => {});
     },
 
     _clearUser() {
+      establecerEmpresaTicket(null);
       this.user = null;
       this.sucursales = [];
       this.permisos = [];

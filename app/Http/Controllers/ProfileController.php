@@ -215,7 +215,9 @@ class ProfileController extends Controller
 
     public function saveTicketConfig(Request $request): JsonResponse
     {
+        abort_unless($request->user()->tienePermiso('empresa.editar'), 403, 'Sin permiso para configurar el ticket de la empresa.');
         $request->validate(['config' => ['required', 'array']]);
+        app(\App\Services\TicketConfigValidator::class)->validate($request->input('config'));
         $empresa = $request->user()->empresa;
         $empresa->update(['ticket_config' => $request->input('config')]);
         return response()->json(['ok' => true]);

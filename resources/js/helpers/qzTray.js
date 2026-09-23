@@ -5,6 +5,10 @@ import { printError } from './printing/printErrors.js';
 const STORAGE_KEY = (perfilId) => `buhopos_qz_impresora_${perfilId}`;
 let seguridadConfigurada = false;
 let conexionEnCurso = null;
+let impresorasCache = null;
+let impresorasConsultadasEn = 0;
+let consultaImpresorasEnCurso = null;
+const IMPRESORAS_TTL_MS = 60000;
 
 // ── Certificado y firma (sin popup de confianza) ───────────────────────────────
 
@@ -44,6 +48,7 @@ export async function conectar() {
 
     conexionEnCurso = (async () => {
         try {
+            impresorasCache = null;
             configurarSeguridad();
             await qz.websocket.connect({ retries: 2, delay: 1 });
             return true;
@@ -67,12 +72,13 @@ export async function enviarQz(nombreImpresora, opciones, datos) {
     await asegurarConexion();
     if (!nombreImpresora) throw printError('PRINTER_NOT_FOUND', 'Selecciona una impresora.');
     let found;
-    try { found = await qz.printers.find(); }
+    try { found = await consultarImpresoras(); }
     catch (error) { throw printError('PRINT_ERROR', `No se pudo consultar la lista de impresoras QZ. No se envió el trabajo. ${error.message ?? error}`, error); }
     const printers = Array.isArray(found) ? found : [found];
     if (!printers.includes(nombreImpresora)) throw printError('PRINTER_NOT_FOUND', `La cola «${nombreImpresora}» no está disponible en este equipo.`);
     try { await qz.print(qz.configs.create(nombreImpresora, opciones), datos); }
     catch (error) {
+        impresorasCache = null;
         throw printError('QZ_SEND_FAILED', `${error.message ?? error}. Revisa la cola y el papel antes de reintentar; el trabajo podría haber sido recibido.`, error);
     }
     return { status: 'submitted' }; // no confirma salida física
@@ -84,10 +90,31 @@ export function isConectado() {
 
 // ── Impresoras ────────────────────────────────────────────────────────────────
 
+async function consultarImpresoras(forzar = false) {
+    if (consultaImpresorasEnCurso) return consultaImpresorasEnCurso;
+    if (!forzar && impresorasCache && Date.now() - impresorasConsultadasEn < IMPRESORAS_TTL_MS) {
+        return [...impresorasCache];
+    }
+    consultaImpresorasEnCurso = (async () => {
+        try {
+            const todas = await qz.printers.find();
+            impresorasCache = Array.isArray(todas) ? todas : [todas];
+            impresorasConsultadasEn = Date.now();
+            return [...impresorasCache];
+        } catch (error) {
+            impresorasCache = null;
+            throw error;
+        } finally {
+            consultaImpresorasEnCurso = null;
+        }
+    })();
+    return consultaImpresorasEnCurso;
+}
+
 export async function listarImpresoras() {
     await asegurarConexion();
-    const todas = await qz.printers.find();
-    return Array.isArray(todas) ? todas : [todas];
+    // El selector siempre permite detectar impresoras recién instaladas.
+    return consultarImpresoras(true);
 }
 
 // ── Preferencia local (por dispositivo) ──────────────────────────────────────

@@ -7,14 +7,16 @@
                     <p class="text-sm text-slate-500">Arrastra campos en el encabezado y pie, ajusta las secciones fijas y guarda.</p>
                 </div>
                 <div class="flex gap-2">
-                    <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold" @click="restaurar">Restablecer</button>
+                    <span class="self-center text-xs text-slate-500">{{ cambiosPendientes ? 'Cambios sin guardar' : '' }}</span>
+                    <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold" :disabled="cargando || guardando" @click="restaurar">Restablecer</button>
                     <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60" :disabled="imprimiendoPrueba" @click="imprimirPrueba">{{ imprimiendoPrueba ? "Imprimiendo..." : "Imprimir prueba" }}</button>
-                    <button class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white" @click="guardar">Guardar</button>
+                    <button class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50" :disabled="cargando || guardando || !!errorCarga || !!validacion.error" @click="guardar">{{ guardando ? 'Guardando…' : 'Guardar' }}</button>
                 </div>
             </div>
         </header>
 
-        <main class="mx-auto grid max-w-[1500px] gap-4 p-4 xl:grid-cols-[280px_1fr_280px]">
+        <p v-if="errorCarga" role="alert" class="p-4 text-red-700">{{ errorCarga }} <button class="underline" @click="cargarDiseno">Reintentar carga</button></p>
+        <main :inert="cargando || guardando" class="mx-auto grid max-w-[1500px] gap-4 p-4 xl:grid-cols-[280px_1fr_280px]">
             <!-- Panel izquierdo -->
             <aside class="space-y-4">
                 <!-- Papel -->
@@ -36,11 +38,11 @@
                     <div class="mb-3 flex gap-1 rounded-xl bg-slate-100 p-1 text-xs font-bold">
                         <button
                             :class="['flex-1 rounded-lg py-1.5 transition-all', zonaActiva === 'encabezado' ? 'bg-white shadow text-sky-700' : 'text-slate-500']"
-                            @click="zonaActiva = 'encabezado'"
+                            @click="seleccionar('encabezado', null)"
                         >Encabezado</button>
                         <button
                             :class="['flex-1 rounded-lg py-1.5 transition-all', zonaActiva === 'pie' ? 'bg-white shadow text-sky-700' : 'text-slate-500']"
-                            @click="zonaActiva = 'pie'"
+                            @click="seleccionar('pie', null)"
                         >Pie</button>
                     </div>
                     <div v-for="grupo in variables" :key="grupo.grupo" class="mb-3">
@@ -122,6 +124,7 @@
                         <option v-for="p in impresoras" :key="p" :value="p">{{ p }}</option>
                     </select>
                     <p v-if="impresoraLocal" class="mt-1 text-xs font-semibold text-emerald-700">✓ Impresión directa activa en esta PC</p>
+                    <p v-if="errorQz" role="alert" class="mt-2 text-xs text-red-700">{{ errorQz }}</p>
                     <div class="mt-3 space-y-2 border-t pt-3 text-xs">
                         <p class="text-slate-500">Tickets: HTML (clásico, depende del driver) o raster (imagen ESC/POS, controlado por BuhoPOS). RAW de texto: solo diagnóstico.</p>
                         <label v-if="impresoraLocal" class="block">Modo de impresión de tickets en este terminal
@@ -130,6 +133,18 @@
                                 <option value="qz-raster">Raster ESC/POS (usar si el driver no termina el ticket)</option>
                             </select>
                         </label>
+                        <p v-if="printerCfg.mode !== 'qz-raster'" class="text-slate-500">En HTML y navegador, el avance y corte dependen del controlador de la impresora.</p>
+                        <template v-if="printerCfg.mode === 'qz-raster'">
+                        <label class="block">Ancho imprimible (mm)
+                            <input v-model.number="printerCfg.printableWidth" type="number" min="20" :max="cfg.ancho_mm" step="0.5" class="input" @change="guardarTerminal">
+                        </label>
+                        <label class="block">Resolución (DPI)
+                            <select v-model.number="printerCfg.dpi" class="input" @change="guardarTerminal"><option :value="203">203</option><option :value="300">300</option><option :value="600">600</option></select>
+                        </label>
+                        <label class="flex gap-2"><input v-model="printerCfg.autoCut" type="checkbox" @change="guardarTerminal"> Corte automático</label>
+                        </template>
+                        <details v-if="impresoraLocal" :open="printerCfg.mode === 'qz-raster'">
+                        <summary class="cursor-pointer font-semibold">Avance y corte ESC/POS (raster y pruebas RAW)</summary>
                         <label class="block">Avance al terminar (líneas)
                             <input v-model.number="printerCfg.feedAfterPrint" type="number" min="0" max="20" class="input" @change="guardarTerminal">
                         </label>
@@ -139,6 +154,10 @@
                             </select>
                         </label>
                         <label class="flex gap-2"><input v-model="printerCfg.forceRaw" type="checkbox" @change="guardarTerminal"> RAW directo (si el driver no admite RAW)</label>
+                        </details>
+                        <label v-if="printerCfg.mode === 'qz-raster'" class="block">Alto de bloque raster (puntos, menor = más comandos más chicos)
+                            <input v-model.number="printerCfg.raster.blockHeight" type="number" min="8" max="500" step="8" class="input" @change="guardarTerminal">
+                        </label>
                         <div class="flex flex-wrap gap-2">
                             <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('html')">Prueba HTML QZ</button>
                             <button class="rounded border px-2 py-2 disabled:opacity-40" :disabled="imprimiendoPrueba || !impresoraLocal" @click="probarTransporte('raster')">Prueba raster QZ</button>
@@ -152,8 +171,15 @@
 
             <!-- Centro: lienzo -->
             <section class="min-h-[70vh] overflow-auto rounded-2xl border border-slate-200 bg-slate-200 p-8 shadow-inner">
+                <div class="mb-3 flex flex-wrap gap-2 text-xs">
+                    <button class="rounded bg-white px-3 py-2" @click="vistaImpresion = !vistaImpresion">{{ vistaImpresion ? 'Volver al editor' : 'Previsualizar ticket' }}</button>
+                </div>
+                <p v-if="validacion.error" role="alert" class="mb-3 text-sm text-red-700">{{ validacion.error }}</p>
+                <p v-if="validacion.warnings.length" class="mb-3 text-xs text-amber-800">Algunos elementos pueden quedar muy cerca del borde del papel.</p>
+                <iframe v-if="vistaImpresion && !validacion.error" title="Vista de impresión del ticket" sandbox="allow-same-origin" :srcdoc="validacion.html" class="h-[850px] w-full border-0 bg-white" />
+                <div v-show="!vistaImpresion">
                 <div class="mb-3 text-xs font-bold text-slate-500">
-                    {{ cfg.ancho_mm }} mm · cuadrícula 1 mm · arrastra elementos, selecciona para editar propiedades
+                    {{ cfg.ancho_mm }} mm · mueve los elementos para ajustar el diseño
                 </div>
                 <div class="inline-block bg-[linear-gradient(to_right,#dbeafe_1px,transparent_1px),linear-gradient(to_bottom,#dbeafe_1px,transparent_1px)] bg-[size:18px_18px] p-1">
                     <!-- Papel -->
@@ -280,6 +306,7 @@
                         </div>
                     </div>
                 </div>
+                </div>
             </section>
 
             <!-- Panel derecho: propiedades -->
@@ -354,10 +381,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onBeforeUnmount, reactive, ref } from "vue";
+import { onBeforeRouteLeave } from 'vue-router';
 import { swal as Swal } from "@/lib/alert";
 import { conectar, isConectado, listarImpresoras, obtenerImpresoraTicket, guardarImpresoraTicket } from "@/helpers/qzTray";
 import { obtenerConfigTicket, guardarConfigTicket, cargarConfigTicketDesdeServidor, imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
+import { establecerEmpresaTicket } from "@/helpers/tickets/ticketConfigStore.js";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import { obtenerPrinterConfig, guardarPrinterConfig } from "@/helpers/printing/printerConfig.js";
 import { imprimirDocumento } from "@/helpers/printing/printerService.js";
@@ -406,7 +435,8 @@ const variables = [
     },
 ];
 
-function uid() { return crypto.randomUUID(); }
+let siguienteId = 0;
+function uid() { return globalThis.crypto?.randomUUID?.() ?? `ticket-${Date.now()}-${++siguienteId}`; }
 
 function configDefault(anchoMm = 80, margenMm = 3.5) {
     const a = anchoMm - 2 * margenMm;
@@ -461,26 +491,44 @@ const impresoraLocal = ref("");
 const imprimiendoPrueba = ref(false);
 const printerCfg = reactive(obtenerPrinterConfig());
 const estadoPrueba = ref('');
+const cargando = ref(true);
+const guardando = ref(false);
+const errorCarga = ref('');
+const errorQz = ref('');
+const guardadoSnapshot = ref('');
+const cambiosPendientes = computed(() => !!guardadoSnapshot.value && JSON.stringify(cfg) !== guardadoSnapshot.value);
+const vistaImpresion = ref(false);
+const muestraCompleta = ref(false);
+let monitorQz;
 
 const anchoInterior = computed(() => cfg.ancho_mm - 2 * cfg.margen_mm);
 
-const muestra = crearTicketVenta({
+const muestra = computed(() => crearTicketVenta({
     folio: "VTA-000123",
     created_at: new Date().toISOString(),
     empresa: auth.user?.empresa ?? { nombre: "Mi Empresa S.A.", rfc: "XAXX010101000" },
     sucursal: { nombre: "Sucursal Centro", direccion: "Calle 5 de Mayo #10", telefono: "55 1234 5678" },
     vendedor: { name: "Vendedor" },
     cliente: null,
-    pagos: [
+    pagos: muestraCompleta.value ? [
+        { forma_pago: 'efectivo', monto: 200, monto_recibido: 250, cambio: 50 },
+        { forma_pago: 'tarjeta', monto: 230 },
+    ] : [
         { forma_pago: "efectivo", monto: 450, monto_recibido: 500, cambio: 50 },
     ],
-    subtotal: 450,
+    subtotal: muestraCompleta.value ? 430 : 450,
     descuento: 0,
-    total: 450,
+    total: muestraCompleta.value ? 430 : 450,
     detalles: [
-        { cantidad: 2, producto_nombre: "Producto A", precio_aplicado: 100, subtotal: 200 },
+        { cantidad: 2, producto_nombre: "Producto A", precio_aplicado: muestraCompleta.value ? 90 : 100, precio_lista_original: 100, descuento: muestraCompleta.value ? 20 : 0, subtotal: muestraCompleta.value ? 180 : 200,
+          variante_nombre: muestraCompleta.value ? 'Color: azul / Tamaño: grande' : null, serie: muestraCompleta.value ? { imei: '123456789012345' } : null },
         { cantidad: 1, producto_nombre: "Producto B", precio_aplicado: 250, subtotal: 250 },
     ],
+}));
+const validacion = computed(() => {
+    const warnings = [];
+    try { return { html: crearHtmlTicket(muestra.value, cfg, { onWarning: w => warnings.push(w) }), warnings, error: '' }; }
+    catch (error) { return { html: '', warnings, error: error.message }; }
 });
 
 const elemento = computed(() => {
@@ -500,9 +548,16 @@ const secStl = computed(() => ({ fontSize: `${7 * e.value * 0.3528}px`, fontWeig
 const filaStl = computed(() => ({ display: "flex", justifyContent: "space-between", gap: `${3 * e.value}px`, fontSize: `${9 * e.value * 0.3528}px` }));
 const fmt = (v) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(Number(v ?? 0));
 
-onMounted(async () => {
+async function cargarDiseno() {
+    cargando.value = true;
+    errorCarga.value = '';
+    try {
+    const empresaId = auth.user?.empresa_id ?? auth.user?.empresa?.id;
+    if (empresaId == null) throw new Error('No se pudo identificar la empresa de la sesión. Vuelve a iniciar sesión.');
+    establecerEmpresaTicket(empresaId);
     await cargarConfigTicketDesdeServidor();
     const guardado = obtenerConfigTicket();
+    crearHtmlTicket(muestra.value, guardado, { onWarning: () => {} });
     if (guardado?.encabezado?.elementos) {
         cfg.ancho_mm = guardado.ancho_mm ?? cfg.ancho_mm;
         cfg.margen_mm = guardado.margen_mm ?? cfg.margen_mm;
@@ -514,11 +569,25 @@ onMounted(async () => {
         Object.assign(cfg.resumen, guardado.resumen ?? {});
         Object.assign(cfg.pie, guardado.pie ?? {});
     }
+    guardadoSnapshot.value = JSON.stringify(cfg);
+    } catch (error) { errorCarga.value = `No se pudo cargar el diseño: ${error.message}`; }
+    finally { cargando.value = false; }
+}
+function advertirSalida(event) {
+    if (!cambiosPendientes.value) return;
+    event.preventDefault(); event.returnValue = '';
+}
+onBeforeRouteLeave(() => !cambiosPendientes.value || window.confirm('Hay cambios sin guardar. ¿Salir y descartarlos?'));
+onMounted(async () => {
+    window.addEventListener('beforeunload', advertirSalida);
+    monitorQz = setInterval(() => { conectado.value = isConectado(); }, 1000);
+    impresoraLocal.value = obtenerImpresoraTicket() || '';
+    await cargarDiseno();
     conectado.value = isConectado();
     if (!conectado.value) conectado.value = await conectar();
     if (conectado.value) await recargarImpresoras();
-    impresoraLocal.value = obtenerImpresoraTicket() || "";
 });
+onBeforeUnmount(() => { clearInterval(monitorQz); window.removeEventListener('beforeunload', advertirSalida); });
 
 function seleccionar(zona, id) {
     zonaActiva.value = zona;
@@ -574,9 +643,18 @@ function agregarCodigoBarras() {
     seleccionadoId.value = zona.elementos.at(-1).id;
 }
 
-function guardar() {
-    guardarConfigTicket(JSON.parse(JSON.stringify(cfg)));
-    Swal.fire({ icon: "success", title: "Configuración guardada", timer: 1500, showConfirmButton: false });
+async function guardar() {
+    if (guardando.value || cargando.value || errorCarga.value) return;
+    guardando.value = true;
+    try {
+        if (validacion.value.error) throw new Error(validacion.value.error);
+        const snapshot = JSON.stringify(cfg);
+        await guardarConfigTicket(JSON.parse(snapshot));
+        guardadoSnapshot.value = snapshot;
+        await Swal.fire({ icon: 'success', title: 'Configuración guardada', timer: 1500, showConfirmButton: false });
+    } catch (error) {
+        await Swal.fire({ icon: 'error', title: 'No se guardó la configuración', text: Object.values(error.response?.data?.errors ?? {}).flat().join(' ') || error.message });
+    } finally { guardando.value = false; }
 }
 
 function restaurar() {
@@ -592,11 +670,16 @@ function restaurar() {
 }
 
 async function intentarConectar() {
+    errorQz.value = '';
     conectado.value = await conectar();
     if (conectado.value) await recargarImpresoras();
+    else errorQz.value = 'No se pudo conectar. Inicia QZ Tray e inténtalo de nuevo.';
 }
 async function recargarImpresoras() {
-    try { impresoras.value = await listarImpresoras(); } catch { impresoras.value = []; }
+    errorQz.value = '';
+    try { impresoras.value = await listarImpresoras(); }
+    catch (error) { errorQz.value = `No se pudo actualizar la lista: ${error.message}`; }
+    conectado.value = isConectado();
 }
 function guardarImpresora() {
     guardarImpresoraTicket(impresoraLocal.value);
@@ -606,7 +689,7 @@ function guardarImpresora() {
 }
 
 function guardarTerminal() {
-    Object.assign(printerCfg, guardarPrinterConfig({ ...printerCfg, printerName: impresoraLocal.value }));
+    Object.assign(printerCfg, guardarPrinterConfig({ ...printerCfg, paperWidth: cfg.ancho_mm, printerName: impresoraLocal.value }));
 }
 
 async function probarTransporte(tipo) {
@@ -624,9 +707,10 @@ async function probarTransporte(tipo) {
         const config = { ...printerCfg, autoCut: true,
             mode: tipo === 'html' ? 'qz-html' : tipo === 'raster' ? 'qz-raster' : 'qz-raw' };
         const result = await imprimirDocumento({ config, paperWidth: cfg.ancho_mm,
-            renderHtml: (tipo === 'html' || tipo === 'raster') ? (onWarning) => crearHtmlTicket(muestra, cfg, { onWarning }) : undefined,
+            renderHtml: (tipo === 'html' || tipo === 'raster') ? (onWarning) => crearHtmlTicket(muestra.value, cfg, { onWarning }) : undefined,
             raw: tipo === 'raw' ? crearDiagnostico(config) : tipo === 'cut' ? crearPruebaCorte(config) : undefined });
         estadoPrueba.value = 'Trabajo enviado a QZ. Comprueba físicamente texto, avance y corte; el envío no confirma la impresión.';
+        if (result.tiempos) estadoPrueba.value += ` Preparación: ${(result.tiempos.preparacionMs / 1000).toFixed(2)} s. Envío: ${(result.tiempos.envioMs / 1000).toFixed(2)} s.`;
         if (result.warnings?.length) estadoPrueba.value += ' Aviso: hay elementos fuera de sus cajas; se conservaron sus posiciones. Revisa los bordes y textos.';
     } catch (error) {
         // No fallback automático: una respuesta incierta podría duplicar papel.
@@ -635,11 +719,11 @@ async function probarTransporte(tipo) {
             showDenyButton: tipo !== 'cut', denyButtonText: 'Imprimir con método clásico' });
         if (decision.isConfirmed) {
             imprimiendoPrueba.value = false;
-            return probarTransporte(tipo);
+            return await probarTransporte(tipo);
         }
         if (decision.isDenied) {
             try {
-                await imprimirTicketVenta(muestra, null, cfg);
+                await imprimirTicketVenta(muestra.value, null, cfg);
             } catch (classicError) {
                 await Swal.fire({ title: printErrorTitle(classicError), text: classicError.message, icon: 'error' });
             }
@@ -651,7 +735,7 @@ async function imprimirPrueba() {
     if (imprimiendoPrueba.value) return;
     imprimiendoPrueba.value = true;
     try {
-        await imprimirTicketVenta(muestra, impresoraLocal.value || null, cfg);
+        await imprimirTicketVenta(muestra.value, impresoraLocal.value || null, cfg);
     } catch (err) {
         Swal.fire(printErrorTitle(err), err.message, "error");
     } finally {

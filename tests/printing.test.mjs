@@ -31,6 +31,8 @@ async function regressionModules() {
         ["'./printErrors.js'", JSON.stringify(errorsUrl)],
     ]);
     const entryUrl = await sourceWithDependencies('../resources/js/helpers/tickets/imprimirTicketVenta.js', [
+        ["'./ticketConfigStore.js'", JSON.stringify(sourceUrl(`export const obtenerConfigTicket = () => JSON.parse(localStorage.getItem('buhopos_ticket_config') || '{}'); export const cargarConfigTicketDesdeServidor = async () => obtenerConfigTicket(); export const guardarConfigTicket = () => { throw Error('No guardar'); };`))],
+        ["'../printing/printErrors.js'", JSON.stringify(errorsUrl)],
         ['"../printing/printerService.js"', JSON.stringify(serviceUrl)],
         ['"../printing/printerConfig.js"', JSON.stringify(configUrl)],
         ['"../printing/ticketRenderer.js"', JSON.stringify(rendererUrl)],
@@ -123,7 +125,7 @@ test('config real empresa 10: venta y ambas reimpresiones llegan a browser/QZ HT
         globalThis.__saleDialogVisible = true;
         await entry.imprimirTicketVenta(crearTicketVenta({}), null, historical);
         assert.equal(globalThis.__regressionWarnings.length, 7, 'No reemplazar el modal de cobro por un toast');
-        assert.match(globalThis.__saleDialogFooter, /Se conservó su posición/);
+        assert.match(globalThis.__saleDialogFooter, /ticket se imprimió/);
         globalThis.__saleDialogVisible = false;
         const invalid = structuredClone(historical);
         invalid.encabezado.elementos[0].x = Infinity;
@@ -253,6 +255,46 @@ test('QZ 2.2.6: firma valida JSON completo y etiquetas mantienen esquema pixel',
     await assert.rejects(mod.enviarQz('Epson', {}, []), { code: 'QZ_SEND_FAILED' });
     qz.websocket.connect = async () => { throw new Error('Offline'); };
     await assert.rejects(mod.enviarQz('Epson', {}, []), { code: 'QZ_UNAVAILABLE' });
+});
+
+test('QZ reutiliza impresoras y renueva al vencer, refrescar, reconectar o fallar el envío', async () => {
+    let active = true, queries = 0, sends = 0, fail = false;
+    globalThis.__printerCacheTime = 1000;
+    const qz = {
+        security: { setCertificatePromise() {}, setSignatureAlgorithm() {}, setSignaturePromise() {} },
+        api: { setSha256Type() {} },
+        websocket: { isActive: () => active, connect: async () => { active = true; } },
+        configs: { create: (name, options) => ({ name, options }) },
+        printers: { find: async () => { queries++; return ['Epson']; } },
+        print: async () => { sends++; if (fail) throw new Error('Spool error'); },
+    };
+    globalThis.__printerCacheQz = qz;
+    const url = await sourceWithDependencies('../resources/js/helpers/qzTray.js', [
+        ['import qz from "qz-tray";', 'const qz = globalThis.__printerCacheQz;'],
+        ['import http from "@/lib/http";', 'const http = {};'],
+        ["'./printing/printErrors.js'", JSON.stringify(new URL('../resources/js/helpers/printing/printErrors.js', import.meta.url).href)],
+        ['Date.now()', 'globalThis.__printerCacheTime'],
+    ]);
+    const mod = await import(url);
+    await mod.listarImpresoras();
+    await Promise.all([mod.enviarQz('Epson', {}, []), mod.enviarQz('Epson', {}, [])]);
+    assert.equal(queries, 1, 'la preparación evita consultar de nuevo al imprimir');
+    globalThis.__printerCacheTime += 60001;
+    await Promise.all([mod.enviarQz('Epson', {}, []), mod.enviarQz('Epson', {}, [])]);
+    assert.equal(queries, 2, 'comparte una única renovación concurrente');
+    await mod.listarImpresoras();
+    assert.equal(queries, 3);
+    active = false;
+    await mod.enviarQz('Epson', {}, []);
+    assert.equal(queries, 4);
+    fail = true;
+    await assert.rejects(mod.enviarQz('Epson', {}, []), { code: 'QZ_SEND_FAILED' });
+    assert.equal(sends, 6, 'no reintenta un envío fallido');
+    fail = false;
+    await mod.enviarQz('Epson', {}, []);
+    assert.equal(queries, 5);
+    await assert.rejects(mod.enviarQz('missing', {}, []), { code: 'PRINTER_NOT_FOUND' });
+    assert.equal(sends, 7, 'no envía a impresoras desconocidas');
 });
 
 test('servicio RAW: un envío, sin reintento ni navegador, y bloqueo de ticket gráfico', async () => {

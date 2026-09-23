@@ -62,7 +62,7 @@ const items = [
         icon: Ticket,
         to: { name: "ticket-config" },
         badge: "Disponible",
-        permiso: "ventas.crear",
+        permiso: "empresa.editar",
     },
     {
         label: "Vigencia de pedidos y apartados",

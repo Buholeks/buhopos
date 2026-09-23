@@ -381,7 +381,7 @@ import {
 } from "@/helpers/ventasEnEspera";
 import { crearTicketVenta } from "@/helpers/tickets/ticketVenta";
 import { imprimirTicketVenta } from "@/helpers/tickets/imprimirTicketVenta";
-import { conectar, obtenerImpresoraTicket } from "@/helpers/qzTray";
+import { listarImpresoras, obtenerImpresoraTicket } from "@/helpers/qzTray";
 import { X } from "lucide-vue-next";
 
 const authStore = useAuthStore();
@@ -1685,7 +1685,7 @@ onMounted(async () => {
     document.addEventListener("keydown", onKeydown);
     await cargarCorteActual();
     cargarVentasEnEspera();
-    if (obtenerImpresoraTicket()) void conectar();
+    if (obtenerImpresoraTicket()) void listarImpresoras().catch(() => {});
 
     nextTick(() => searchRef.value?.focus?.());
 });

@@ -6,12 +6,29 @@ import { printError, asPrintError } from './printErrors.js';
 
 async function esperarRecursos(doc, onWarning) {
     let timer;
+    let modificado = false;
+    const cargarImagen = async img => {
+        let limite;
+        try {
+            await Promise.race([
+                img.decode(),
+                new Promise((_, reject) => { limite = setTimeout(() => reject(new Error('La imagen no respondió.')), 5000); }),
+            ]);
+        } catch (error) {
+            if (!img.hasAttribute('data-ticket-logo')) throw error;
+            const texto = doc.createElement('span');
+            texto.textContent = img.getAttribute('data-logo-fallback') || 'Empresa';
+            img.replaceWith(texto);
+            modificado = true;
+            onWarning({ code: 'LOGO_UNAVAILABLE', message: 'No se pudo cargar el logo; se imprimió el nombre de la empresa.' });
+        } finally { clearTimeout(limite); }
+    };
     try {
         void doc.body.offsetHeight; // inicia layout y carga de fuentes antes de fonts.ready
         await Promise.race([
             Promise.all([
                 doc.fonts?.ready,
-                ...Array.from(doc.images, img => img.decode()),
+                ...Array.from(doc.images, cargarImagen),
             ]),
             new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('No terminaron de cargar las imágenes del ticket.')), 15000); }),
         ]);
@@ -20,11 +37,12 @@ async function esperarRecursos(doc, onWarning) {
                 onWarning({ code: 'TEXT_OVERFLOW', message: 'Un texto supera la altura de su campo. Se conserva visible; revisa el resultado impreso.' });
             }
         }
+        return modificado;
     } finally { clearTimeout(timer); }
 }
 
-async function imprimirBrowser(html, onWarning) {
-    const ventana = window.open('', 'ticket_venta', 'width=420,height=720');
+async function imprimirBrowser(html, onWarning, ventanaPreparada) {
+    const ventana = ventanaPreparada ?? window.open('', 'ticket_venta', 'width=420,height=720');
     if (!ventana) throw printError('POPUP_BLOCKED', 'Permite ventanas emergentes para imprimir el ticket.');
     try {
         ventana.document.open();
@@ -48,7 +66,7 @@ async function enviarTrabajo(...args) {
 
 // Serializa trabajos QZ en esta pestaña. Nunca reintenta ni cambia de transporte.
 let cola = Promise.resolve();
-export async function imprimirDocumento({ html, renderHtml, raw, config, paperWidth }) {
+export async function imprimirDocumento({ html, renderHtml, raw, config, paperWidth, browserWindow }) {
     const cfg = normalizarPrinterConfig(config);
     const warnings = [];
     const onWarning = warning => { warnings.push(warning); console.warn('[ticket]', warning); };
@@ -60,13 +78,14 @@ export async function imprimirDocumento({ html, renderHtml, raw, config, paperWi
     if (cfg.mode === 'browser') {
         html = generarHtml();
         if (!html) throw printError('PRINT_ERROR', 'La prueba RAW requiere QZ Tray.');
-        return { ...await imprimirBrowser(html, onWarning), warnings };
+        return { ...await imprimirBrowser(html, onWarning, browserWindow), warnings };
     }
     if (!cfg.printerName) throw printError('PRINTER_NOT_FOUND', 'Selecciona una impresora QZ.');
     if (cfg.mode === 'qz-raw' && typeof raw !== 'string') {
         throw printError('PRINT_ERROR', 'RAW solo está habilitado para diagnósticos; el ticket gráfico aún no está habilitado.');
     }
     const ejecutar = async () => {
+        const inicio = performance.now();
         if (cfg.mode === 'qz-raw') {
             return enviarTrabajo(cfg.printerName, { copies: 1, forceRaw: cfg.forceRaw }, [
                 { type: 'raw', format: 'command', flavor: 'hex', data: aHex(raw) },
@@ -80,24 +99,27 @@ export async function imprimirDocumento({ html, renderHtml, raw, config, paperWi
         try {
             const doc = frame.contentDocument;
             doc.open(); doc.write(html); doc.close();
-            await esperarRecursos(doc, onWarning);
+            const modificado = await esperarRecursos(doc, onWarning);
+            if (modificado) html = '<!doctype html>' + doc.documentElement.outerHTML;
             if (cfg.mode === 'qz-raster') {
                 // Rasteriza el ticket ya maquetado por el navegador y lo envía como
                 // imagen ESC/POS + corte propios: evita depender del driver de Windows.
                 const elemento = doc.querySelector('.ticket') ?? doc.body;
                 const bitmap = await capturarBitmap(elemento, { dpi: cfg.dpi, printableWidth: cfg.printableWidth });
+                const preparado = performance.now();
                 const result = await enviarTrabajo(cfg.printerName, { copies: 1, forceRaw: cfg.forceRaw }, [
                     { type: 'raw', format: 'command', flavor: 'hex', data: aHex(ticketAEscpos(bitmap, cfg)) },
                 ]);
-                return { ...result, warnings };
+                return { ...result, warnings, tiempos: { preparacionMs: preparado - inicio, envioMs: performance.now() - preparado } };
             }
+            const preparado = performance.now();
             const result = await enviarTrabajo(cfg.printerName, {
                 // Conserva el tamaño clásico QZ en esta primera iteración.
                 size: { width: paperWidth ?? cfg.paperWidth, height: 3000 }, units: 'mm',
                 margins: 0, colorType: 'blackwhite', duplex: false, copies: 1,
                 scaleContent: false, rasterize: false,
             }, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
-            return { ...result, warnings };
+            return { ...result, warnings, tiempos: { preparacionMs: preparado - inicio, envioMs: performance.now() - preparado } };
         } finally { frame.remove(); }
     };
     const trabajo = cola.then(ejecutar);

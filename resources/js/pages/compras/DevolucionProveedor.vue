@@ -1,5 +1,5 @@
 <template>
-    <main class="mx-auto max-w-6xl space-y-4 p-3 sm:p-6">
+    <main class="w-full space-y-4 p-3 sm:p-6">
         <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h1 class="text-lg font-semibold">Devolución a proveedor</h1>
             <p class="mt-1 text-xs text-slate-500">Retira mercancía disponible y registra el importe que debe compensar el proveedor.</p>

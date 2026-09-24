@@ -11,7 +11,9 @@
         :class="[
             'fixed inset-y-0 left-0 z-50 flex w-72 shrink-0 flex-col bg-slate-950 text-slate-200',
             'border-r border-slate-800 transition-transform duration-300 ease-in-out',
-            'md:relative md:w-64 md:translate-x-0',
+            desktopHidden
+                ? 'md:hidden'
+                : 'md:relative md:w-64 md:translate-x-0',
             open ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
         ]"
     >
@@ -115,6 +117,10 @@ import { useAuthStore } from "@/stores/auth";
 
 defineProps({
     open: {
+        type: Boolean,
+        default: false,
+    },
+    desktopHidden: {
         type: Boolean,
         default: false,
     },

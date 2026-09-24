@@ -1,7 +1,7 @@
 <template>
     <div class="min-h-screen bg-slate-50 text-slate-900">
         <div class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
-            <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+            <div class="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
                 <div class="flex items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                         <History class="h-5 w-5" />
@@ -49,7 +49,7 @@
             </div>
         </div>
 
-        <main class="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+        <main class="w-full space-y-5 px-4 py-5 sm:px-6 lg:px-8">
             <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto]">
                     <BaseSearchSelect

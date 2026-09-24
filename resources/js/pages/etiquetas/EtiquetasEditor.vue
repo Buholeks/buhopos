@@ -1,7 +1,7 @@
 <template>
     <div class="min-h-screen bg-slate-100">
         <header class="border-b border-slate-200 bg-white px-4 py-3">
-            <div class="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3">
+            <div class="flex w-full flex-wrap items-center justify-between gap-3">
                 <div><h1 class="text-xl font-black">Diseñador de etiquetas</h1><p class="text-sm text-slate-500">Arrastra campos, ajusta medidas y guarda plantillas reutilizables.</p></div>
                 <div class="flex gap-2">
                     <button class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold" @click="nueva">Nueva plantilla</button>
@@ -11,7 +11,7 @@
             </div>
         </header>
 
-        <main class="mx-auto grid max-w-[1500px] gap-4 p-4 xl:grid-cols-[280px_1fr_300px]">
+        <main class="grid w-full gap-4 p-4 xl:grid-cols-[280px_1fr_300px]">
             <aside class="space-y-4">
                 <section class="rounded-2xl bg-white p-4 shadow-sm">
                     <label class="text-xs font-bold uppercase text-slate-500">Plantilla</label>

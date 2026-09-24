@@ -1,7 +1,7 @@
 <template>
     <div class="h-screen flex bg-slate-100 overflow-hidden">
         <!-- Sidebar -->
-        <AppNav v-model:open="navOpen" />
+        <AppNav v-model:open="navOpen" :desktop-hidden="navHidden" />
 
         <!-- Right panel -->
         <div class="flex-1 flex flex-col min-w-0">
@@ -11,10 +11,22 @@
             >
                 <!-- Left -->
                 <div class="flex items-center gap-2 sm:gap-4">
-                    <!-- Hamburger – mobile only -->
+                    <!-- Hamburger -->
                     <button
                         class="md:hidden p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                        title="Abrir menú"
+                        aria-label="Abrir menú"
                         @click="navOpen = true"
+                    >
+                        <Menu class="h-5 w-5" />
+                    </button>
+
+                    <button
+                        class="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                        :title="navHidden ? 'Mostrar menú' : 'Ocultar menú'"
+                        :aria-label="navHidden ? 'Mostrar menú' : 'Ocultar menú'"
+                        :aria-pressed="navHidden"
+                        @click="toggleDesktopNav"
                     >
                         <Menu class="h-5 w-5" />
                     </button>
@@ -173,8 +185,30 @@ const auth = useAuthStore();
 const router = useRouter();
 const loading = ref(false);
 const navOpen = ref(false);
+const navHidden = ref(readNavPreference());
 const traspasosPendientes = ref(0);
 let traspasosTimer = null;
+
+function readNavPreference() {
+    try {
+        return localStorage.getItem("buhopos:sidebar:hidden") === "1";
+    } catch {
+        return false;
+    }
+}
+
+function toggleDesktopNav() {
+    navHidden.value = !navHidden.value;
+
+    try {
+        localStorage.setItem(
+            "buhopos:sidebar:hidden",
+            navHidden.value ? "1" : "0",
+        );
+    } catch {
+        // Si el navegador bloquea localStorage, se conserva durante la sesión.
+    }
+}
 
 const alertaSuscripcion = computed(() => {
     if (!auth.esSuperAdmin) return null;

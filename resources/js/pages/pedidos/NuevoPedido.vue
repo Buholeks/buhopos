@@ -1,5 +1,5 @@
 <template>
-    <main class="mx-auto max-w-6xl space-y-4">
+    <main class="w-full space-y-4">
         <header
             class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
         >

@@ -1,7 +1,7 @@
 <template>
     <main class="min-h-screen bg-slate-50 text-slate-900">
         <section class="border-b border-slate-200 bg-white">
-            <div class="mx-auto max-w-5xl px-4 py-5 sm:px-6">
+            <div class="w-full px-4 py-5 sm:px-6">
                 <div class="flex items-start gap-3">
                     <div
                         class="grid h-11 w-11 place-items-center rounded-2xl bg-red-50 text-red-600 ring-1 ring-red-100"
@@ -20,7 +20,7 @@
             </div>
         </section>
 
-        <section class="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6">
+        <section class="w-full space-y-5 px-4 py-6 sm:px-6">
             <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <label class="mb-2 block text-sm font-medium text-slate-700">
                     Numero de ticket

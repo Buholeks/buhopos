@@ -5,7 +5,7 @@
             class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur"
         >
             <div
-                class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between"
+                class="flex w-full flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between"
             >
                 <div class="flex items-start gap-3">
                     <div
@@ -31,7 +31,7 @@
             </div>
         </div>
 
-        <div class="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div class="w-full space-y-6 px-4 py-6 sm:px-6 lg:px-8">
             <!-- FILTROS -->
             <section
                 class="rounded-2xl border border-slate-200 bg-white shadow-sm"

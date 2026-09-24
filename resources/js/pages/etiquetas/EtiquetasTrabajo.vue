@@ -1,7 +1,7 @@
 <template>
     <div class="min-h-screen bg-slate-50">
         <header class="border-b border-slate-200 bg-white px-4 py-4">
-            <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div class="flex w-full flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 class="text-xl font-black text-slate-950">Etiquetas de precio</h1>
                     <p class="text-sm text-slate-500">Selecciona artículos, cantidades y precio antes de imprimir.</p>
@@ -13,7 +13,7 @@
             </div>
         </header>
 
-        <main class="mx-auto grid max-w-7xl gap-5 p-4 lg:grid-cols-[1fr_360px]">
+        <main class="grid w-full gap-5 p-4 lg:grid-cols-[1fr_360px]">
             <section class="space-y-4">
                 <div ref="buscadorRoot" class="rounded-2xl border border-slate-200 bg-white p-4">
                     <label class="text-xs font-bold uppercase text-slate-500">Agregar productos o variantes</label>

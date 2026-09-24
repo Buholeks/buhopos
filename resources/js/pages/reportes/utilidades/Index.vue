@@ -1,7 +1,7 @@
 <template>
     <div class="min-h-screen bg-slate-50 text-slate-900">
         <header class="border-b border-slate-200 bg-white">
-            <div class="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-4 sm:px-6">
+            <div class="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6">
                 <div>
                     <h1 class="text-xl font-semibold tracking-tight">Reporte de utilidades</h1>
                     <p class="mt-0.5 text-xs text-slate-500">
@@ -35,7 +35,7 @@
             </div>
         </header>
 
-        <main class="mx-auto max-w-[1600px] space-y-4 px-4 py-4 sm:px-6">
+        <main class="w-full space-y-4 px-4 py-4 sm:px-6">
             <section class="border border-slate-200 bg-white">
                 <div class="grid gap-3 p-3 md:grid-cols-3 xl:grid-cols-6">
                     <BaseInput v-model="f.fecha_desde" label="Desde" type="date" @change="buscar" />

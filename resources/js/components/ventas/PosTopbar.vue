@@ -2,7 +2,7 @@
     <div
         class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur"
     >
-        <div class="mx-auto flex max-w-7xl flex-col gap-1.5 px-3 py-1.5">
+        <div class="flex w-full flex-col gap-1.5 px-3 py-1.5">
             <!-- Fila superior -->
             <div
                 class="flex flex-col gap-1.5 lg:flex-row lg:items-center lg:justify-between"

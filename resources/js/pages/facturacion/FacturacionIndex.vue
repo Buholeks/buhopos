@@ -1,5 +1,5 @@
 <template>
-    <main class="mx-auto w-full max-w-7xl space-y-5">
+    <main class="w-full space-y-5">
         <!-- Encabezado -->
         <header
             class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"

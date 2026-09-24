@@ -31,7 +31,7 @@
             class="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur"
         >
             <div
-                class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6"
+                class="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6"
             >
                 <div class="flex items-center gap-3">
                     <div
@@ -64,7 +64,7 @@
             </div>
         </header>
 
-        <main class="mx-auto max-w-7xl px-4 py-5">
+        <main class="w-full px-4 py-5">
             <!-- STATS -->
             <div class="grid gap-3 sm:grid-cols-2">
                 <button

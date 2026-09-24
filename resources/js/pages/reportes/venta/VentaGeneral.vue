@@ -1,14 +1,14 @@
 <template>
     <div class="min-h-screen bg-slate-50 text-slate-900">
         <header class="border-b border-slate-200 bg-white px-4 py-5 sm:px-6">
-            <div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4">
+            <div class="flex w-full flex-wrap items-center justify-between gap-4">
                 <div><h1 class="text-xl font-semibold">Venta general</h1><p class="mt-1 text-sm text-slate-500">Montos de ventas de todas las sucursales de tu empresa.</p></div>
                 <div class="flex gap-2">
                     <button v-for="tipo in ['excel', 'pdf']" :key="tipo" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium uppercase disabled:opacity-40" :disabled="!resultado || cargando || !!exportando || pendiente" @click="exportar(tipo)">{{ exportando === tipo ? 'Exportando…' : tipo }}</button>
                 </div>
             </div>
         </header>
-        <main class="mx-auto max-w-[1600px] space-y-5 p-4 sm:p-6">
+        <main class="w-full space-y-5 p-4 sm:p-6">
             <form class="space-y-4 rounded-xl border border-slate-200 bg-white p-4" @submit.prevent="buscar">
                 <div class="flex flex-wrap items-end gap-4">
                     <label class="text-sm">Desde<input v-model="f.fecha_desde" required type="date" class="mt-1 block rounded-lg border-slate-300" /></label>

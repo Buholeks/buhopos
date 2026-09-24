@@ -2,7 +2,7 @@
     <div class="overflow-visible rounded-xl border border-slate-200 bg-white">
         <!-- Header -->
         <div
-            class="grid grid-cols-[1fr_68px_110px_170px_110px_36px] gap-2 rounded-t-xl border-b border-slate-100 bg-slate-50 px-4 py-2.5"
+            class="grid grid-cols-[minmax(220px,1fr)_68px_110px_170px_110px_36px] gap-x-4 rounded-t-xl border-b border-slate-100 bg-slate-50 px-4 py-2.5 xl:gap-x-6"
         >
             <span
                 class="text-[10px] font-semibold uppercase tracking-widest text-slate-400"
@@ -64,7 +64,7 @@
             <div
                 v-for="(det, idx) in detalles"
                 :key="det._key"
-                class="grid grid-cols-[1fr_68px_110px_170px_110px_36px] items-center gap-2 border-b border-slate-50 px-4 py-2.5"
+                class="grid grid-cols-[minmax(220px,1fr)_68px_110px_170px_110px_36px] items-center gap-x-4 border-b border-slate-50 px-4 py-2.5 xl:gap-x-6"
                 :class="
                     det.cantidad > det.stock_disponible
                         ? 'bg-red-50/20'

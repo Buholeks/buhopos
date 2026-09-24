@@ -5,7 +5,7 @@
             class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-xl"
         >
             <div
-                class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8"
+                class="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8"
             >
                 <div class="flex min-w-0 items-center gap-3">
                     <div
@@ -36,7 +36,7 @@
             </div>
         </header>
 
-        <main class="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
+        <main class="w-full space-y-4 px-4 py-5 sm:px-6 lg:px-8">
             <!-- TABS -->
             <section
                 class="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"

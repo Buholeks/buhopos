@@ -1,6 +1,6 @@
 <template>
     <div class="min-h-screen bg-slate-50 text-slate-900">
-        <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+        <div class="w-full px-4 py-6 sm:px-6 lg:px-8">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div class="flex items-start gap-3">
                     <div

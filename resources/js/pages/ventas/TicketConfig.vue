@@ -1,7 +1,7 @@
 <template>
     <div class="min-h-screen bg-slate-100">
         <header class="border-b border-slate-200 bg-white px-4 py-3">
-            <div class="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3">
+            <div class="flex w-full flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 class="text-xl font-black">Diseñador de ticket de venta</h1>
                     <p class="text-sm text-slate-500">Arrastra campos en el encabezado y pie, ajusta las secciones fijas y guarda.</p>
@@ -16,7 +16,7 @@
         </header>
 
         <p v-if="errorCarga" role="alert" class="p-4 text-red-700">{{ errorCarga }} <button class="underline" @click="cargarDiseno">Reintentar carga</button></p>
-        <main :inert="cargando || guardando" class="mx-auto grid max-w-[1500px] gap-4 p-4 xl:grid-cols-[280px_1fr_280px]">
+        <main :inert="cargando || guardando" class="grid w-full gap-4 p-4 xl:grid-cols-[280px_1fr_280px]">
             <!-- Panel izquierdo -->
             <aside class="space-y-4">
                 <!-- Papel -->

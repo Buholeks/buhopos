@@ -5,7 +5,7 @@
             class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur"
         >
             <div
-                class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-3 sm:px-6 py-3 sm:py-4"
+                class="flex w-full flex-wrap items-center justify-between gap-2 px-3 sm:px-6 py-3 sm:py-4"
             >
                 <div class="flex items-center gap-3">
                     <div
@@ -118,7 +118,7 @@
         </div>
 
         <!-- CONTENT -->
-        <div class="mx-auto max-w-7xl px-3 sm:px-6 py-4 sm:py-6">
+        <div class="w-full px-3 sm:px-6 py-4 sm:py-6">
             <!-- SIN CAJA -->
             <div
                 v-if="!cargando && !corte?.id"

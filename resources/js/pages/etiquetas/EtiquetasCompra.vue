@@ -2,7 +2,7 @@
     <div v-if="errorGlobal" class="p-8 text-red-700 font-mono bg-red-50 rounded-xl m-4">ERROR: {{ errorGlobal }}</div>
     <div v-else class="min-h-screen bg-slate-50">
         <header class="border-b border-slate-200 bg-white px-4 py-4">
-            <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+            <div class="flex w-full flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 class="text-xl font-black text-slate-950">Etiquetas de compra {{ compra?.folio || "" }}</h1>
                     <p class="text-sm text-slate-500">Selecciona artículos y cantidades antes de imprimir.</p>
@@ -15,7 +15,7 @@
             </div>
         </header>
 
-        <main class="mx-auto grid max-w-7xl gap-5 p-4 lg:grid-cols-[1fr_360px]">
+        <main class="grid w-full gap-5 p-4 lg:grid-cols-[1fr_360px]">
             <section class="space-y-4">
                 <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">

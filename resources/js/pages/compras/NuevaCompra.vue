@@ -1,7 +1,7 @@
 <template>
     <div class="min-h-screen">
         <!-- CONTENT -->
-        <main class="mx-auto max-w-7xl space-y-3 sm:space-y-3">
+        <main class="w-full space-y-3 sm:space-y-3">
             <!-- RESUMEN SUPERIOR -->
             <section
                 class="grid grid-cols-1 gap-3 sm:grid-cols-3 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"

@@ -43,7 +43,7 @@
         />
 
         <div
-            class="mx-auto flex max-w-7xl flex-col gap-2 px-3 sm:px-6 py-2 sm:py-3"
+            class="flex w-full flex-col gap-2 px-3 sm:px-6 py-2 sm:py-3"
         >
             <section
                 v-if="pedidosDisponibles.length > 0"

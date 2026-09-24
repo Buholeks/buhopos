@@ -1,5 +1,5 @@
 <template>
-    <main class="mx-auto max-w-6xl space-y-4">
+    <main class="w-full space-y-4">
         <header>
             <p class="text-xs font-black uppercase tracking-wide text-emerald-700">Apartados</p>
             <h1 class="text-2xl font-black tracking-tight text-slate-900">Nuevo apartado</h1>

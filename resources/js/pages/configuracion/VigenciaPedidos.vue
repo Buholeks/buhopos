@@ -2,9 +2,9 @@
     <main class="mx-auto max-w-2xl space-y-4">
         <header>
             <p class="text-xs font-black uppercase tracking-wide text-emerald-700">Configuración</p>
-            <h1 class="text-2xl font-black tracking-tight text-slate-900">Vigencia de pedidos y apartados</h1>
+            <h1 class="text-2xl font-black tracking-tight text-slate-900">Pedidos y apartados</h1>
             <p class="mt-1 text-sm text-slate-500">
-                Define cuántos días se les da a los clientes antes de que un apartado o pedido se marque "vencido" y se libere su inventario reservado.
+                Configura la vigencia y los comprobantes que se ofrecen al registrar pedidos y apartados.
             </p>
         </header>
 
@@ -50,6 +50,26 @@
                 Deja un campo vacío para desactivar el vencimiento automático correspondiente: nada vencerá solo hasta que se configure.
             </div>
 
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h2 class="text-sm font-black text-slate-800">Comprobantes para clientes</h2>
+                <p class="mb-3 mt-1 text-xs text-slate-500">Al terminar el registro se ofrecerá imprimir un comprobante en la impresora de tickets configurada en esta terminal.</p>
+                <div class="space-y-3 text-sm">
+                    <label class="flex items-center gap-2"><input v-model="form.imprimir_ticket_pedido" type="checkbox"> Ofrecer ticket al registrar un pedido</label>
+                    <label class="flex items-center gap-2"><input v-model="form.imprimir_ticket_apartado" type="checkbox"> Ofrecer ticket al registrar un apartado</label>
+                </div>
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <label class="block text-sm font-bold text-slate-700">
+                        Pie para pedidos
+                        <textarea v-model="form.pie_ticket_pedido" rows="3" maxlength="1000" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="Ej. Conserva este comprobante para recoger tu pedido."></textarea>
+                    </label>
+                    <label class="block text-sm font-bold text-slate-700">
+                        Pie para apartados
+                        <textarea v-model="form.pie_ticket_apartado" rows="3" maxlength="1000" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" placeholder="Ej. Presenta este comprobante al liquidar tu apartado."></textarea>
+                    </label>
+                </div>
+                <p class="mt-2 text-xs text-slate-500">Puedes usar varias líneas. Si lo dejas vacío se imprimirá el aviso predeterminado.</p>
+            </div>
+
             <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60" :disabled="guardando">
                 <Loader2 v-if="guardando" class="h-4 w-4 animate-spin" />
                 Guardar configuración
@@ -69,6 +89,10 @@ const guardando = ref(false)
 const form = reactive({
     dias_vigencia_apartado: null,
     dias_vigencia_pedido: null,
+    imprimir_ticket_pedido: false,
+    imprimir_ticket_apartado: false,
+    pie_ticket_pedido: '',
+    pie_ticket_apartado: '',
 })
 
 onMounted(async () => {
@@ -76,6 +100,10 @@ onMounted(async () => {
         const { data } = await http.get('/api/config-pedidos')
         form.dias_vigencia_apartado = data?.dias_vigencia_apartado ?? null
         form.dias_vigencia_pedido = data?.dias_vigencia_pedido ?? null
+        form.imprimir_ticket_pedido = data?.imprimir_ticket_pedido === true
+        form.imprimir_ticket_apartado = data?.imprimir_ticket_apartado === true
+        form.pie_ticket_pedido = data?.pie_ticket_pedido ?? ''
+        form.pie_ticket_apartado = data?.pie_ticket_apartado ?? ''
     } catch {
         toastError('No se pudo cargar la configuración')
     } finally {
@@ -89,6 +117,10 @@ async function guardar() {
         await http.put('/api/config-pedidos', {
             dias_vigencia_apartado: form.dias_vigencia_apartado || null,
             dias_vigencia_pedido: form.dias_vigencia_pedido || null,
+            imprimir_ticket_pedido: form.imprimir_ticket_pedido,
+            imprimir_ticket_apartado: form.imprimir_ticket_apartado,
+            pie_ticket_pedido: form.pie_ticket_pedido.trim() || null,
+            pie_ticket_apartado: form.pie_ticket_apartado.trim() || null,
         })
         toastSuccess('Configuración guardada')
     } catch (e) {

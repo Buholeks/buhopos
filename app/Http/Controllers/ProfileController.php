@@ -237,6 +237,10 @@ class ProfileController extends Controller
         $data = $request->validate([
             'dias_vigencia_apartado' => ['nullable', 'integer', 'min:1', 'max:365'],
             'dias_vigencia_pedido' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'imprimir_ticket_pedido' => ['sometimes', 'boolean'],
+            'imprimir_ticket_apartado' => ['sometimes', 'boolean'],
+            'pie_ticket_pedido' => ['nullable', 'string', 'max:1000'],
+            'pie_ticket_apartado' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $user->empresa()->firstOrFail()->update(['config_pedidos' => $data]);

@@ -65,7 +65,7 @@ const items = [
         permiso: "empresa.editar",
     },
     {
-        label: "Vigencia de pedidos y apartados",
+        label: "Pedidos y apartados",
         icon: CalendarClock,
         to: { name: "vigencia-pedidos" },
         badge: "Disponible",

@@ -226,6 +226,7 @@
             @detalle="abrirDetalle"
             @cancelar="abrirCancelar"
             @abonar="registrarAbono"
+            @imprimir="imprimirComprobante"
         />
 
         <EncargoDetalleModal
@@ -313,6 +314,7 @@ const {
     terminalesPago,
     cargarCuentasBancarias,
     cargarTerminalesPago,
+    imprimirComprobante,
 } = useEncargos({ tipo: "pedido" });
 
 const todosPendientesSeleccionados = computed(() => {

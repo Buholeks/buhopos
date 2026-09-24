@@ -176,7 +176,7 @@ const routes = [
       { path: "reportes-inventario",     name: "reportes-inventario",     component: ReporteInventario, meta: { title: "Reporte de productos y existencias", permiso: "reportes.ver" } },
 
       { path: "configuracion", name: "configuracion", component: ConfiguracionIndex, meta: { title: "Configuración" } },
-      { path: "configuracion/vigencia-pedidos", name: "vigencia-pedidos", component: VigenciaPedidos, meta: { title: "Vigencia de pedidos y apartados", permiso: "empresa.editar" } },
+      { path: "configuracion/vigencia-pedidos", name: "vigencia-pedidos", component: VigenciaPedidos, meta: { title: "Pedidos y apartados", permiso: "empresa.editar" } },
       { path: "configuracion/sucursales", name: "sucursales-configuracion", component: SucursalesConfiguracion, meta: { title: "Sucursales", superAdmin: true } },
       { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios",permiso: "usuarios.gestionar" } },
       { path: "roles",    name: "roles",    component: RolesIndex,    meta: { title: "Roles y permisos", permiso: "usuarios.gestionar" } },

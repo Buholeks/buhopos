@@ -384,6 +384,10 @@ class PedidoVencimientoTest extends TestCase
         $this->putJson('/api/config-pedidos', [
             'dias_vigencia_apartado' => 15,
             'dias_vigencia_pedido' => 7,
+            'imprimir_ticket_pedido' => true,
+            'imprimir_ticket_apartado' => false,
+            'pie_ticket_pedido' => 'Conserva tu comprobante.',
+            'pie_ticket_apartado' => 'Presenta este comprobante.',
         ])->assertOk();
 
         // Sanctum::actingAs reutiliza el mismo objeto User en memoria entre peticiones
@@ -393,7 +397,14 @@ class PedidoVencimientoTest extends TestCase
 
         $this->getJson('/api/config-pedidos')
             ->assertOk()
-            ->assertJson(['dias_vigencia_apartado' => 15, 'dias_vigencia_pedido' => 7]);
+            ->assertJson([
+                'dias_vigencia_apartado' => 15,
+                'dias_vigencia_pedido' => 7,
+                'imprimir_ticket_pedido' => true,
+                'imprimir_ticket_apartado' => false,
+                'pie_ticket_pedido' => 'Conserva tu comprobante.',
+                'pie_ticket_apartado' => 'Presenta este comprobante.',
+            ]);
     }
 
     private function crearContextoConProveedor(): array

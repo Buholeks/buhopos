@@ -376,3 +376,32 @@ test('render conserva 50 productos y pagos, amplía pie y no introduce altura de
     assert.equal(html.includes('overflow:hidden'), false);
     assert.ok(crearHtmlTicket(ticket, {}).includes('Conserve este ticket'));
 });
+
+test('ticket de pedido/apartado incluye cliente, artículos, anticipo, saldo y marca las reimpresiones', async () => {
+    let source = await readFile(new URL('../resources/js/helpers/tickets/imprimirTicketEncargo.js', import.meta.url), 'utf8');
+    source = source
+        .replace("import { imprimirDocumento } from '../printing/printerService.js';", 'const imprimirDocumento = async value => value;')
+        .replace("import { obtenerPrinterConfig } from '../printing/printerConfig.js';", 'const obtenerPrinterConfig = name => ({ printerName: name });')
+        .replace("import { obtenerConfigTicket } from './ticketConfigStore.js';", 'const obtenerConfigTicket = () => ({ ancho_mm: 80, margen_mm: 4 });')
+        .replace("import { obtenerImpresoraTicket } from '../qzTray.js';", "const obtenerImpresoraTicket = () => 'Epson';")
+        .replace("import { crearSvgBarcode } from '../etiquetas.js';", 'const crearSvgBarcode = value => `<barcode>${value}</barcode>`;');
+    const mod = await import(sourceUrl(source));
+    const pedido = {
+        tipo: 'apartado', folio: 'APA-001', created_at: '2026-09-23T12:00:00Z', fecha_promesa: '2026-10-01',
+        empresa: { nombre: 'Buho & Cía' }, sucursal: { nombre: 'Centro' }, cliente: { nombre: '<Cliente>', telefono: '555' },
+        subtotal: 200, anticipo: 50, saldo_pendiente: 150, notas: 'Entregar pronto', pie_ticket_apartado: 'Presenta este comprobante.\nGracias.',
+        detalles: [{ descripcion: 'Producto A', cantidad: 2, precio_acordado: 100, subtotal: 200, color_texto: 'Azul' }],
+    };
+    const html = mod.crearHtmlTicketEncargo(pedido, { reimpresion: true });
+    assert.match(html, /APARTADO/);
+    assert.match(html, /COPIA \/ REIMPRESIÓN/);
+    assert.match(html, /Producto A/);
+    assert.match(html, /Saldo pendiente/);
+    assert.match(html, /Presenta este comprobante\.<br>Gracias\./);
+    assert.match(html, /APA-001/);
+    assert.ok(html.includes('&lt;Cliente&gt;'));
+    assert.ok(html.includes('Buho &amp; Cía'));
+    const job = await mod.imprimirTicketEncargo(pedido);
+    assert.equal(job.config.printerName, 'Epson');
+    assert.equal(job.paperWidth, 80);
+});

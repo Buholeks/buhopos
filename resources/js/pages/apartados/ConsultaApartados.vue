@@ -32,7 +32,7 @@
             </div>
         </section>
 
-        <EncargosTable :pedidos="pedidos" :cargando="cargando" :abonos="abonos" :cuentas-bancarias="cuentasBancarias" :terminales-pago="terminalesPago" @detalle="abrirDetalle" @cancelar="abrirCancelar" @abonar="registrarAbono" />
+        <EncargosTable :pedidos="pedidos" :cargando="cargando" :abonos="abonos" :cuentas-bancarias="cuentasBancarias" :terminales-pago="terminalesPago" @detalle="abrirDetalle" @cancelar="abrirCancelar" @abonar="registrarAbono" @imprimir="imprimirComprobante" />
         <EncargoDetalleModal
             :visible="modalDetalle.visible"
             :cargando="modalDetalle.cargando"
@@ -75,6 +75,7 @@ const {
     pedidos, cargando, buscar, filtroEstado, filtroFechaDesde, filtroFechaHasta, abonos,
     cargarPedidos, registrarAbono, cancelarPedido, cancelarDetalle, eliminarAbono,
     cuentasBancarias, terminalesPago, cargarCuentasBancarias, cargarTerminalesPago,
+    imprimirComprobante,
 } = useEncargos({ tipo: 'apartado' })
 
 watch(buscar, () => {

@@ -1,9 +1,13 @@
 import { computed, reactive, ref } from 'vue'
 import http from '@/lib/http'
-import { confirm, toastError, toastSuccess, toastWarning } from '@/lib/alert'
+import { confirm, swal, toastError, toastSuccess, toastWarning } from '@/lib/alert'
 import { generarIdempotencyKey } from '@/lib/idempotency'
+import { imprimirTicketEncargo } from '@/helpers/tickets/imprimirTicketEncargo.js'
+import { printErrorTitle } from '@/helpers/printing/printErrors.js'
+import { useAuthStore } from '@/stores/auth'
 
 export function useEncargos({ tipo = 'pedido' } = {}) {
+    const auth = useAuthStore()
     const pedidos = ref([])
     const cargando = ref(false)
     const guardando = ref(false)
@@ -16,6 +20,7 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
     const abonos = reactive({})
     const cuentasBancarias = ref([])
     const terminalesPago = ref([])
+    const configPedidos = ref({})
     // Claves de idempotencia por acción en curso: se generan una sola vez por intento
     // (cancelar este pedido/renglón, eliminar este abono) y se reusan si el usuario
     // reintenta (doble clic, timeout de red) para que el backend no duplique el
@@ -33,6 +38,78 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         notas: '',
         detalles: [],
     })
+
+    async function cargarConfigPedidos() {
+        try {
+            const { data } = await http.get('/api/config-pedidos')
+            configPedidos.value = data && typeof data === 'object' ? data : {}
+        } catch {
+            configPedidos.value = {}
+        }
+    }
+    const configPedidosCargada = cargarConfigPedidos()
+
+    function pedidoConContexto(pedido) {
+        return {
+            ...pedido,
+            empresa: pedido?.empresa ?? auth.user?.empresa ?? null,
+            sucursal: pedido?.sucursal ?? auth.user?.sucursal ?? null,
+            user: pedido?.user ?? auth.user ?? null,
+            pie_ticket_pedido: configPedidos.value.pie_ticket_pedido ?? null,
+            pie_ticket_apartado: configPedidos.value.pie_ticket_apartado ?? null,
+        }
+    }
+
+    async function ejecutarImpresion(pedido, reimpresion) {
+        try {
+            await imprimirTicketEncargo(pedidoConContexto(pedido), { reimpresion })
+            return true
+        } catch (error) {
+            swal.showValidationMessage(`${printErrorTitle(error)}: ${error?.message || 'No se pudo imprimir el comprobante.'}`)
+            return false
+        }
+    }
+
+    async function imprimirComprobante(pedido) {
+        try {
+            const { data } = await http.get(`/api/pedidos/${pedido.id}`)
+            await swal.fire({
+                title: `Reimprimir ${data.tipo === 'apartado' ? 'apartado' : 'pedido'}`,
+                text: `Folio ${data.folio}`,
+                showCancelButton: true,
+                confirmButtonText: 'Imprimir ticket',
+                cancelButtonText: 'Cancelar',
+                showLoaderOnConfirm: true,
+                allowOutsideClick: () => !swal.isLoading(),
+                preConfirm: () => ejecutarImpresion(data, true),
+            })
+        } catch (error) {
+            toastError(error?.response?.data?.message || 'No se pudo cargar el comprobante')
+        }
+    }
+
+    async function ofrecerImpresion(pedido) {
+        await configPedidosCargada
+        const habilitado = tipo === 'apartado'
+            ? configPedidos.value.imprimir_ticket_apartado === true
+            : configPedidos.value.imprimir_ticket_pedido === true
+        if (!habilitado) {
+            toastSuccess(`${tipo === 'apartado' ? 'Apartado' : 'Pedido'} registrado`)
+            return
+        }
+        const decision = await swal.fire({
+            icon: 'success',
+            title: `${tipo === 'apartado' ? 'Apartado' : 'Pedido'} registrado`,
+            text: `Folio ${pedido.folio}`,
+            showCancelButton: true,
+            confirmButtonText: 'Imprimir ticket',
+            cancelButtonText: 'Cerrar',
+            showLoaderOnConfirm: true,
+            allowOutsideClick: () => !swal.isLoading(),
+            preConfirm: () => ejecutarImpresion(pedido, false),
+        })
+        return decision.isConfirmed
+    }
 
     async function cargarCuentasBancarias() {
         try {
@@ -220,7 +297,7 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         guardando.value = true
         try {
             const hayAnticipo = Number(form.anticipo || 0) > 0
-            await http.post('/api/pedidos', {
+            const { data: pedidoCreado } = await http.post('/api/pedidos', {
                 tipo,
                 cliente_id: cliente.value.id,
                 fecha_promesa: form.fecha_promesa || null,
@@ -231,9 +308,9 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
                 notas: form.notas,
                 detalles,
             })
-            toastSuccess(`${tipo === 'apartado' ? 'Apartado' : 'Pedido'} registrado`)
             limpiarFormulario()
             await cargarPedidos()
+            await ofrecerImpresion(pedidoCreado)
             return true
         } catch (e) {
             toastError(e?.response?.data?.message || 'No se pudo registrar')
@@ -338,6 +415,7 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         terminalesPago,
         cargarCuentasBancarias,
         cargarTerminalesPago,
+        cargarConfigPedidos,
         form,
         subtotal,
         saldoPendiente,
@@ -357,5 +435,6 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
         cancelarDetalle,
         eliminarAbono,
         limpiarFormulario,
+        imprimirComprobante,
     }
 }

@@ -85,6 +85,15 @@
                                     </button>
 
                                     <button
+                                        type="button"
+                                        class="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                        title="Reimprimir ticket"
+                                        @click="$emit('imprimir', pedido)"
+                                    >
+                                        <Printer class="h-4 w-4" />
+                                    </button>
+
+                                    <button
                                         v-if="!pedidoCerrado(pedido) && auth.can('pedidos.cancelar')"
                                         type="button"
                                         class="rounded-xl border border-red-200 p-2 text-red-500 hover:bg-red-50 hover:text-red-700"
@@ -164,7 +173,7 @@
 </template>
 
 <script setup>
-import { Eye, Loader2, XCircle } from 'lucide-vue-next'
+import { Eye, Loader2, Printer, XCircle } from 'lucide-vue-next'
 import EncargoEstadoBadge from './EncargoEstadoBadge.vue'
 import { useAuthStore } from "@/stores/auth";
 
@@ -178,7 +187,7 @@ defineProps({
     terminalesPago: { type: Array, default: () => [] },
 })
 
-defineEmits(['detalle', 'cancelar', 'abonar'])
+defineEmits(['detalle', 'cancelar', 'abonar', 'imprimir'])
 
 function pedidoCerrado(pedido) {
     return ['entregado', 'devuelto', 'cancelado'].includes(pedido?.estado) || !tieneDetallesCancelables(pedido)

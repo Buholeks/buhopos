@@ -97,7 +97,8 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
             toastSuccess(`${tipo === 'apartado' ? 'Apartado' : 'Pedido'} registrado`)
             return
         }
-        const decision = await swal.fire({
+        let impresiones = 0
+        await swal.fire({
             icon: 'success',
             title: `${tipo === 'apartado' ? 'Apartado' : 'Pedido'} registrado`,
             text: `Folio ${pedido.folio}`,
@@ -106,9 +107,29 @@ export function useEncargos({ tipo = 'pedido' } = {}) {
             cancelButtonText: 'Cerrar',
             showLoaderOnConfirm: true,
             allowOutsideClick: () => !swal.isLoading(),
-            preConfirm: () => ejecutarImpresion(pedido, false),
+            preConfirm: async () => {
+                if (impresiones >= 2) return true
+                const impreso = await ejecutarImpresion(pedido, impresiones > 0)
+                if (!impreso) return false
+                impresiones++
+                if (impresiones === 1) {
+                    swal.update({
+                        title: 'Ticket impreso',
+                        text: `Folio ${pedido.folio}`,
+                        confirmButtonText: 'Imprimir copia',
+                        cancelButtonText: 'Cerrar',
+                    })
+                } else {
+                    swal.update({
+                        title: 'Copia impresa',
+                        text: `Folio ${pedido.folio}`,
+                        confirmButtonText: 'Cerrar',
+                        showCancelButton: false,
+                    })
+                }
+                return false
+            },
         })
-        return decision.isConfirmed
     }
 
     async function cargarCuentasBancarias() {

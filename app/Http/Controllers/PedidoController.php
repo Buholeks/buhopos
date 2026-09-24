@@ -527,11 +527,11 @@ class PedidoController extends Controller
             ],
             'precio_costo' => ['nullable', 'numeric', 'min:0'],
             'precio_venta' => ['required', 'numeric', 'min:0'],
-            'atributos' => ['required', 'array', 'min:1'],
+            'atributos' => ['sometimes', 'array'],
             'atributos.*' => ['required', 'integer', 'exists:atributos,id'],
         ]);
 
-        $atributos = collect($data['atributos'])
+        $atributos = collect($data['atributos'] ?? [])
             ->mapWithKeys(fn($atributoId, $tipoId) => [(int) $tipoId => (int) $atributoId])
             ->filter();
 
@@ -561,47 +561,49 @@ class PedidoController extends Controller
                 'precio_costo' => (float) ($data['precio_costo'] ?? 0),
                 'precio_venta' => (float) $data['precio_venta'],
                 'stock_minimo' => 0,
-                'tiene_variantes' => true,
+                'tiene_variantes' => $atributos->isNotEmpty(),
                 'tiene_series' => false,
                 'pedido_generico' => false,
                 'activo' => true,
             ]);
 
-            $variante = ProductoVariante::create([
-                'producto_id' => $producto->id,
-                'empresa_id' => $empresaId,
-                'sku' => ProductoVariante::generarSku($producto->id, $empresaId),
-                'codigo_barras' => null,
-                'precio_costo' => (float) ($data['precio_costo'] ?? 0),
-                'precio_venta' => (float) $data['precio_venta'],
-                'stock_minimo' => 0,
-                'activo' => true,
-            ]);
-
-            foreach ($atributos as $tipoId => $atributoId) {
-                VarianteAtributo::create([
-                    'variante_id' => $variante->id,
-                    'tipo_atributo_id' => $tipoId,
-                    'atributo_id' => $atributoId,
+            if ($atributos->isNotEmpty()) {
+                $variante = ProductoVariante::create([
+                    'producto_id' => $producto->id,
+                    'empresa_id' => $empresaId,
+                    'sku' => ProductoVariante::generarSku($producto->id, $empresaId),
+                    'codigo_barras' => null,
+                    'precio_costo' => (float) ($data['precio_costo'] ?? 0),
+                    'precio_venta' => (float) $data['precio_venta'],
+                    'stock_minimo' => 0,
+                    'activo' => true,
                 ]);
+
+                foreach ($atributos as $tipoId => $atributoId) {
+                    VarianteAtributo::create([
+                        'variante_id' => $variante->id,
+                        'tipo_atributo_id' => $tipoId,
+                        'atributo_id' => $atributoId,
+                    ]);
+                }
             }
         });
 
-        $variante->load(['atributos.tipoAtributo', 'atributos.atributo']);
+        $variante?->load(['atributos.tipoAtributo', 'atributos.atributo']);
 
         return response()->json([
-            'message' => 'Producto rapido creado.',
+            'message' => 'Producto rápido creado.',
             'data' => [
-                'tipo_resultado' => 'variante',
-                'id' => $variante->id,
+                'tipo_resultado' => $variante ? 'variante' : 'producto',
+                'id' => $variante?->id,
                 'producto_id' => $producto->id,
                 'nombre' => $producto->nombre,
                 'codigo' => $producto->codigo,
-                'sku' => $variante->sku,
-                'codigo_barras' => $variante->codigo_barras,
-                'nombre_variante' => $variante->nombreVariante(),
-                'precio_venta' => (float) ($variante->precio_venta ?? $producto->precio_venta),
-                'tiene_variantes' => true,
+                'sku' => $variante?->sku,
+                'codigo_barras' => $variante?->codigo_barras,
+                'nombre_variante' => $variante?->nombreVariante(),
+                'precio_venta' => (float) ($variante?->precio_venta ?? $producto->precio_venta),
+                'tiene_variantes' => (bool) $producto->tiene_variantes,
                 'pedido_generico' => false,
             ],
         ], 201);

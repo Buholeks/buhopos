@@ -34,4 +34,13 @@ class StripeController extends Controller
     {
         return $this->ejecutar(fn () => ['url' => $stripe->portal($empresa)]);
     }
+
+    public function sincronizarEmpresa(Empresa $empresa, StripeBillingService $stripe): JsonResponse
+    {
+        return $this->ejecutar(fn () => [
+            'suscripcion' => $stripe->conciliarEmpresa($empresa),
+            'verificado_en' => now()->toIso8601String(),
+            'mensaje' => 'Suscripción verificada con Stripe. Se actualizaron el estado, el plan y la vigencia.',
+        ]);
+    }
 }

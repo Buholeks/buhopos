@@ -1355,6 +1355,7 @@ const comprobante = ref({
 });
 
 let checkout = null;
+let checkoutSessionId = null;
 let stripeTarjeta = null;
 let elementosTarjeta = null;
 let elementoTarjeta = null;
@@ -1701,6 +1702,16 @@ async function cargar() {
     cargaFallida.value = false;
 
     try {
+        const retorno = new URL(window.location.href);
+        const sessionId = retorno.searchParams.get("session_id") || sessionStorage.getItem("facturacion_checkout_pendiente");
+        if (sessionId) {
+            await http.post("/api/facturacion/checkout/confirmar", { session_id: sessionId });
+            sessionStorage.removeItem("facturacion_checkout_pendiente");
+            retorno.searchParams.delete("session_id");
+            retorno.searchParams.delete("checkout");
+            window.history.replaceState(window.history.state, "", retorno);
+            await auth.fetchUser();
+        }
         const response = await http.get("/api/facturacion");
         datos.value = response.data;
         if (response.data?.suscripcion?.periodicidad) {
@@ -1815,6 +1826,7 @@ async function montarCheckout() {
         checkout = await stripe.createEmbeddedCheckoutPage({
             fetchClientSecret: async () => {
                 const { data } = await http.post("/api/facturacion/checkout");
+                checkoutSessionId = data.session_id;
 
                 return data.client_secret;
             },
@@ -1825,10 +1837,10 @@ async function montarCheckout() {
                 mostrarCheckout.value = false;
                 document.body.style.overflow = "";
 
-                await auth.fetchUser();
+                sessionStorage.setItem("facturacion_checkout_pendiente", checkoutSessionId);
                 await cargar();
 
-                toastSuccess("El pago se procesó correctamente.");
+                if (!cargaFallida.value) toastSuccess("El pago se confirmó y la suscripción se actualizó.");
             },
         });
 

@@ -220,7 +220,7 @@ class StripeBillingService
         ];
     }
 
-    public function checkoutEmbebido(Empresa $empresa): string
+    public function checkoutEmbebido(Empresa $empresa): array
     {
         $suscripcion = $this->prepararSuscripcionParaCheckout(
             $empresa,
@@ -233,7 +233,40 @@ class StripeBillingService
             'return_url' => rtrim(config('app.url'), '/').'/facturacion?checkout=retorno&session_id={CHECKOUT_SESSION_ID}',
         ]);
 
-        return $session->client_secret;
+        return ['client_secret' => $session->client_secret, 'session_id' => $session->id];
+    }
+
+    public function confirmarCheckout(Empresa $empresa, string $sessionId): Suscripcion
+    {
+        $sesion = $this->cliente()->checkout->sessions->retrieve($sessionId, []);
+        $customerId = is_string($sesion->customer) ? $sesion->customer : ($sesion->customer->id ?? null);
+        if (! $empresa->stripe_customer_id || $customerId !== $empresa->stripe_customer_id
+            || (string) $sesion->client_reference_id !== (string) $empresa->id) {
+            throw new RuntimeException('La sesión de pago no pertenece a esta empresa.');
+        }
+        if ($sesion->mode !== 'subscription' || $sesion->status !== 'complete'
+            || ! in_array($sesion->payment_status, ['paid', 'no_payment_required'], true)) {
+            throw new RuntimeException('Stripe todavía no confirma el pago. Intenta actualizar la facturación en unos momentos.');
+        }
+        $subscriptionId = is_string($sesion->subscription) ? $sesion->subscription : ($sesion->subscription->id ?? null);
+        if (! $subscriptionId) {
+            throw new RuntimeException('Stripe no devolvió la suscripción del pago.');
+        }
+        $remota = $this->cliente()->subscriptions->retrieve($subscriptionId, [
+            'expand' => ['items.data.price', 'latest_invoice'],
+        ]);
+        if ((string) ($remota->metadata?->buhopos_empresa_id ?? '') !== (string) $empresa->id) {
+            throw new RuntimeException('La suscripción no pertenece a esta empresa.');
+        }
+        $suscripcion = $this->sincronizarSuscripcion($remota);
+        if (! $suscripcion || $suscripcion->empresa_id !== $empresa->id) {
+            throw new RuntimeException('No se pudo vincular la suscripción del pago.');
+        }
+        if (is_object($remota->latest_invoice) && $remota->latest_invoice->status === 'paid') {
+            $this->registrarFacturaPagada($remota->latest_invoice);
+        }
+
+        return $suscripcion->fresh();
     }
 
     private function prepararSuscripcionParaCheckout(Empresa $empresa, string $mensajeSinPlan, string $mensajeYaActiva, ?string $mensajeSinSuscripcion = null): Suscripcion
@@ -402,6 +435,38 @@ class StripeBillingService
         $this->sincronizarSuscripcion($actualizada);
     }
 
+    public function conciliarEmpresa(Empresa $empresa): Suscripcion
+    {
+        $suscripcion = $empresa->suscripcion;
+        if (! $suscripcion) {
+            throw new RuntimeException('La empresa todavía no tiene una suscripción local.');
+        }
+        if (! $suscripcion->stripe_subscription_id) {
+            if (! $empresa->stripe_customer_id) {
+                throw new RuntimeException('La empresa no tiene un cliente vinculado en Stripe.');
+            }
+            $candidatas = [];
+            $lista = $this->cliente()->subscriptions->all([
+                'customer' => $empresa->stripe_customer_id, 'status' => 'all', 'limit' => 100,
+            ]);
+            foreach ($lista->autoPagingIterator() as $remota) {
+                if ((string) ($remota->metadata?->buhopos_empresa_id ?? '') === (string) $empresa->id
+                    && ! in_array($remota->status, ['canceled', 'incomplete_expired'], true)) {
+                    $candidatas[] = $remota->id;
+                }
+            }
+            if (count($candidatas) !== 1) {
+                throw new RuntimeException(count($candidatas) > 1
+                    ? 'Hay varias suscripciones en Stripe para esta empresa. Revisa el cliente en Stripe antes de vincular una.'
+                    : 'No se encontró una suscripción vigente en Stripe para esta empresa.');
+            }
+            // El vínculo se guarda solo después de recuperar y validar la suscripción.
+            $suscripcion->stripe_subscription_id = $candidatas[0];
+        }
+
+        return $this->conciliarSuscripcion($suscripcion);
+    }
+
     public function conciliarSuscripcion(Suscripcion $suscripcion): Suscripcion
     {
         if (! $suscripcion->stripe_subscription_id) {
@@ -410,10 +475,15 @@ class StripeBillingService
         $remota = $this->cliente()->subscriptions->retrieve($suscripcion->stripe_subscription_id, [
             'expand' => ['items.data.price', 'latest_invoice'],
         ]);
+        $customerId = is_string($remota->customer ?? null) ? $remota->customer : ($remota->customer->id ?? null);
+        if (! $suscripcion->empresa->stripe_customer_id || $customerId !== $suscripcion->empresa->stripe_customer_id
+            || (string) ($remota->metadata?->buhopos_empresa_id ?? '') !== (string) $suscripcion->empresa_id) {
+            throw new RuntimeException('El cliente o la empresa de la suscripción de Stripe no coinciden.');
+        }
         $sincronizada = $this->sincronizarSuscripcion($remota) ?? $suscripcion;
         $factura = $remota->latest_invoice ?? null;
         if (is_object($factura) && ($factura->status ?? null) === 'paid') {
-            $this->registrarFacturaPagada($factura);
+            $this->registrarFacturaPagada($factura, actualizarAcceso: false);
         }
         if (is_object($factura) && in_array($factura->status ?? null, ['open', 'uncollectible'], true) && ($remota->status ?? null) === 'past_due') {
             $this->registrarFallo($factura);
@@ -449,6 +519,15 @@ class StripeBillingService
         $periodicidad = ! $tieneCambioPendiente && in_array($periodicidadStripe, ['mensual', 'anual'], true)
             ? $periodicidadStripe
             : $suscripcion->periodicidad;
+        // El portal puede cambiar el precio sin actualizar nuestros metadatos.
+        // El concepto vigente de Stripe es la referencia del plan realmente contratado.
+        $precio = $item?->price ?? null;
+        $priceId = is_string($precio) ? $precio : ($precio?->id ?? null);
+        $planDelPrecio = $priceId ? Plan::where('stripe_price_id', $priceId)->orWhere('stripe_price_anual_id', $priceId)->first() : null;
+        if ($planDelPrecio) {
+            $planId = $planDelPrecio->id;
+            $periodicidad = $planDelPrecio->stripe_price_anual_id === $priceId ? 'anual' : 'mensual';
+        }
         $planVigente = Plan::find($planId);
         $suscripcion->update([
             'stripe_subscription_id' => $objeto->id, 'stripe_status' => $objeto->status,
@@ -468,7 +547,7 @@ class StripeBillingService
         return $suscripcion->fresh();
     }
 
-    public function registrarFacturaPagada(object $factura): ?PagoSuscripcion
+    public function registrarFacturaPagada(object $factura, bool $actualizarAcceso = true): ?PagoSuscripcion
     {
         $subscriptionId = $this->subscriptionIdDeFactura($factura);
         $suscripcion = $subscriptionId ? Suscripcion::where('stripe_subscription_id', $subscriptionId)->first() : null;
@@ -507,7 +586,7 @@ class StripeBillingService
 
         $paymentIntent = is_string($factura->payment_intent ?? null) ? $factura->payment_intent : ($factura->payment_intent->id ?? null);
 
-        return DB::transaction(function () use ($suscripcion, $factura, $inicio, $fin, $paymentIntent) {
+        return DB::transaction(function () use ($suscripcion, $factura, $inicio, $fin, $paymentIntent, $actualizarAcceso) {
             $pago = $suscripcion->pagos()->updateOrCreate(['stripe_invoice_id' => $factura->id], [
                 'stripe_payment_intent_id' => $paymentIntent, 'importe' => ((int) $factura->amount_paid) / 100,
                 'fecha_pago' => today(), 'periodo_inicio' => $inicio, 'periodo_fin' => $fin,
@@ -520,8 +599,12 @@ class StripeBillingService
             $vencimiento = $suscripcion->fecha_vencimiento && $suscripcion->fecha_vencimiento->greaterThan($fin)
                 ? $suscripcion->fecha_vencimiento
                 : $fin;
-            $suscripcion->update(['estado' => 'activa', 'fecha_vencimiento' => $vencimiento, 'stripe_status' => 'active']);
-            $suscripcion->empresa()->update(['activo' => true]);
+            // Al conciliar, el acceso ya proviene del estado actual de Stripe.
+            // Registrar una factura histórica no debe reactivar la suscripción o la empresa.
+            if ($actualizarAcceso) {
+                $suscripcion->update(['estado' => 'activa', 'fecha_vencimiento' => $vencimiento, 'stripe_status' => 'active']);
+                $suscripcion->empresa()->update(['activo' => true]);
+            }
 
             return $pago;
         });

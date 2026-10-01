@@ -64,4 +64,10 @@ class Suscripcion extends Model
 
         return Carbon::today()->lte($this->fecha_vencimiento->copy()->addDays($this->dias_gracia));
     }
+
+    public function gestionadaPorStripe(): bool
+    {
+        return filled($this->stripe_subscription_id)
+            && ! in_array($this->stripe_status, ['canceled', 'incomplete_expired'], true);
+    }
 }

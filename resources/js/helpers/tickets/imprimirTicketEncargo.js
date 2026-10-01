@@ -18,8 +18,6 @@ const fechaCorta = value => value ? new Date(`${String(value).slice(0, 10)}T12:0
 export function crearHtmlTicketEncargo(pedido, { reimpresion = false } = {}) {
     const diseno = obtenerConfigTicket();
     const ancho = Number(diseno?.ancho_mm ?? 80);
-    // Da medio milímetro adicional por lado: varias térmicas económicas no
-    // imprimen exactamente hasta el borde declarado por el controlador.
     const margen = Number(diseno?.margen_mm ?? 3.5) + 0.5;
     const interior = Math.max(20, ancho - margen * 2);
     const tipo = pedido?.tipo === 'apartado' ? 'APARTADO' : 'PEDIDO';

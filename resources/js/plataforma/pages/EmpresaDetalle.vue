@@ -227,6 +227,10 @@
                     </div>
 
                     <div class="p-4">
+                        <p v-if="gestionadaPorStripe" class="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs text-violet-800">
+                            Stripe administra el plan, el precio y la vigencia. Usa el portal para modificarlos y después verifica y sincroniza.
+                            Aquí puedes guardar notas y días de gracia.
+                        </p>
                         <div class="grid gap-3 md:grid-cols-2">
                             <label class="block">
                                 <span class="mb-1 block text-xs font-medium text-slate-600">
@@ -235,6 +239,7 @@
 
                                 <select
                                     v-model="suscripcion.plan_id"
+                                    :disabled="gestionadaPorStripe || !!procesandoStripe"
                                     class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 >
                                     <option :value="null">Sin plan</option>
@@ -252,7 +257,7 @@
 
                             <label class="block">
                                 <span class="mb-1 block text-xs font-medium text-slate-600">Periodicidad</span>
-                                <select v-model="suscripcion.periodicidad" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                                <select v-model="suscripcion.periodicidad" :disabled="gestionadaPorStripe || !!procesandoStripe" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
                                     <option value="mensual">Mensual</option>
                                     <option value="anual">Anual</option>
                                 </select>
@@ -265,6 +270,7 @@
 
                                 <select
                                     v-model="suscripcion.estado"
+                                    :disabled="gestionadaPorStripe || !!procesandoStripe"
                                     class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 >
                                     <option
@@ -297,6 +303,7 @@
 
                                 <input
                                     v-model="suscripcion.fecha_inicio"
+                                    :disabled="gestionadaPorStripe || !!procesandoStripe"
                                     type="date"
                                     class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 />
@@ -309,6 +316,7 @@
 
                                 <input
                                     v-model="suscripcion.fecha_vencimiento"
+                                    :disabled="gestionadaPorStripe || !!procesandoStripe"
                                     type="date"
                                     class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 />
@@ -326,6 +334,7 @@
 
                                     <input
                                         v-model.number="suscripcion.precio_acordado"
+                                        :disabled="gestionadaPorStripe || !!procesandoStripe"
                                         type="number"
                                         min="0"
                                         step="0.01"
@@ -364,7 +373,7 @@
                             <button
                                 type="submit"
                                 class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                :disabled="guardandoSuscripcion"
+                                :disabled="guardandoSuscripcion || !!procesandoStripe"
                             >
                                 <Loader2
                                     v-if="guardandoSuscripcion"
@@ -376,7 +385,7 @@
                                 {{
                                     guardandoSuscripcion
                                         ? "Guardando..."
-                                        : "Guardar suscripción"
+                                        : gestionadaPorStripe ? "Guardar notas y días de gracia" : "Guardar suscripción"
                                 }}
                             </button>
                         </div>
@@ -403,6 +412,18 @@
                         <div class="p-4">
                             <div class="flex flex-wrap gap-2">
                                 <button
+                                    v-if="empresa.stripe_customer_id || empresa.suscripcion?.stripe_subscription_id"
+                                    type="button"
+                                    class="inline-flex h-9 items-center gap-2 rounded-lg bg-violet-600 px-3 text-xs font-medium text-white disabled:opacity-50"
+                                    :disabled="!!procesandoStripe || guardandoSuscripcion || guardandoPago"
+                                    @click="sincronizarStripe"
+                                >
+                                    <Loader2 v-if="procesandoStripe === 'sincronizar'" class="h-3.5 w-3.5 animate-spin" />
+                                    <CircleCheck v-else class="h-3.5 w-3.5" />
+                                    {{ procesandoStripe === 'sincronizar' ? 'Verificando…' : 'Verificar y sincronizar con Stripe' }}
+                                </button>
+                                <button
+                                    v-if="!gestionadaPorStripe"
                                     type="button"
                                     class="inline-flex h-9 items-center gap-2 rounded-lg bg-violet-600 px-3 text-xs font-medium text-white transition hover:bg-violet-700 disabled:opacity-50"
                                     :disabled="procesandoStripe"
@@ -435,6 +456,14 @@
                                     Abrir portal
                                 </button>
                             </div>
+
+                            <p v-if="empresa.suscripcion?.stripe_status" class="mt-3 text-xs text-slate-600">
+                                Estado registrado en Stripe: {{ empresa.suscripcion.stripe_status }}.
+                                {{ empresa.suscripcion.cancelar_al_final ? 'Renovación cancelada al final del periodo.' : '' }}
+                            </p>
+                            <p v-if="verificadoStripeEn" class="mt-2 text-xs text-slate-500">
+                                Verificado en esta sesión: {{ new Date(verificadoStripeEn).toLocaleString('es-MX') }}
+                            </p>
 
                             <div
                                 v-if="stripeUrl"
@@ -494,7 +523,12 @@
                     </section>
 
                     <!-- Pago manual -->
+                    <p v-if="gestionadaPorStripe" class="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800">
+                        Los pagos de esta suscripción se verifican con Stripe. Usa “Verificar y sincronizar” para recuperar un cobro confirmado.
+                        El registro manual estará disponible cuando la suscripción en Stripe haya terminado.
+                    </p>
                     <form
+                        v-else
                         class="rounded-xl border border-slate-200 bg-white"
                         @submit.prevent="registrarPago"
                     >
@@ -1136,6 +1170,8 @@ const procesandoEmpresa = ref(false);
 const procesandoStripe = ref("");
 
 const stripeUrl = ref("");
+const verificadoStripeEn = ref(null);
+const gestionadaPorStripe = computed(() => !!empresa.value?.suscripcion_gestionada_por_stripe);
 
 const mensajeSuscripcion = ref(null);
 const mensajePago = ref(null);
@@ -1318,6 +1354,8 @@ function asignarEmpresa(data) {
         notas: "",
         ...(empresa.value.suscripcion || {}),
     });
+    suscripcion.fecha_inicio = suscripcion.fecha_inicio?.slice(0, 10) || "";
+    suscripcion.fecha_vencimiento = suscripcion.fecha_vencimiento?.slice(0, 10) || "";
 }
 
 async function guardarSuscripcion() {
@@ -1331,7 +1369,9 @@ async function guardarSuscripcion() {
     try {
         await http.put(
             `/api/plataforma/empresas/${empresa.value.id}/suscripcion`,
-            suscripcion,
+            gestionadaPorStripe.value
+                ? { dias_gracia: suscripcion.dias_gracia, notas: suscripcion.notas }
+                : suscripcion,
         );
 
         await cargar();
@@ -1507,6 +1547,23 @@ async function crearCheckout() {
     }
 }
 
+async function sincronizarStripe() {
+    if (procesandoStripe.value || guardandoSuscripcion.value || guardandoPago.value) return;
+    procesandoStripe.value = "sincronizar";
+    mensajeStripe.value = null;
+    try {
+        const { data } = await http.post(`/api/plataforma/empresas/${empresa.value.id}/stripe/sincronizar`);
+        await cargar();
+        stripeUrl.value = "";
+        verificadoStripeEn.value = data.verificado_en;
+        mensajeStripe.value = { tipo: "success", texto: data.mensaje };
+    } catch (error) {
+        mensajeStripe.value = { tipo: "error", texto: obtenerMensajeError(error) || "No se pudo verificar la suscripción con Stripe. Intenta nuevamente." };
+    } finally {
+        procesandoStripe.value = "";
+    }
+}
+
 async function copiarStripe() {
     try {
         await navigator.clipboard.writeText(stripeUrl.value);
@@ -1625,7 +1682,7 @@ function formatearFecha(fecha) {
         return "Sin fecha";
     }
 
-    const valor = new Date(`${fecha}T00:00:00`);
+    const valor = new Date(`${fecha.slice(0, 10)}T00:00:00`);
 
     if (Number.isNaN(valor.getTime())) {
         return fecha;

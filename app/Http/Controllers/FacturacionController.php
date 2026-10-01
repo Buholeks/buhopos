@@ -340,7 +340,15 @@ class FacturacionController extends Controller
         abort_unless($request->user()->es_super_admin, 403, 'Solo el superadministrador puede gestionar la suscripción.');
         abort_if($request->user()->empresa->suscripcion?->plan?->es_prueba, 422, 'Selecciona un plan comercial antes de pagar.');
 
-        return $this->ejecutar(fn () => ['client_secret' => $stripe->checkoutEmbebido($request->user()->empresa)]);
+        return $this->ejecutar(fn () => $stripe->checkoutEmbebido($request->user()->empresa));
+    }
+
+    public function confirmarCheckout(Request $request, StripeBillingService $stripe): JsonResponse
+    {
+        abort_unless($request->user()->es_super_admin, 403, 'Solo el superadministrador puede gestionar la suscripción.');
+        $data = $request->validate(['session_id' => ['required', 'string', 'max:255']]);
+
+        return $this->ejecutar(fn () => ['suscripcion' => $stripe->confirmarCheckout($request->user()->empresa, $data['session_id'])]);
     }
 
     public function portal(Request $request, StripeBillingService $stripe): JsonResponse

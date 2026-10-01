@@ -59,6 +59,7 @@ class SuscripcionController extends Controller
                 return;
             }
             $suscripcion = $solicitud->suscripcion()->lockForUpdate()->firstOrFail();
+            abort_if($suscripcion->gestionadaPorStripe(), 422, 'La suscripción ahora se gestiona en Stripe. Verifica el cobro antes de confirmar este pago manual.');
             $pago = $suscripcion->pagos()->create([
                 'registrado_por' => auth('plataforma')->id(),
                 'importe' => $solicitud->importe,
@@ -87,6 +88,34 @@ class SuscripcionController extends Controller
 
     public function guardar(Request $request, Empresa $empresa): JsonResponse
     {
+        if ($empresa->suscripcion?->gestionadaPorStripe()) {
+            // Los datos de cobro se modifican en Stripe. Solo estas preferencias son locales.
+            $data = $request->validate([
+                'dias_gracia' => ['sometimes', 'integer', 'min:0', 'max:60'],
+                'notas' => ['sometimes', 'nullable', 'string', 'max:3000'],
+            ]);
+            $request->validate([
+                'plan_id' => ['sometimes', 'nullable', 'integer'],
+                'periodicidad' => ['sometimes', 'in:mensual,anual'],
+                'estado' => ['sometimes', 'string'],
+                'fecha_inicio' => ['sometimes', 'nullable', 'date'],
+                'fecha_vencimiento' => ['sometimes', 'nullable', 'date'],
+                'precio_acordado' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            ]);
+            $campos = ['plan_id', 'periodicidad', 'estado', 'fecha_inicio', 'fecha_vencimiento', 'precio_acordado'];
+            $propuesta = clone $empresa->suscripcion;
+            $propuesta->fill($request->only($campos));
+            foreach ($campos as $campo) {
+                if ($propuesta->isDirty($campo)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        $campo => 'Esta suscripción se gestiona en Stripe. Usa el portal para cambiarla o verifica y sincroniza su estado.',
+                    ]);
+                }
+            }
+            $empresa->suscripcion->update($data);
+
+            return response()->json($empresa->suscripcion->fresh('plan'));
+        }
         $data = $request->validate([
             'plan_id' => ['nullable', Rule::exists('planes', 'id')],
             'periodicidad' => ['sometimes', Rule::in(['mensual', 'anual'])],
@@ -115,6 +144,7 @@ class SuscripcionController extends Controller
     {
         $suscripcion = $empresa->suscripcion;
         abort_unless($suscripcion, 422, 'Primero configura la suscripción.');
+        abort_if($suscripcion->gestionadaPorStripe(), 422, 'Esta suscripción se gestiona en Stripe. Verifica el pago en Stripe antes de registrar un pago manual.');
 
         $data = $request->validate([
             'importe' => ['required', 'numeric', 'min:0.01'],

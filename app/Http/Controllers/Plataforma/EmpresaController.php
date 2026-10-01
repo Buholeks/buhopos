@@ -28,6 +28,7 @@ class EmpresaController extends Controller
 
     public function show(Empresa $empresa): JsonResponse
     {
+        $empresa->setAttribute('suscripcion_gestionada_por_stripe', $empresa->suscripcion?->gestionadaPorStripe() ?? false);
         return response()->json($empresa->load([
             'sucursales' => fn ($q) => $q->orderBy('nombre'),
             'usuarios' => fn ($q) => $q->with('sucursal:id,nombre')->orderBy('name'),

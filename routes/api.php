@@ -91,6 +91,7 @@ Route::prefix('plataforma')->group(function () {
         Route::post('/planes/{plan}/stripe/sincronizar', [PlataformaStripeController::class, 'sincronizarPlan']);
         Route::post('/empresas/{empresa}/stripe/checkout', [PlataformaStripeController::class, 'checkout']);
         Route::post('/empresas/{empresa}/stripe/portal', [PlataformaStripeController::class, 'portal']);
+        Route::post('/empresas/{empresa}/stripe/sincronizar', [PlataformaStripeController::class, 'sincronizarEmpresa']);
         Route::put('/empresas/{empresa}/suscripcion', [PlataformaSuscripcionController::class, 'guardar']);
         Route::post('/empresas/{empresa}/pagos', [PlataformaSuscripcionController::class, 'registrarPago']);
         Route::get('/cuenta-cobro', [PlataformaSuscripcionController::class, 'cuentaCobro']);
@@ -111,6 +112,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/facturacion', [FacturacionController::class, 'show']);
     Route::post('/facturacion/checkout', [FacturacionController::class, 'checkout']);
+    Route::post('/facturacion/checkout/confirmar', [FacturacionController::class, 'confirmarCheckout']);
     Route::post('/facturacion/portal', [FacturacionController::class, 'portal']);
     Route::post('/facturacion/tarjeta/preparar', [FacturacionController::class, 'prepararTarjeta']);
     Route::post('/facturacion/tarjeta', [FacturacionController::class, 'guardarTarjeta']);

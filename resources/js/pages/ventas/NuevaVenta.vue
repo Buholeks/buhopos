@@ -1233,8 +1233,7 @@ function onSerieSeleccionada(serie) {
         sku: serie.variante_sku,
         codigo: modalSerie.itemPendiente?.codigo,
         imagen_url: modalSerie.itemPendiente?.imagen_url,
-        precio_venta:
-            serie.precio_venta ?? modalSerie.itemPendiente?.precio_venta ?? 0,
+        precio_venta: modalSerie.itemPendiente?.precio_venta ?? 0,
         precio1: modalSerie.itemPendiente?.precio1,
         precio2: modalSerie.itemPendiente?.precio2,
         precio3: modalSerie.itemPendiente?.precio3,

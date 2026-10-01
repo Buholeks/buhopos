@@ -591,7 +591,7 @@ class TraspasoController extends Controller
             'serie_identificador' => $serie?->identificador,
             'cantidad' => $cantidad,
             'precio_costo' => $this->precioCosto($producto, $variante, $serie),
-            'precio_venta' => $this->precioVenta($producto, $variante, $serie),
+            'precio_venta' => $this->precioVenta($producto, $variante),
             'cantidad_recibida' => 0,
             'estado' => 'pendiente',
         ]);
@@ -764,12 +764,9 @@ class TraspasoController extends Controller
         return (float) ($variante?->precio_costo ?? $producto->precio_costo ?? 0);
     }
 
-    private function precioVenta(Producto $producto, ?ProductoVariante $variante, ?Serie $serie): float
+    // El precio_venta de la serie es solo histórico de la compra; se usa el vigente.
+    private function precioVenta(Producto $producto, ?ProductoVariante $variante): float
     {
-        if ($serie && $serie->precio_venta !== null && (float) $serie->precio_venta > 0) {
-            return (float) $serie->precio_venta;
-        }
-
         return (float) ($variante?->precio_venta ?? $producto->precio_venta ?? 0);
     }
 

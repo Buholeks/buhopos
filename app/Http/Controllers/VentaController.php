@@ -793,7 +793,7 @@ class VentaController extends Controller
             ->where('estado', 'disponible')
             ->with([
                 'producto:id,nombre,codigo,precio_costo,precio_venta,precio1,precio2,precio3,precio4,precio5,imagen,tiene_variantes,tiene_series',
-                'variante:id,producto_id,empresa_id,sku,imagen',
+                'variante:id,producto_id,empresa_id,sku,imagen,precio_venta,precio1,precio2,precio3,precio4,precio5',
                 'variante.atributos.tipoAtributo:id,nombre',
                 'variante.atributos.atributo:id,valor',
             ])
@@ -806,10 +806,13 @@ class VentaController extends Controller
             $inv   = $getStock($empresaId, $sucursalId, $serie->producto_id, $serie->variante_id);
             $stock = max(0, (float) ($inv?->stock ?? 0) - $stockComprometido($serie->producto_id, $serie->variante_id));
 
-            // Precios: serie > variante > producto
-            $precioVenta = ($serie->precio_venta && (float)$serie->precio_venta > 0)
-                ? (float)$serie->precio_venta
-                : (float)($serie->producto->precio_venta ?? 0);
+            // Precios de venta: variante > producto. El precio_venta de la serie
+            // es solo histórico de la compra; el costo sí es el de la serie.
+            $precioSerie = function (string $campo) use ($serie): ?float {
+                $val = $serie->variante?->{$campo} ?? $serie->producto->{$campo} ?? null;
+                return $val !== null && (float) $val > 0 ? (float) $val : null;
+            };
+            $precioVenta = $precioSerie('precio_venta') ?? 0;
             $serieImagenUrl = $serie->producto->imagen_url;
 
             if ($serie->variante) {
@@ -838,11 +841,11 @@ class VentaController extends Controller
                 'unidad_abreviatura' => null,
                 'precio_venta'    => $precioVenta,
                 'precio_costo'    => (float)($serie->precio_costo ?? $serie->producto->precio_costo ?? 0),
-                'precio1'         => null,
-                'precio2'         => null,
-                'precio3'         => null,
-                'precio4'         => null,
-                'precio5'         => null,
+                'precio1'         => $precioSerie('precio1'),
+                'precio2'         => $precioSerie('precio2'),
+                'precio3'         => $precioSerie('precio3'),
+                'precio4'         => $precioSerie('precio4'),
+                'precio5'         => $precioSerie('precio5'),
             ]);
 
             // Si es IMEI exacto, devolver solo ese resultado

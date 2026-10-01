@@ -138,7 +138,6 @@ class SerieController extends Controller
                 'imei2'        => $s->imei2,
                 'serie'        => $s->serie,
                 'variante_sku' => $s->variante?->sku,
-                'precio_venta' => $s->precio_venta,
                 'notas'        => $s->notas,
             ]);
 
@@ -323,12 +322,12 @@ class SerieController extends Controller
         $producto = $s->producto;
         $variante = $s->variante;
 
+        // Los precios de venta siempre vienen de variante → producto; el precio_venta
+        // guardado en la serie es solo histórico de la compra. El costo sí es el de la serie.
         $resolverPrecio = function (string $campo) use ($s, $producto, $variante): ?float {
-            // Precio específico de la serie
-            if ($campo === 'precio_venta' && $s->precio_venta) {
-                return (float) $s->precio_venta;
+            if ($campo === 'precio_costo' && (float) $s->precio_costo > 0) {
+                return (float) $s->precio_costo;
             }
-            // Variante → producto
             $val = $variante?->{$campo} ?? $producto?->{$campo} ?? null;
             return $val && (float) $val > 0 ? (float) $val : null;
         };

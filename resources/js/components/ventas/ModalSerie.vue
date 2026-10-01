@@ -184,25 +184,6 @@ import { computed } from "vue";
                                 {{ s.notas }}
                             </p>
                         </div>
-
-                        <!-- Precio especial si tiene -->
-                        <div
-                            v-if="s.precio_venta"
-                            class="flex-shrink-0 text-right"
-                        >
-                            <span
-                                class="font-mono text-[12px] font-medium text-emerald-600"
-                            >
-                                ${{
-                                    Number(s.precio_venta).toLocaleString(
-                                        "es-MX",
-                                    )
-                                }}
-                            </span>
-                            <p class="text-[10px] text-slate-400">
-                                precio esp.
-                            </p>
-                        </div>
                     </button>
                 </div>
 

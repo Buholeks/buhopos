@@ -500,6 +500,7 @@ import { computed, reactive, ref } from "vue";
 import { Loader2, Plus, X } from "lucide-vue-next";
 import http from "@/lib/http";
 import { toastError, toastSuccess } from "@/lib/alert";
+import { ofrecerRecuperacion } from "@/helpers/recuperar";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import ClienteCreateModal from "@/components/clientes/ClienteCreateModal.vue";
@@ -759,6 +760,25 @@ async function crearProductoRapido() {
         toastSuccess("Producto agregado al pedido");
         cerrarProductoRapido(true);
     } catch (e) {
+        const recuperable = await ofrecerRecuperacion(e, "/api/productos", async ({ data: producto }) => {
+            toastSuccess("Producto recuperado");
+            cerrarProductoRapido(true);
+            await seleccionarProductoPedido({
+                tipo_resultado: "producto",
+                id: null,
+                producto_id: producto.id,
+                nombre: producto.nombre,
+                codigo: producto.codigo,
+                sku: null,
+                codigo_barras: null,
+                nombre_variante: null,
+                precio_venta: Number(producto.precio_venta ?? 0),
+                tiene_variantes: Boolean(producto.tiene_variantes),
+                selector_id: `producto:${producto.id}:sin-variante`,
+            });
+        });
+        if (recuperable) return;
+
         const errores = e?.response?.data?.errors;
         toastError(
             errores?.codigo?.[0] ||

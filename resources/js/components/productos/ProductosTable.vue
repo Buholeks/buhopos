@@ -1,5 +1,6 @@
 <template>
-    <table class="w-full border-collapse">
+    <div class="overflow-x-auto">
+    <table class="w-full min-w-[640px] border-collapse">
         <thead class="bg-slate-50">
             <tr
                 class="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-400"
@@ -7,14 +8,23 @@
                 <th class="w-14 border-b border-slate-200 px-3 py-2"></th>
                 <th class="border-b border-slate-200 px-3 py-2">Producto</th>
                 <th class="border-b border-slate-200 px-3 py-2">Código</th>
-                <th class="border-b border-slate-200 px-3 py-2">
+                <th class="hidden border-b border-slate-200 px-3 py-2 md:table-cell">
                     Categoría / Marca
                 </th>
-                <th class="border-b border-slate-200 px-3 py-2 text-right">
+                <th
+                    v-if="verCostos"
+                    class="hidden border-b border-slate-200 px-3 py-2 text-right lg:table-cell"
+                >
                     Costo
                 </th>
                 <th class="border-b border-slate-200 px-3 py-2 text-right">
                     Venta
+                </th>
+                <th
+                    v-if="verExistencias"
+                    class="border-b border-slate-200 px-3 py-2 text-right"
+                >
+                    Existencia
                 </th>
                 <th class="border-b border-slate-200 px-3 py-2 text-center">
                     Estado
@@ -97,7 +107,7 @@
                     >
                 </td>
 
-                <td class="px-3 py-2">
+                <td class="hidden px-3 py-2 md:table-cell">
                     <p class="text-sm text-slate-900">
                         {{ p.categoria?.nombre ?? "—" }}
                     </p>
@@ -114,7 +124,8 @@
                 </td>
 
                 <td
-                    class="px-3 py-2 text-right font-mono text-sm text-slate-800"
+                    v-if="verCostos"
+                    class="hidden px-3 py-2 text-right font-mono text-sm text-slate-800 lg:table-cell"
                 >
                     {{ formatPrecio(p.precio_costo) }}
                 </td>
@@ -122,6 +133,25 @@
                     class="px-3 py-2 text-right font-mono text-sm text-slate-800"
                 >
                     {{ formatPrecio(p.precio_venta) }}
+                </td>
+
+                <td
+                    v-if="verExistencias"
+                    class="px-3 py-2 text-right"
+                    :title="detalleExistencias(p)"
+                >
+                    <span
+                        class="inline-flex min-w-[2.5rem] justify-end rounded-md px-2 py-0.5 font-mono text-sm font-semibold"
+                        :class="claseExistencia(p)"
+                    >
+                        {{ formatCantidad(p.existencia) }}
+                    </span>
+                    <p
+                        v-if="stockOtrasSucursales(p) !== 0"
+                        class="mt-0.5 text-[10px] text-slate-400"
+                    >
+                        +{{ formatCantidad(stockOtrasSucursales(p)) }} en otras
+                    </p>
                 </td>
 
                 <td class="px-3 py-2 text-center">
@@ -172,6 +202,7 @@
             </tr>
         </tbody>
     </table>
+    </div>
 </template>
 
 <script setup>
@@ -181,10 +212,12 @@ import {
     Copy,
     Trash2,
 } from "lucide-vue-next";
+import { computed } from "vue";
 import { useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
-
+const verExistencias = computed(() => auth.can("inventario.ver"));
+const verCostos = computed(() => auth.can("productos.precios"));
 const props = defineProps({
     productos: { type: Array, default: () => [] },
     formatPrecio: { type: Function, required: true },
@@ -205,6 +238,33 @@ function pendientes(p) {
 
 function categoriaNombre(p) {
     return props.categoriaNombre(p);
+}
+
+function formatCantidad(valor) {
+    return Number(valor ?? 0).toLocaleString("es-MX", { maximumFractionDigits: 3 });
+}
+
+function claseExistencia(p) {
+    const stock = Number(p.existencia ?? 0);
+    if (stock <= 0) return "bg-slate-100 text-slate-400";
+    if (p.bajo_minimo) return "bg-red-50 text-red-700";
+    return "bg-emerald-50 text-emerald-700";
+}
+
+function stockOtrasSucursales(p) {
+    return (p.existencias_sucursales ?? [])
+        .filter((s) => !s.actual)
+        .reduce((total, s) => total + Number(s.stock ?? 0), 0);
+}
+
+function detalleExistencias(p) {
+    const sucursales = p.existencias_sucursales ?? [];
+    if (!sucursales.length) return "Sin existencia en ninguna sucursal";
+    const lineas = sucursales.map(
+        (s) => `${s.nombre}${s.actual ? " (actual)" : ""}: ${formatCantidad(s.stock)}`,
+    );
+    if (p.bajo_minimo) lineas.push("Bajo el stock mínimo en esta sucursal");
+    return lineas.join("\n");
 }
 
 function previewImagenes(p) {

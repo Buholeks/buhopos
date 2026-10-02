@@ -124,6 +124,15 @@
                         <option value="0">Sin series</option>
                     </select>
                 </label>
+                <label v-if="auth.can('inventario.ver')" class="block text-sm font-medium text-slate-700">
+                    Existencia (esta sucursal)
+                    <select v-model="filtros.existencia" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" @change="aplicarFiltros">
+                        <option value="">Todos</option>
+                        <option value="con">Con existencia</option>
+                        <option value="sin">Sin existencia</option>
+                        <option value="bajo_minimo">Bajo mínimo</option>
+                    </select>
+                </label>
             </div>
         </div>
 
@@ -295,6 +304,7 @@ const filtros = reactive({
     activo: "",
     tiene_variantes: "",
     tiene_series: "",
+    existencia: "",
 });
 const filtrosSeleccionados = reactive({
     categoria: null,
@@ -497,6 +507,7 @@ function limpiarFiltros() {
         activo: "",
         tiene_variantes: "",
         tiene_series: "",
+        existencia: "",
     });
     Object.assign(filtrosSeleccionados, {
         categoria: null,
@@ -772,7 +783,9 @@ async function enviarForm() {
         "peso",
     ];
     campos.forEach((c) => {
-        if (form[c] !== null && form[c] !== "") fd.append(c, form[c]);
+        // Sin productos.precios el API no manda ni acepta el costo
+        if (c === "precio_costo" && !auth.can("productos.precios")) return;
+        if (form[c] !== null && form[c] !== undefined && form[c] !== "") fd.append(c, form[c]);
     });
     fd.append("activo", form.activo ? "1" : "0");
     fd.append("tiene_series", form.tiene_series ? "1" : "0"); // ← nuevo
@@ -791,9 +804,11 @@ async function enviarForm() {
         cerrarModal();
         await cargarProductos(paginacion.value.current_page);
     } catch (e) {
-        const handled = await ofrecerRecuperacion(e, "/api/productos", async () => {
-            cerrarModal();
+        const handled = await ofrecerRecuperacion(e, "/api/productos", async ({ data: producto }) => {
+            toastSuccess("Producto recuperado, revisa sus datos");
             await cargarProductos(paginacion.value.current_page);
+            // Se abre en edición con los datos guardados del producto recuperado
+            await abrirModal(producto);
         });
         if (!handled) {
             toastError(e.response?.data?.message ?? "Error");
@@ -830,7 +845,7 @@ async function confirmarEliminar(p) {
         Swal.fire({
             icon: "error",
             title: "Error",
-            text: e.response?.data?.mensaje ?? "No se pudo eliminar",
+            text: e.response?.data?.message ?? "No se pudo eliminar",
         });
     }
 }
@@ -1006,9 +1021,11 @@ async function guardarEditarVariante(varianteId) {
             "precio_oferta",
             "stock_minimo",
         ];
-        camposPrecios.forEach((campo) => {
-            fd.append(campo, formEditVar[campo] ?? "");
-        });
+        camposPrecios
+            .filter((campo) => campo !== "precio_costo" || auth.can("productos.precios"))
+            .forEach((campo) => {
+                fd.append(campo, formEditVar[campo] ?? "");
+            });
         Object.entries(formEditVar.atributos ?? {}).forEach(
             ([tipoId, atributoId]) => {
                 if (atributoId !== null && atributoId !== "") {
@@ -1057,7 +1074,7 @@ async function confirmarEliminarVariante(v) {
         await cargarVariantes(modalVar.productoId);
         await cargarProductos(paginacion.value.current_page);
     } catch (e) {
-        toastError(e.response?.data?.mensaje ?? "Error");
+        toastError(e.response?.data?.message ?? "No se pudo eliminar la variante");
     }
 }
 

@@ -18,6 +18,8 @@ use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -94,16 +96,91 @@ class ProductoController extends Controller
             }
         }
 
+        $verExistencias = Auth::user()->tienePermiso('inventario.ver');
+        $sucursalId = $this->sucursalId();
+
+        if ($verExistencias && in_array($request->input('existencia'), ['con', 'sin', 'bajo_minimo'], true)) {
+            $inventarioSucursal = fn($q) => $q->select(DB::raw(1))
+                ->from('inventario as inv')
+                ->whereColumn('inv.producto_id', 'productos.id')
+                ->where('inv.empresa_id', $empresaId)
+                ->where('inv.sucursal_id', $sucursalId);
+
+            match ($request->input('existencia')) {
+                'con' => $query->whereExists(fn($q) => $inventarioSucursal($q)->where('inv.stock', '>', 0)),
+                'sin' => $query->whereNotExists(fn($q) => $inventarioSucursal($q)->where('inv.stock', '>', 0)),
+                'bajo_minimo' => $query->whereExists(fn($q) => $inventarioSucursal($q)
+                    ->where('inv.stock_minimo', '>', 0)
+                    ->whereColumn('inv.stock', '<=', 'inv.stock_minimo')),
+            };
+        }
+
         $productos = $query->paginate($request->integer('por_pagina', 20));
         $previewImagenes = VariantImageResolver::previewsForProducts($productos->getCollection(), $this->empresaId());
+        $existencias = $verExistencias
+            ? $this->existenciasPorSucursal($empresaId, $productos->getCollection()->pluck('id'), $sucursalId)
+            : collect();
 
-        $productos->getCollection()->transform(function ($producto) use ($previewImagenes) {
+        $productos->getCollection()->transform(function ($producto) use ($previewImagenes, $existencias, $verExistencias) {
             $producto->setAttribute('preview_imagenes', $previewImagenes[$producto->id] ?? []);
+
+            if ($verExistencias) {
+                $datos = $existencias->get($producto->id);
+                $producto->setAttribute('existencia', $datos['existencia'] ?? 0);
+                $producto->setAttribute('bajo_minimo', $datos['bajo_minimo'] ?? false);
+                $producto->setAttribute('existencias_sucursales', $datos['sucursales'] ?? []);
+            }
 
             return $producto;
         });
 
-        return response()->json($productos);
+        return response()->json($this->filtrarCostos($productos));
+    }
+
+    /**
+     * Existencia de la sucursal actual (sumando variantes), si algún renglón está bajo
+     * mínimo y el desglose por sucursal con stock, para los productos indicados.
+     */
+    private function existenciasPorSucursal(int $empresaId, Collection $productoIds, int $sucursalId): Collection
+    {
+        if ($productoIds->isEmpty()) {
+            return collect();
+        }
+
+        return DB::table('inventario as inv')
+            ->join('sucursales as s', 's.id', '=', 'inv.sucursal_id')
+            ->leftJoin('producto_variantes as pv', 'pv.id', '=', 'inv.variante_id')
+            ->where('inv.empresa_id', $empresaId)
+            ->whereIn('inv.producto_id', $productoIds)
+            ->where(fn($q) => $q->whereNull('inv.variante_id')->orWhereNull('pv.deleted_at'))
+            ->groupBy('inv.producto_id', 'inv.sucursal_id', 's.nombre')
+            ->orderBy('s.nombre')
+            ->get([
+                'inv.producto_id',
+                'inv.sucursal_id',
+                's.nombre',
+                DB::raw('SUM(inv.stock) as stock'),
+                DB::raw('MAX(CASE WHEN inv.stock_minimo > 0 AND inv.stock <= inv.stock_minimo THEN 1 ELSE 0 END) as bajo_minimo'),
+            ])
+            ->groupBy('producto_id')
+            ->map(function (Collection $filas) use ($sucursalId) {
+                $actual = $filas->firstWhere('sucursal_id', $sucursalId);
+
+                return [
+                    'existencia' => (float) ($actual->stock ?? 0),
+                    'bajo_minimo' => (bool) ($actual->bajo_minimo ?? false),
+                    'sucursales' => $filas
+                        ->filter(fn($fila) => (float) $fila->stock != 0)
+                        ->map(fn($fila) => [
+                            'sucursal_id' => (int) $fila->sucursal_id,
+                            'nombre' => $fila->nombre,
+                            'stock' => (float) $fila->stock,
+                            'actual' => (int) $fila->sucursal_id === $sucursalId,
+                        ])
+                        ->values()
+                        ->all(),
+                ];
+            });
     }
 
     private function aplicarBusquedaProductos(Builder $query, string $buscar, int $empresaId): void
@@ -176,7 +253,7 @@ class ProductoController extends Controller
         $producto->restore();
         return response()->json([
             'message' => 'Producto recuperado correctamente.',
-            'data'    => $producto->load(['categoria', 'marca', 'modelo', 'unidadMedida']),
+            'data'    => $this->filtrarCostos($producto->load(['categoria', 'marca', 'modelo', 'unidadMedida'])),
         ]);
     }
 
@@ -213,6 +290,10 @@ class ProductoController extends Controller
 
         try {
             unset($datos['imagen'], $datos['eliminar_imagen']);
+
+            if (! $this->puedeVerCostos()) {
+                $datos['precio_costo'] = 0;
+            }
 
             if (empty($datos['codigo'])) {
                 $datos['codigo'] = Producto::generarCodigo($empresaId);
@@ -264,7 +345,7 @@ class ProductoController extends Controller
 
             return response()->json([
                 'message' => 'Producto creado correctamente.',
-                'data' => $producto->load(['categoria', 'marca', 'modelo', 'unidadMedida']),
+                'data' => $this->filtrarCostos($producto->load(['categoria', 'marca', 'modelo', 'unidadMedida'])),
             ], 201);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -283,7 +364,7 @@ class ProductoController extends Controller
             ->with(['categoria', 'marca', 'modelo', 'unidadMedida', 'variantes.atributos'])
             ->findOrFail($id);
 
-        return response()->json($producto);
+        return response()->json($this->filtrarCostos($producto));
     }
 
     // ── POST /api/productos/{id} (con _method=PUT para imagen) ───────────────
@@ -315,6 +396,10 @@ class ProductoController extends Controller
 
         unset($datos['imagen'], $datos['eliminar_imagen']);
 
+        if (! $this->puedeVerCostos()) {
+            unset($datos['precio_costo']);
+        }
+
         if (empty($datos['codigo'])) {
             $datos['codigo'] = Producto::generarCodigo($empresaId);
         }
@@ -324,7 +409,7 @@ class ProductoController extends Controller
 
         return response()->json([
             'message' => 'Producto actualizado correctamente.',
-            'data' => $producto->load(['categoria', 'marca', 'modelo', 'unidadMedida']),
+            'data' => $this->filtrarCostos($producto->load(['categoria', 'marca', 'modelo', 'unidadMedida'])),
         ]);
     }
 
@@ -425,12 +510,23 @@ class ProductoController extends Controller
             ->with(['producto:id,imagen', 'atributos.tipoAtributo', 'atributos.atributo'])
             ->get();
 
+        $verExistencias = Auth::user()->tienePermiso('inventario.ver');
+        $existencias = $verExistencias
+            ? Inventario::where('empresa_id', $producto->empresa_id)
+                ->where('sucursal_id', $this->sucursalId())
+                ->where('producto_id', $producto->id)
+                ->whereNotNull('variante_id')
+                ->get(['variante_id', 'stock', 'stock_minimo'])
+                ->keyBy('variante_id')
+            : collect();
+
         $variantes = VariantImageResolver::applyResolvedImages($variantes)
-            ->map(function ($v) use ($grupos) {
+            ->map(function ($v) use ($grupos, $existencias, $verExistencias) {
                 $grupo = $v->atributos
                     ->map(fn($relacion) => $grupos->get($relacion->tipo_atributo_id . ':' . $relacion->atributo_id))
                     ->filter()
                     ->first();
+                $inventario = $existencias->get($v->id);
 
                 return array_merge($v->toArray(), [
                 'nombre_variante' => $v->nombreVariante(),
@@ -438,10 +534,15 @@ class ProductoController extends Controller
                 'imagen_url'      => $v->imagen_url,
                 'imagen_url_resuelta' => $v->imagen_url_resuelta,
                 'grupo' => $grupo?->only(['id', 'tipo_atributo_id', 'atributo_id', 'codigo', 'es_personalizado']),
-                ]);
+                ], $verExistencias ? [
+                    'existencia' => (float) ($inventario->stock ?? 0),
+                    'bajo_minimo' => $inventario
+                        && (float) $inventario->stock_minimo > 0
+                        && (float) $inventario->stock <= (float) $inventario->stock_minimo,
+                ] : []);
             });
 
-        return response()->json($variantes);
+        return response()->json($this->filtrarCostos($variantes));
     }
 
     // ── POST /api/productos/{id}/variantes ────────────────────────────────────
@@ -536,7 +637,7 @@ class ProductoController extends Controller
                 'sku'           => $toNullIfEmpty($datos['sku'] ?? null) ?: app(VarianteGrupoServicio::class)->generarSku($producto, $datos['atributos']),
                 'codigo_barras' => $toNullIfEmpty($datos['codigo_barras'] ?? null),
                 'imagen'        => null,
-                'precio_costo'  => $toNullIfEmpty($datos['precio_costo'] ?? null),
+                'precio_costo'  => $this->puedeVerCostos() ? $toNullIfEmpty($datos['precio_costo'] ?? null) : null,
                 'precio_venta'  => $toNullIfEmpty($datos['precio_venta'] ?? null),
                 'precio1'       => $toNullIfEmpty($datos['precio1'] ?? null),
                 'precio2'       => $toNullIfEmpty($datos['precio2'] ?? null),
@@ -616,10 +717,10 @@ class ProductoController extends Controller
 
             return response()->json([
                 'message' => 'Variante creada correctamente.',
-                'data' => array_merge($variante->toArray(), [
+                'data' => $this->filtrarCostos(array_merge($variante->toArray(), [
                     'nombre_variante' => $variante->nombreVariante(),
                     'precio_vigente'  => $variante->precioVigente(),
-                ]),
+                ])),
             ], 201);
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -882,7 +983,9 @@ class ProductoController extends Controller
         try {
             $variante->sku           = $toNullIfEmpty($datos['sku'] ?? null);
             $variante->codigo_barras = $toNullIfEmpty($datos['codigo_barras'] ?? null);
-            $variante->precio_costo  = $toNullIfEmpty($datos['precio_costo'] ?? null);
+            if ($this->puedeVerCostos()) {
+                $variante->precio_costo = $toNullIfEmpty($datos['precio_costo'] ?? null);
+            }
             $variante->precio_venta  = $toNullIfEmpty($datos['precio_venta'] ?? null);
             $variante->precio1       = $toNullIfEmpty($datos['precio1'] ?? null);
             $variante->precio2       = $toNullIfEmpty($datos['precio2'] ?? null);
@@ -939,10 +1042,10 @@ class ProductoController extends Controller
 
         return response()->json([
             'message' => 'Variante actualizada correctamente.',
-            'data' => array_merge($variante->toArray(), [
+            'data' => $this->filtrarCostos(array_merge($variante->toArray(), [
                 'nombre_variante' => $variante->nombreVariante(),
                 'precio_vigente'  => $variante->precioVigente(),
-            ]),
+            ])),
         ]);
     }
 
@@ -959,8 +1062,7 @@ class ProductoController extends Controller
 
         $actualizadas = ProductoVariante::where('empresa_id', $empresaId)
             ->where('producto_id', $id)
-            ->update([
-                'precio_costo'  => null,
+            ->update(array_merge($this->puedeVerCostos() ? ['precio_costo' => null] : [], [
                 'precio_venta'  => null,
                 'precio1'       => null,
                 'precio2'       => null,
@@ -970,7 +1072,7 @@ class ProductoController extends Controller
                 'precio_oferta' => null,
                 'oferta_activa' => false,
                 'oferta_hasta'  => null,
-            ]);
+            ]));
 
         return response()->json([
             'message'      => "Se restablecieron los precios de {$actualizadas} variante(s) al precio del producto padre.",
@@ -1020,6 +1122,33 @@ class ProductoController extends Controller
     }
 
     // ── Privados ───────────────────────────────────────────────────────────────
+    private ?bool $puedeVerCostos = null;
+
+    private function puedeVerCostos(): bool
+    {
+        return $this->puedeVerCostos ??= Auth::user()->tienePermiso('productos.precios');
+    }
+
+    /** Quita precio_costo (también en relaciones anidadas) si el usuario no tiene productos.precios */
+    private function filtrarCostos(mixed $datos): mixed
+    {
+        if ($this->puedeVerCostos()) {
+            return $datos;
+        }
+
+        if ($datos instanceof Arrayable) {
+            $datos = $datos->toArray();
+        }
+
+        if (! is_array($datos)) {
+            return $datos;
+        }
+
+        unset($datos['precio_costo']);
+
+        return array_map(fn($valor) => $this->filtrarCostos($valor), $datos);
+    }
+
     private function reglas(int $empresaId, ?int $ignoreId = null): array
     {
         $uniCodigo = Rule::unique('productos', 'codigo')
@@ -1029,9 +1158,16 @@ class ProductoController extends Controller
             $uniCodigo = $uniCodigo->ignore($ignoreId);
         }
 
+        // El índice único (empresa_id, codigo) también incluye los eliminados
+        $codigoEliminado = function (string $attribute, mixed $value, \Closure $fail) use ($empresaId) {
+            if (Producto::onlyTrashed()->where('empresa_id', $empresaId)->where('codigo', $value)->exists()) {
+                $fail('Ese código pertenece a un producto eliminado. Recupéralo o usa otro código.');
+            }
+        };
+
         return [
             'nombre'           => ['required', 'string', 'min:2', 'max:200'],
-            'codigo'           => ['nullable', 'string', 'max:100', $uniCodigo],
+            'codigo'           => ['nullable', 'string', 'max:100', $uniCodigo, $codigoEliminado],
             'descripcion'      => ['nullable', 'string'],
             'categoria_id'     => [
                 'nullable',
@@ -1064,7 +1200,7 @@ class ProductoController extends Controller
             'imagen'           => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'imagen_media_id'  => ['nullable', 'integer'],
             'eliminar_imagen'  => ['nullable', 'boolean'],
-            'precio_costo'     => ['required', 'numeric', 'min:0'],
+            'precio_costo'     => [$this->puedeVerCostos() ? 'required' : 'nullable', 'numeric', 'min:0'],
             'precio_venta'     => ['required', 'numeric', 'min:0'],
             'precio1'          => ['nullable', 'numeric', 'min:0'],
             'precio2'          => ['nullable', 'numeric', 'min:0'],

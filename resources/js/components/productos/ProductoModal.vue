@@ -366,7 +366,7 @@
                             v-show="tabActivo === 'precios'"
                             class="grid grid-cols-1 gap-4 md:grid-cols-2"
                         >
-                            <div>
+                            <div v-if="verCostos">
                                 <label
                                     class="text-sm font-medium text-slate-700"
                                 >
@@ -471,6 +471,7 @@
 
                             <div
                                 v-if="
+                                    verCostos &&
                                     formProxy.precio_costo > 0 &&
                                     formProxy.precio_venta > 0
                                 "
@@ -535,6 +536,7 @@
 <script setup>
 import { computed } from "vue";
 import http from "@/lib/http";
+import { useAuthStore } from "@/stores/auth";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import MediaPicker from "@/components/media/MediaPicker.vue";
@@ -567,6 +569,9 @@ const props = defineProps({
     margen: { type: Number, default: 0 },
     formatPrecio: { type: Function, required: true },
 });
+
+const auth = useAuthStore();
+const verCostos = computed(() => auth.can("productos.precios"));
 
 const emit = defineEmits([
     "cerrar",

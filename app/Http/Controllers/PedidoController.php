@@ -517,6 +517,29 @@ class PedidoController extends Controller
         $user = Auth::user();
         $empresaId = (int) $user->empresa_id;
 
+        if ($request->filled('codigo')) {
+            $eliminado = Producto::onlyTrashed()
+                ->where('empresa_id', $empresaId)
+                ->where('codigo', $request->input('codigo'))
+                ->first();
+
+            if ($eliminado) {
+                // Recuperar usa /api/productos/{id}/restore, que pide productos.editar
+                if (! $user->tienePermiso('productos.editar')) {
+                    return response()->json([
+                        'message' => "El código {$eliminado->codigo} pertenece a un producto eliminado. Pide que lo recuperen o usa otro código.",
+                    ], 422);
+                }
+
+                return response()->json([
+                    'recoverable' => true,
+                    'id' => $eliminado->id,
+                    'nombre' => $eliminado->nombre,
+                    'message' => "Ya existe un producto eliminado con ese código ({$eliminado->codigo}). ¿Deseas recuperarlo?",
+                ], 409);
+            }
+        }
+
         $data = $request->validate([
             'nombre' => ['required', 'string', 'min:2', 'max:200'],
             'codigo' => [

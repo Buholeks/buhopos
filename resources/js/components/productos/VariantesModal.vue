@@ -153,6 +153,9 @@
                                             </p>
                                             <p class="text-xs text-slate-500">
                                                 {{ grupo.tipo }} · {{ grupo.variantes.length }} variantes
+                                                <template v-if="grupo.variantes.some((v) => v.existencia != null)">
+                                                    · {{ formatCantidad(existenciaGrupo(grupo)) }} pzs en esta sucursal
+                                                </template>
                                             </p>
                                         </div>
                                         <input
@@ -250,6 +253,16 @@
                                             >{{ v.sku }}</span
                                         >
 
+                                        <!-- Existencia en la sucursal actual (solo con inventario.ver) -->
+                                        <span
+                                            v-if="v.existencia != null"
+                                            class="inline-flex rounded-md px-2 py-0.5 font-mono text-xs font-semibold"
+                                            :class="claseExistencia(v.existencia, v.bajo_minimo)"
+                                            :title="v.bajo_minimo ? 'Existencia en esta sucursal · bajo el stock mínimo' : 'Existencia en esta sucursal'"
+                                        >
+                                            {{ formatCantidad(v.existencia) }} pzs
+                                        </span>
+
                                         <!-- Precio -->
                                         <span
                                             class="font-mono text-sm text-slate-700"
@@ -310,6 +323,7 @@
                                             class="ml-auto flex items-center gap-1"
                                         >
                                             <button
+                                                v-if="auth.can('productos.eliminar')"
                                                 @click.stop="
                                                     emit('eliminar', v)
                                                 "
@@ -443,7 +457,7 @@
                                                     >
                                                 </div>
 
-                                                <div>
+                                                <div v-if="auth.can('productos.precios')">
                                                     <label
                                                         class="text-sm font-medium text-slate-700"
                                                         >Precio costo</label
@@ -1003,6 +1017,7 @@
 
 <script setup>
 import { computed, ref, watch } from "vue";
+import { useAuthStore } from "@/stores/auth";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import MediaPicker from "@/components/media/MediaPicker.vue";
@@ -1036,6 +1051,8 @@ const props = defineProps({
     formatPrecio: { type: Function, required: true },
     resumenPorTipo: { type: Function, default: null },
 });
+
+const auth = useAuthStore();
 
 const emit = defineEmits([
     "cerrar",
@@ -1222,6 +1239,20 @@ function atributoDeTipo(variante, tipoId) {
         id: atributo.atributo_id ?? atributo.atributo?.id,
         valor: atributo.atributo?.valor ?? atributo.valor,
     };
+}
+
+function formatCantidad(valor) {
+    return Number(valor ?? 0).toLocaleString("es-MX", { maximumFractionDigits: 3 });
+}
+
+function claseExistencia(existencia, bajoMinimo) {
+    if (Number(existencia ?? 0) <= 0) return "bg-slate-100 text-slate-400";
+    if (bajoMinimo) return "bg-red-50 text-red-700";
+    return "bg-emerald-50 text-emerald-700";
+}
+
+function existenciaGrupo(grupo) {
+    return grupo.variantes.reduce((total, v) => total + Number(v.existencia ?? 0), 0);
 }
 
 function ordenarVariantesDentroDeGrupo(a, b) {

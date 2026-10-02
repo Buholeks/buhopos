@@ -16,6 +16,7 @@ use App\Models\ProductoVariante;
 use App\Models\Atributo;
 use App\Models\VarianteAtributo;
 use App\Services\FolioService;
+use App\Servicios\VarianteGrupoServicio;
 use App\Support\TerminalResolver;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -467,7 +468,7 @@ class PedidoController extends Controller
             $variante = ProductoVariante::create([
                 'producto_id' => $producto->id,
                 'empresa_id' => $empresaId,
-                'sku' => ProductoVariante::generarSku($producto->id, $empresaId),
+                'sku' => app(VarianteGrupoServicio::class)->generarSku($producto, $atributos),
                 'codigo_barras' => null,
                 'precio_costo' => null,
                 'precio_venta' => null,
@@ -571,7 +572,7 @@ class PedidoController extends Controller
                 $variante = ProductoVariante::create([
                     'producto_id' => $producto->id,
                     'empresa_id' => $empresaId,
-                    'sku' => ProductoVariante::generarSku($producto->id, $empresaId),
+                    'sku' => app(VarianteGrupoServicio::class)->generarSku($producto, $atributos),
                     'codigo_barras' => null,
                     'precio_costo' => (float) ($data['precio_costo'] ?? 0),
                     'precio_venta' => (float) $data['precio_venta'],

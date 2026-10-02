@@ -533,7 +533,7 @@ class ProductoController extends Controller
             $variante = ProductoVariante::create([
                 'producto_id'   => $id,
                 'empresa_id'    => $empresaId,
-                'sku'           => $toNullIfEmpty($datos['sku'] ?? null) ?: ProductoVariante::generarSku($id, $empresaId),
+                'sku'           => $toNullIfEmpty($datos['sku'] ?? null) ?: app(VarianteGrupoServicio::class)->generarSku($producto, $datos['atributos']),
                 'codigo_barras' => $toNullIfEmpty($datos['codigo_barras'] ?? null),
                 'imagen'        => null,
                 'precio_costo'  => $toNullIfEmpty($datos['precio_costo'] ?? null),
@@ -705,7 +705,7 @@ class ProductoController extends Controller
                     $variante = ProductoVariante::create([
                         'producto_id' => $producto->id,
                         'empresa_id' => $empresaId,
-                        'sku' => trim((string) ($datosVariante['sku'] ?? '')) ?: ProductoVariante::generarSku($producto->id, $empresaId),
+                        'sku' => trim((string) ($datosVariante['sku'] ?? '')) ?: app(VarianteGrupoServicio::class)->generarSku($producto, $datosVariante['atributos']),
                         'oferta_activa' => false,
                         'activo' => true,
                     ]);

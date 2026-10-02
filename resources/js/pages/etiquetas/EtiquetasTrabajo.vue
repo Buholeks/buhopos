@@ -8,7 +8,7 @@
                 </div>
                 <div class="flex gap-2">
                     <RouterLink to="/etiquetas/plantillas" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Diseñar plantillas</RouterLink>
-                    <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60" :disabled="imprimiendo" @click="imprimir">{{ imprimiendo ? "Imprimiendo..." : `Imprimir ${totalEtiquetas} etiquetas` }}</button>
+                    <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60" :disabled="imprimiendo || totalEtiquetas === 0" :title="totalEtiquetas === 0 ? 'Selecciona al menos un artículo con etiquetas' : ''" @click="imprimir">{{ imprimiendo ? "Imprimiendo..." : `Imprimir ${totalEtiquetas} etiqueta${totalEtiquetas !== 1 ? "s" : ""}` }}</button>
                 </div>
             </div>
         </header>
@@ -16,7 +16,21 @@
         <main class="grid w-full gap-5 p-4 lg:grid-cols-[1fr_360px]">
             <section class="space-y-4">
                 <div ref="buscadorRoot" class="rounded-2xl border border-slate-200 bg-white p-4">
-                    <label class="text-xs font-bold uppercase text-slate-500">Agregar productos o variantes</label>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <label class="text-xs font-bold uppercase text-slate-500">Agregar productos o variantes</label>
+                        <div class="flex items-center gap-1">
+                            <button
+                                v-for="opt in filtroOpciones"
+                                :key="opt.value"
+                                type="button"
+                                class="rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition"
+                                :class="filtroStock === opt.value ? opt.activeClass : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'"
+                                @click="cambiarFiltroStock(opt.value)"
+                            >
+                                {{ opt.label }}
+                            </button>
+                        </div>
+                    </div>
                     <div class="relative mt-2">
                         <div
                             class="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 transition focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100"
@@ -78,7 +92,7 @@
                                         </div>
                                         <div class="shrink-0 text-right">
                                             <p class="font-mono text-xs text-emerald-600">{{ fmt(row.item.precio_impresion) }}</p>
-                                            <p class="text-[11px] text-slate-400">Enter</p>
+                                            <p class="text-[11px]" :class="Number(row.item.existencia) > 0 ? 'text-slate-500' : 'text-red-500'">Exist. {{ fmtCantidad(row.item.existencia) }}</p>
                                         </div>
                                     </button>
                                 </template>
@@ -111,12 +125,18 @@
                         <table class="w-full min-w-[760px] text-sm">
                             <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th class="p-3">Imprimir</th><th class="p-3">Producto</th><th class="p-3">Código</th><th class="p-3">Etiquetas</th><th class="p-3">Precio impreso</th><th class="p-3"></th></tr></thead>
                             <tbody class="divide-y divide-slate-100">
-                                <tr v-for="item in items" :key="item.id">
+                                <tr v-for="item in items" :key="item.id" class="transition-colors duration-700" :class="{ 'bg-emerald-50': resaltadoId === item.id }">
                                     <td class="p-3"><input v-model="item.seleccionado" type="checkbox" class="h-5 w-5 accent-emerald-600"></td>
                                     <td class="p-3"><strong>{{ item.datos.producto.nombre }}</strong><div class="text-xs text-slate-500">{{ item.datos.variante.nombre }}</div></td>
                                     <td class="p-3 font-mono text-xs">{{ item.datos.calculados.codigo_preferido }}</td>
-                                    <td class="p-3"><input v-model.number="item.cantidad" type="number" min="0" step="1" class="w-24 rounded-lg border border-slate-300 px-2 py-1"></td>
-                                    <td class="p-3"><input v-model.number="item.precio_impresion" type="number" min="0" step=".01" class="w-28 rounded-lg border border-slate-300 px-2 py-1"></td>
+                                    <td class="p-3">
+                                        <input v-model.number="item.cantidad" type="number" min="0" step="1" class="w-24 rounded-lg border px-2 py-1" :class="item.seleccionado && !cantidadValida(item) ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'">
+                                        <p v-if="item.seleccionado && !cantidadValida(item)" class="mt-0.5 text-[11px] text-red-600">Entero de 1 o más</p>
+                                    </td>
+                                    <td class="p-3">
+                                        <input v-model.number="item.precio_impresion" type="number" min="0" step=".01" class="w-28 rounded-lg border px-2 py-1" :class="item.seleccionado && !precioValido(item) ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-300'">
+                                        <p v-if="item.seleccionado && !precioValido(item)" class="mt-0.5 text-[11px] text-red-600">Precio inválido</p>
+                                    </td>
                                     <td class="p-3"><button class="text-red-600" @click="quitar(item)">Quitar</button></td>
                                 </tr>
                                 <tr v-if="!items.length"><td colspan="6" class="p-10 text-center text-slate-400">No hay artículos preparados.</td></tr>
@@ -169,8 +189,17 @@ const buscadorRoot = ref(null);
 const buscarInput = ref(null);
 const impresoraQz = ref(null);
 const imprimiendo = ref(false);
+const filtroStock = ref("con_existencia");
+const filtroOpciones = [
+    { value: "todos", label: "Todos", activeClass: "border-slate-400 bg-slate-100 text-slate-700" },
+    { value: "con_existencia", label: "Con existencia", activeClass: "border-emerald-400 bg-emerald-50 text-emerald-700" },
+    { value: "sin_existencia", label: "Sin existencia", activeClass: "border-red-300 bg-red-50 text-red-600" },
+];
+const resaltadoId = ref(null);
 let buscarTimer = null;
+let resaltadoTimer = null;
 let requestSeq = 0;
+const LIMITE_CONFIRMAR_ETIQUETAS = 100;
 
 const plantillaActual = computed(() => plantillas.value.find((p) => p.id === Number(plantillaId.value)));
 const perfilActual = computed(() => perfiles.value.find((p) => p.id === Number(perfilId.value)));
@@ -221,6 +250,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
     clearTimeout(buscarTimer);
+    clearTimeout(resaltadoTimer);
     document.removeEventListener("click", onDocClick);
 });
 
@@ -263,7 +293,7 @@ async function buscarProductos(q, exacta = false) {
 
     try {
         const { data } = await http.get("/api/etiquetas/catalogo", {
-            params: { q, exacta: exacta ? 1 : undefined },
+            params: { q, exacta: exacta ? 1 : undefined, filtro_stock: filtroStock.value },
         });
 
         if (seq !== requestSeq) return;
@@ -281,6 +311,19 @@ async function buscarProductos(q, exacta = false) {
     } finally {
         if (seq === requestSeq) buscando.value = false;
     }
+}
+
+function cambiarFiltroStock(valor) {
+    if (filtroStock.value === valor) return;
+    filtroStock.value = valor;
+
+    const q = buscar.value.trim();
+    if (q) {
+        clearTimeout(buscarTimer);
+        cursor.value = 0;
+        buscarProductos(q);
+    }
+    enfocarBusqueda();
 }
 
 function esCoincidenciaExacta(item, q) {
@@ -321,21 +364,98 @@ function enfocarBusqueda() {
     });
 }
 function agregar(item) {
-    if (!items.value.some((i) => i.id === item.id)) items.value.push(structuredClone(toRaw(item)));
+    // Escanear o elegir de nuevo un artículo ya preparado suma una etiqueta más.
+    const existente = items.value.find((i) => i.id === item.id);
+    if (existente) {
+        existente.cantidad = Math.max(0, Math.floor(Number(existente.cantidad) || 0)) + 1;
+        existente.seleccionado = true;
+    } else {
+        items.value.push(structuredClone(toRaw(item)));
+    }
+    resaltar(item.id);
     resultados.value = [];
     dropdown.value = false;
     cursor.value = 0;
     enfocarBusqueda();
 }
+function resaltar(id) {
+    clearTimeout(resaltadoTimer);
+    resaltadoId.value = id;
+    resaltadoTimer = setTimeout(() => { resaltadoId.value = null; }, 900);
+}
 function quitar(item) { items.value = items.value.filter((i) => i !== item); }
+function cantidadValida(item) {
+    const n = Number(item.cantidad);
+    return item.cantidad !== "" && Number.isInteger(n) && n >= 1;
+}
+function precioValido(item) {
+    const n = Number(item.precio_impresion);
+    return item.precio_impresion !== "" && item.precio_impresion !== null && Number.isFinite(n) && n >= 0;
+}
+function nombreItem(item) {
+    return [item.datos.producto.nombre, item.datos.variante.nombre].filter(Boolean).join(" - ");
+}
+
+async function validarAntesDeImprimir() {
+    if (!plantillaActual.value) {
+        Swal.fire("Falta plantilla", "Selecciona una plantilla de precio antes de imprimir.", "warning");
+        return false;
+    }
+    if (!perfilActual.value) {
+        Swal.fire("Falta perfil", "Selecciona un perfil de impresión antes de imprimir.", "warning");
+        return false;
+    }
+
+    const seleccionados = items.value.filter((i) => i.seleccionado);
+    if (!seleccionados.length) {
+        Swal.fire("Sin artículos", "Selecciona al menos un artículo para imprimir.", "warning");
+        return false;
+    }
+
+    const invalidos = seleccionados.filter((i) => !cantidadValida(i) || !precioValido(i));
+    if (invalidos.length) {
+        const lista = invalidos.slice(0, 8).map((i) => `<li>${escaparHtml(nombreItem(i))}</li>`).join("");
+        const resto = invalidos.length > 8 ? `<li>y ${invalidos.length - 8} más…</li>` : "";
+        Swal.fire({
+            icon: "warning",
+            title: "Revisa cantidades y precios",
+            html: `<p class="mb-2">Estos artículos seleccionados tienen una cantidad o un precio inválido (marcados en rojo):</p><ul class="text-left list-disc pl-6">${lista}${resto}</ul>`,
+        });
+        return false;
+    }
+
+    if (totalEtiquetas.value > LIMITE_CONFIRMAR_ETIQUETAS) {
+        const res = await Swal.fire({
+            icon: "question",
+            title: `¿Imprimir ${totalEtiquetas.value} etiquetas?`,
+            text: "Es una cantidad grande. Confirma que las cantidades son correctas.",
+            showCancelButton: true,
+            confirmButtonText: "Imprimir",
+            cancelButtonText: "Revisar",
+            reverseButtons: true,
+        });
+        if (!res.isConfirmed) return false;
+    }
+
+    return true;
+}
+
+function escaparHtml(texto) {
+    return String(texto ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 function seleccionarTodo(valor) { items.value.forEach((i) => { i.seleccionado = valor; }); }
 
 function fmt(v) {
     return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(Number(v ?? 0));
 }
 
+function fmtCantidad(v) {
+    return new Intl.NumberFormat("es-MX", { maximumFractionDigits: 3 }).format(Number(v ?? 0));
+}
+
 async function imprimir() {
     if (imprimiendo.value) return;
+    if (!(await validarAntesDeImprimir())) return;
     imprimiendo.value = true;
     try {
         await imprimirEtiquetas({ plantilla: plantillaActual.value, perfil: perfilActual.value, items: items.value, impresoraQz: impresoraQz.value });

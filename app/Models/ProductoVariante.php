@@ -154,6 +154,40 @@ class ProductoVariante extends Model
         return $sku;
     }
 
+    /** Genera SKU como código del grupo + consecutivo, sin separador (p. ej. CAM001G1501) */
+    public static function generarSkuEnGrupo(ProductoVarianteGrupo $grupo): string
+    {
+        $empresaId = (int) $grupo->empresa_id;
+        $prefijo = $grupo->codigo;
+
+        // Solo variantes del mismo grupo: sin separador, el prefijo CAM001G15 también coincide con CAM001G150...
+        $consecutivo = self::where('empresa_id', $empresaId)
+            ->where('producto_id', $grupo->producto_id)
+            ->whereHas('atributos', fn($q) => $q
+                ->where('tipo_atributo_id', $grupo->tipo_atributo_id)
+                ->where('atributo_id', $grupo->atributo_id))
+            ->where('sku', 'like', addcslashes($prefijo, '%_\\') . '%')
+            ->withTrashed()
+            ->pluck('sku')
+            ->map(fn($sku) => mb_substr($sku, mb_strlen($prefijo)))
+            ->filter(fn($resto) => ctype_digit($resto))
+            ->map(fn($resto) => (int) $resto)
+            ->max() + 1;
+
+        do {
+            $sufijo = str_pad($consecutivo, 2, '0', STR_PAD_LEFT);
+            $sku = mb_substr($prefijo, 0, 100 - mb_strlen($sufijo)) . $sufijo;
+            $consecutivo++;
+        } while (
+            self::where('empresa_id', $empresaId)
+                ->where('sku', $sku)
+                ->withTrashed()
+                ->exists()
+        );
+
+        return $sku;
+    }
+
 
     protected $appends = ['imagen_url'];
 

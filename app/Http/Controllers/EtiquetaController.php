@@ -188,9 +188,35 @@ class EtiquetaController extends Controller
     {
         $this->autorizarImpresion();
         $empresaId = (int) Auth::user()->empresa_id;
+        $sucursalId = (int) Auth::user()->sucursal_id;
         $texto = trim((string) $request->query('q', ''));
         if ($texto === '') return response()->json([]);
         $tokens = ProductVariantSearch::tokens($texto);
+        $filtroStock = $request->query('filtro_stock', 'con_existencia');
+        if (!in_array($filtroStock, ['todos', 'con_existencia', 'sin_existencia'], true)) $filtroStock = 'con_existencia';
+
+        // El filtro de existencia solo aplica a la búsqueda por texto: un escaneo
+        // exacto (código, SKU o barras) siempre devuelve el artículo.
+        $aplicarFiltroExistencia = function ($query, string $productoIdCol, ?string $varianteIdCol) use ($filtroStock, $empresaId, $sucursalId) {
+            if ($filtroStock === 'todos') return $query;
+
+            $condicion = function ($sub) use ($productoIdCol, $varianteIdCol, $empresaId, $sucursalId) {
+                $sub->select(DB::raw(1))
+                    ->from('inventario')
+                    ->where('inventario.empresa_id', $empresaId)
+                    ->where('inventario.sucursal_id', $sucursalId)
+                    ->whereColumn('inventario.producto_id', $productoIdCol)
+                    ->where('inventario.stock', '>', 0);
+
+                $varianteIdCol
+                    ? $sub->whereColumn('inventario.variante_id', $varianteIdCol)
+                    : $sub->whereNull('inventario.variante_id');
+            };
+
+            return $filtroStock === 'con_existencia'
+                ? $query->whereExists($condicion)
+                : $query->whereNotExists($condicion);
+        };
 
         $productoExacto = Producto::where('empresa_id', $empresaId)
             ->where('activo', true)
@@ -199,7 +225,7 @@ class EtiquetaController extends Controller
             ->with(['empresa', 'sucursal', 'marca', 'modelo', 'categoria'])
             ->first();
 
-        if ($productoExacto) return response()->json([$this->catalogoItem($productoExacto, null)]);
+        if ($productoExacto) return response()->json($this->conExistencias(collect([$this->catalogoItem($productoExacto, null)]), $empresaId, $sucursalId));
 
         $varianteExacta = ProductoVariante::where('empresa_id', $empresaId)
             ->where('activo', true)
@@ -208,7 +234,7 @@ class EtiquetaController extends Controller
             ->with(['producto.empresa', 'producto.sucursal', 'producto.marca', 'producto.modelo', 'producto.categoria', 'atributos.tipoAtributo', 'atributos.atributo'])
             ->first();
 
-        if ($varianteExacta) return response()->json([$this->catalogoItem($varianteExacta->producto, $varianteExacta)]);
+        if ($varianteExacta) return response()->json($this->conExistencias(collect([$this->catalogoItem($varianteExacta->producto, $varianteExacta)]), $empresaId, $sucursalId));
 
         if ($tokens === []) return response()->json([]);
 
@@ -216,6 +242,7 @@ class EtiquetaController extends Controller
             ->where('activo', true)->where('tiene_variantes', false)
             ->with(['empresa', 'sucursal', 'marca', 'modelo', 'categoria'])
             ->tap(fn($query) => ProductVariantSearch::applyProductoTokens($query, $tokens))
+            ->tap(fn($query) => $aplicarFiltroExistencia($query, 'productos.id', null))
             ->limit(40)->get()
             ->filter(fn($p) => ProductVariantSearch::matches($tokens, ProductVariantSearch::productoText($p)))
             ->map(function ($p) use ($tokens, $texto) {
@@ -229,6 +256,7 @@ class EtiquetaController extends Controller
             ->whereHas('producto', fn($p) => $p->where('empresa_id', $empresaId)->where('activo', true)->where('tiene_variantes', true))
             ->with(['producto.empresa', 'producto.sucursal', 'producto.marca', 'producto.modelo', 'producto.categoria', 'atributos.tipoAtributo', 'atributos.atributo'])
             ->where(fn($q) => ProductVariantSearch::applyVarianteTokens($q, $tokens))
+            ->tap(fn($query) => $aplicarFiltroExistencia($query, 'producto_variantes.producto_id', 'producto_variantes.id'))
             ->limit(80)->get()
             ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)))
             ->map(function ($v) use ($tokens, $texto) {
@@ -241,7 +269,7 @@ class EtiquetaController extends Controller
                 return $item;
             });
 
-        return response()->json($productos->values()
+        return response()->json($this->conExistencias($productos->values()
             ->concat($variantes->values())
             ->sortBy([
                 fn($a, $b) => ($b['_score'] ?? 0) <=> ($a['_score'] ?? 0),
@@ -253,7 +281,27 @@ class EtiquetaController extends Controller
                 unset($item['_score']);
                 return $item;
             })
-            ->values());
+            ->values(), $empresaId, $sucursalId));
+    }
+
+    /** Agrega la existencia de la sucursal del usuario a cada item del catálogo (una sola consulta). */
+    private function conExistencias(\Illuminate\Support\Collection $items, int $empresaId, int $sucursalId): \Illuminate\Support\Collection
+    {
+        if ($items->isEmpty()) return $items;
+
+        $stocks = DB::table('inventario')
+            ->where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->whereIn('producto_id', $items->pluck('producto_id')->unique()->values())
+            ->selectRaw('producto_id, variante_id, SUM(stock) as stock')
+            ->groupBy('producto_id', 'variante_id')
+            ->get()
+            ->keyBy(fn($r) => $r->producto_id . '-' . ($r->variante_id ?? 'null'));
+
+        return $items->map(function ($item) use ($stocks) {
+            $item['existencia'] = (float) ($stocks[$item['producto_id'] . '-' . ($item['variante_id'] ?? 'null')]->stock ?? 0);
+            return $item;
+        })->values();
     }
 
     public function guardarPlantilla(Request $request, ?int $id = null): JsonResponse

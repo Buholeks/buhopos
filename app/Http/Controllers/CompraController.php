@@ -10,8 +10,6 @@ use App\Models\InventarioReserva;
 use App\Models\Pedido;
 use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
-use App\Models\ProductoVarianteGrupo;
-use App\Servicios\VarianteGrupoServicio;
 use App\Models\Producto;
 use App\Models\ProveedorSaldoMovimiento;
 use App\Servicios\KardexServicio;
@@ -728,15 +726,10 @@ class CompraController extends Controller
         $q         = trim($request->q ?? '');
 
         if (strlen($q) < 1) return response()->json([]);
-        $tokens = ProductVariantSearch::tokens($q);
 
-        $grupoExacto = ProductoVarianteGrupo::where('empresa_id', $empresaId)
-            ->where('codigo', mb_strtoupper($q))
-            ->with(['producto:id,codigo', 'atributo:id,valor'])
-            ->first();
-        if ($grupoExacto && app(VarianteGrupoServicio::class)->productoEsAgrupable($grupoExacto->producto_id)) {
-            $tokens = ProductVariantSearch::tokens($grupoExacto->producto->codigo . ' ' . $grupoExacto->atributo->valor);
-        }
+        // "10096G183 chica" / "10096G chica": los códigos de grupo se vuelven filtros y el resto se busca por texto
+        [$textoRestante, $grupoFiltros] = ProductVariantSearch::separarGrupos($q, $empresaId);
+        $tokens = ProductVariantSearch::tokens($textoRestante);
 
         $productoExacto = Producto::where('empresa_id', $empresaId)
             ->where('activo', true)
@@ -805,23 +798,27 @@ class CompraController extends Controller
             ]]);
         }
 
-        if ($tokens === []) {
+        if ($tokens === [] && $grupoFiltros === []) {
             return response()->json([]);
         }
 
+        // Con tokens se exige que todos aparezcan; con solo código de grupo, el filtro SQL basta
+        $coincide = fn(string $texto) => $tokens === [] || ProductVariantSearch::matches($tokens, $texto);
+
         $resultados = collect();
 
-        // ── 1. Productos SIN variantes ────────────────────────────────────
+        // ── 1. Productos SIN variantes (no aplica si se buscó por código de grupo) ──
         $productos = Producto::where('empresa_id', $empresaId)
             ->where('activo', true)
             ->where('tiene_variantes', false)        // solo los que no tienen variantes
+            ->when($grupoFiltros !== [], fn($query) => $query->whereRaw('1 = 0'))
             ->tap(fn($query) => ProductVariantSearch::applyProductoTokens($query, $tokens))
             ->orderByDesc('pedido_generico')
-            ->orderBy('nombre')
+            ->tap(fn($query) => ProductVariantSearch::orderProductosPorRelevancia($query, $q))
             ->limit(40)
             ->select('id', 'nombre', 'codigo', 'precio_costo', 'precio_venta', 'imagen', 'tiene_series', 'pedido_generico')
             ->get()
-            ->filter(fn($p) => ProductVariantSearch::matches($tokens, ProductVariantSearch::productoText($p)))
+            ->filter(fn($p) => $coincide(ProductVariantSearch::productoText($p)))
             ->map(function ($p) use ($tokens, $q) {
                 $searchText = ProductVariantSearch::productoText($p);
 
@@ -863,10 +860,12 @@ class CompraController extends Controller
             ->where(
                 fn($q2) => ProductVariantSearch::applyVarianteTokens($q2, $tokens)
             )
+            ->tap(fn($query) => ProductVariantSearch::applyGrupoFiltros($query, $grupoFiltros))
+            ->tap(fn($query) => ProductVariantSearch::orderVariantesPorRelevancia($query, $q))
             ->limit(80)
             ->select('id', 'producto_id', 'empresa_id', 'sku', 'codigo_barras', 'imagen', 'precio_costo', 'precio_venta')
             ->get()
-            ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)));
+            ->filter(fn($v) => $coincide(ProductVariantSearch::varianteText($v)));
 
         $variantes = VariantImageResolver::applyResolvedImagesWithSiblingImages($variantes, $empresaId)
             ->map(function ($v) use ($tokens, $q) {

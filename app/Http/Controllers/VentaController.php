@@ -13,8 +13,6 @@ use App\Models\InventarioReserva;
 use App\Models\Pedido;
 use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
-use App\Models\ProductoVarianteGrupo;
-use App\Servicios\VarianteGrupoServicio;
 use App\Models\Producto;
 use App\Models\Sucursal;
 use App\Services\FolioService;
@@ -690,15 +688,10 @@ class VentaController extends Controller
         $filtroStock = $request->input('filtro_stock', 'todos');
 
         if (strlen($q) < 1) return response()->json([]);
-        $tokens = ProductVariantSearch::tokens($q);
 
-        $grupoExacto = ProductoVarianteGrupo::where('empresa_id', $empresaId)
-            ->where('codigo', mb_strtoupper($q))
-            ->with(['producto:id,codigo', 'atributo:id,valor'])
-            ->first();
-        if ($grupoExacto && app(VarianteGrupoServicio::class)->productoEsAgrupable($grupoExacto->producto_id)) {
-            $tokens = ProductVariantSearch::tokens($grupoExacto->producto->codigo . ' ' . $grupoExacto->atributo->valor);
-        }
+        // "10096G183 chica" / "10096G chica": los códigos de grupo se vuelven filtros y el resto se busca por texto
+        [$textoRestante, $grupoFiltros] = ProductVariantSearch::separarGrupos($q, $empresaId);
+        $tokens = ProductVariantSearch::tokens($textoRestante);
 
         $resultados = collect();
 
@@ -852,9 +845,21 @@ class VentaController extends Controller
             return response()->json($resultados->values());
         }
 
-        if ($tokens === []) {
+        // Atajo exacto (escáner o código completo): igualdad sobre columnas con índice
+        $variantesExactas = ProductoVariante::where('empresa_id', $empresaId)
+            ->where(fn($vq) => $vq->where('sku', $q)->orWhere('codigo_barras', $q))
+            ->pluck('id');
+        $productosExactos = $variantesExactas->isEmpty()
+            ? Producto::where('empresa_id', $empresaId)->where('tiene_variantes', false)->where('codigo', $q)->pluck('id')
+            : collect();
+        $hayExacto = $variantesExactas->isNotEmpty() || $productosExactos->isNotEmpty();
+
+        if (! $hayExacto && $tokens === [] && $grupoFiltros === []) {
             return response()->json([]);
         }
+
+        // Con tokens se exige que todos aparezcan; con solo código de grupo, el filtro SQL basta
+        $coincide = fn(string $texto) => $tokens === [] || ProductVariantSearch::matches($tokens, $texto);
 
         // ══════════════════════════════════════════════════════════════════════
         // CASO 2 — Productos SIN variantes
@@ -862,8 +867,11 @@ class VentaController extends Controller
         $productos = Producto::where('empresa_id', $empresaId)
             ->where('activo', true)
             ->where('tiene_variantes', false)
-            ->tap(fn($query) => ProductVariantSearch::applyProductoTokens($query, $tokens))
+            ->when($hayExacto, fn($query) => $query->whereIn('id', $productosExactos))
+            ->when(! $hayExacto && $grupoFiltros !== [], fn($query) => $query->whereRaw('1 = 0'))
+            ->when(! $hayExacto, fn($query) => ProductVariantSearch::applyProductoTokens($query, $tokens))
             ->tap(fn($query) => $aplicarFiltroExistencia($query, 'productos.id', null))
+            ->tap(fn($query) => ProductVariantSearch::orderProductosPorRelevancia($query, $q))
             ->select(
                 'id',
                 'nombre',
@@ -882,7 +890,7 @@ class VentaController extends Controller
             ->with('unidadMedida:id,abreviatura,tipo')
             ->limit(40)
             ->get()
-            ->filter(fn($p) => ProductVariantSearch::matches($tokens, ProductVariantSearch::productoText($p)))
+            ->filter(fn($p) => $hayExacto || $coincide(ProductVariantSearch::productoText($p)))
             ->sortByDesc(fn($p) => ProductVariantSearch::score($tokens, $q, ['codigo' => $p->codigo], ProductVariantSearch::productoText($p)))
             ->take(10)
             ->values();
@@ -893,10 +901,13 @@ class VentaController extends Controller
             ? $buildStockComprometido($paresProductos)
             : fn($p, $v) => 0.0;
 
-        $productos = $productos->map(function ($p) use ($empresaId, $sucursalId, $getStock, $stockComprometidoP) {
-            $inv      = $getStock($empresaId, $sucursalId, $p->id, null);
+        $inventarioP = $this->inventarioEnBloque($empresaId, $sucursalId, $productos->pluck('id')->all());
+        $exhibicionP = $this->buscadorExhibicionesActivas($empresaId, $sucursalId, $productos->pluck('id')->all());
+
+        $productos = $productos->map(function ($p) use ($inventarioP, $exhibicionP, $stockComprometidoP) {
+            $inv      = $inventarioP->get($p->id . '-null');
             $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoP($p->id, null));
-            $exhibicion = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $p->id, null);
+            $exhibicion = $exhibicionP($p->id, null, []);
             $exhibido = (bool) $exhibicion;
 
             return [
@@ -958,13 +969,15 @@ class VentaController extends Controller
                 'precio5',
                 'imagen'
             ])
-            ->where(
-                fn($q2) => ProductVariantSearch::applyVarianteTokens($q2, $tokens)
-            )
+            ->when($hayExacto, fn($query) => $query->whereIn('producto_variantes.id', $variantesExactas))
+            ->when(! $hayExacto, fn($query) => $query
+                ->where(fn($q2) => ProductVariantSearch::applyVarianteTokens($q2, $tokens))
+                ->tap(fn($q2) => ProductVariantSearch::applyGrupoFiltros($q2, $grupoFiltros)))
             ->tap(fn($query) => $aplicarFiltroExistencia($query, 'producto_variantes.producto_id', 'producto_variantes.id'))
+            ->tap(fn($query) => ProductVariantSearch::orderVariantesPorRelevancia($query, $q))
             ->limit(80)
             ->get()
-            ->filter(fn($v) => ProductVariantSearch::matches($tokens, ProductVariantSearch::varianteText($v)))
+            ->filter(fn($v) => $hayExacto || $coincide(ProductVariantSearch::varianteText($v)))
             ->sortByDesc(fn($v) => ProductVariantSearch::score($tokens, $q, [
                 'codigo' => $v->producto->codigo,
                 'sku' => $v->sku,
@@ -981,10 +994,13 @@ class VentaController extends Controller
             ? $buildStockComprometido($paresVariantes)
             : fn($p, $v) => 0.0;
 
-        $variantes = $variantes->map(function ($v) use ($empresaId, $sucursalId, $getStock, $resolverPrecio, $stockComprometidoV) {
-            $inv      = $getStock($empresaId, $sucursalId, $v->producto_id, $v->id);
+        $inventarioV = $this->inventarioEnBloque($empresaId, $sucursalId, $variantes->pluck('producto_id')->all());
+        $exhibicionV = $this->buscadorExhibicionesActivas($empresaId, $sucursalId, $variantes->pluck('producto_id')->all());
+
+        $variantes = $variantes->map(function ($v) use ($inventarioV, $exhibicionV, $resolverPrecio, $stockComprometidoV) {
+            $inv      = $inventarioV->get($v->producto_id . '-' . $v->id);
             $stock    = max(0, (float) ($inv?->stock ?? 0) - $stockComprometidoV($v->producto_id, $v->id));
-            $exhibicion = $this->exhibicionActivaParaVenta($empresaId, $sucursalId, $v->producto_id, $v->id);
+            $exhibicion = $exhibicionV($v->producto_id, $v->id, $v->atributos->pluck('atributo_id')->map(fn($id) => (int) $id)->all());
             $exhibido = (bool) $exhibicion;
 
             return [
@@ -1142,6 +1158,48 @@ class VentaController extends Controller
             ],
             'sucursales' => $items,
         ]);
+    }
+
+    /** Filas de inventario de la sucursal para varios productos, por "producto_id-variante_id". */
+    private function inventarioEnBloque(int $empresaId, int $sucursalId, array $productoIds): \Illuminate\Support\Collection
+    {
+        if ($productoIds === []) {
+            return collect();
+        }
+
+        return Inventario::where('empresa_id', $empresaId)
+            ->where('sucursal_id', $sucursalId)
+            ->whereIn('producto_id', array_unique($productoIds))
+            ->get(['producto_id', 'variante_id', 'stock'])
+            ->keyBy(fn($inv) => $inv->producto_id . '-' . ($inv->variante_id ?? 'null'));
+    }
+
+    /**
+     * Versión en bloque de exhibicionActivaParaVenta() para la búsqueda: una sola consulta
+     * y la misma prioridad (variante, color, producto; luego la más antigua).
+     * Al cobrar se sigue usando exhibicionActivaParaVenta() con bloqueo.
+     *
+     * @return \Closure(int $productoId, ?int $varianteId, array $atributoIds): ?InventarioExhibicion
+     */
+    private function buscadorExhibicionesActivas(int $empresaId, int $sucursalId, array $productoIds): \Closure
+    {
+        $exhibiciones = $productoIds === []
+            ? collect()
+            : InventarioExhibicion::deSucursal($empresaId, $sucursalId)
+                ->activas()
+                ->whereIn('producto_id', array_unique($productoIds))
+                ->orderByRaw("CASE tipo_cobertura WHEN 'variante' THEN 0 WHEN 'color' THEN 1 ELSE 2 END")
+                ->oldest()
+                ->orderBy('id')
+                ->get()
+                ->groupBy('producto_id');
+
+        return fn(int $productoId, ?int $varianteId, array $atributoIds) => ($exhibiciones->get($productoId) ?? collect())
+            ->first(fn($exhibicion) => $varianteId
+                ? (int) $exhibicion->variante_id === $varianteId
+                    || $exhibicion->tipo_cobertura === 'producto'
+                    || ($exhibicion->tipo_cobertura === 'color' && in_array((int) $exhibicion->atributo_id, $atributoIds, true))
+                : $exhibicion->tipo_cobertura === 'producto');
     }
 
     private function exhibicionActivaParaVenta(

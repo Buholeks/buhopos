@@ -48,6 +48,7 @@ class ServicioExportacion
         $pdf = Pdf::loadView($vista, [
             'titulo'          => $exportacion->titulo(),
             'cabeceras'       => $exportacion->cabeceras(),
+            'anchosPdf'       => $exportacion->anchosParaPdf(),
             'filas'           => $filas,
             'totales'         => $exportacion->totales(),
             'empresaNombre'   => $empresa?->nombre ?? config('app.name'),

@@ -9,6 +9,7 @@ use App\Models\Empresa;
 use App\Models\Inventario;
 use App\Models\InventarioReserva;
 use App\Models\MovimientoCaja;
+use App\Models\Pedido;
 use App\Models\PedidoDetalle;
 use App\Models\Serie;
 use App\Models\Sucursal;
@@ -197,6 +198,11 @@ class CancelacionDevolucionController extends Controller
                 );
             }
 
+            // Si la venta cerraba el pedido y ahora éste quedó sin renglones pendientes
+            // (p. ej. destino 'devuelto'), el anticipo restaurado al alcance 'pedido'
+            // quedaría inutilizable: se libera a saldo general.
+            $this->liberarSaldoPedidosCerrados($venta, $user->id);
+
             $venta->update([
                 'estado' => 'cancelada',
                 'cancelado_por' => $user->id,
@@ -370,6 +376,8 @@ class CancelacionDevolucionController extends Controller
                     $corte?->id
                 );
             }
+
+            $this->liberarSaldoPedidosCerrados($venta, $user->id);
 
             return response()->json([
                 'message' => 'Devolucion registrada correctamente.',
@@ -718,6 +726,16 @@ class CancelacionDevolucionController extends Controller
         }
 
         return round($restaurado, 2);
+    }
+
+    private function liberarSaldoPedidosCerrados(Venta $venta, int $userId): void
+    {
+        $pedidoIds = $venta->detalles()->whereNotNull('pedido_id')->distinct()->pluck('pedido_id');
+        if ($pedidoIds->isEmpty()) return;
+
+        $servicio = app(\App\Servicios\ClienteSaldoServicio::class);
+        Pedido::whereIn('id', $pedidoIds)->get()
+            ->each(fn (Pedido $pedido) => $servicio->liberarSaldoSiPedidoCerrado($pedido, $userId));
     }
 
     private function corteAbiertoPorTerminal(int $empresaId, int $sucursalId, string $terminal): ?CorteCaja

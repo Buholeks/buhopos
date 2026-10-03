@@ -70,6 +70,12 @@ abstract class ExportacionBase implements
         return [];
     }
 
+    /** Pesos relativos de las columnas del PDF; vacío conserva el ancho automático. */
+    public function anchosParaPdf(): array
+    {
+        return [];
+    }
+
     /**
      * Fila de totales para el pie de la tabla (Excel y PDF).
      * Debe tener la misma cantidad de elementos que cabeceras().

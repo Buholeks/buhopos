@@ -3,6 +3,7 @@
 namespace App\Servicios;
 
 use App\Models\ClienteSaldoMovimiento;
+use App\Models\Pedido;
 use App\Models\PedidoDetalle;
 use App\Models\Venta;
 use Illuminate\Support\Collection;
@@ -57,6 +58,52 @@ class ClienteSaldoServicio
             ->groupBy('pedido_id')->select('pedido_id')
             ->selectRaw('SUM(' . ClienteSaldoMovimiento::expresionSaldo() . ') AS saldo')
             ->pluck('saldo', 'pedido_id')->map(fn ($saldo) => max(0, round((float) $saldo, 2)));
+    }
+
+    /**
+     * Pasa a saldo 'general' lo que quede reservado al pedido. Un saldo con alcance
+     * 'pedido' solo se puede usar en ventas de renglones de ese pedido, así que si el
+     * pedido ya no tiene renglones pendientes ese saldo quedaría atrapado para siempre.
+     */
+    public function transferirSaldoPedidoAGeneral(Pedido $pedido, int $userId): void
+    {
+        ClienteSaldoMovimiento::where('empresa_id', $pedido->empresa_id)
+            ->where('sucursal_id', $pedido->sucursal_id)
+            ->where('cliente_id', $pedido->cliente_id)
+            ->lockForUpdate()->get(['id']);
+
+        $reservado = max(0, $this->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'pedido', (int) $pedido->id));
+        if ($reservado <= 0) return;
+
+        $debito = ClienteSaldoMovimiento::create([
+            'empresa_id' => $pedido->empresa_id, 'sucursal_id' => $pedido->sucursal_id,
+            'cliente_id' => $pedido->cliente_id, 'pedido_id' => $pedido->id, 'user_id' => $userId,
+            'tipo' => 'aplicacion', 'alcance' => 'pedido', 'forma_pago' => 'saldo_favor',
+            'monto' => $reservado, 'saldo_resultante' => 0,
+            'concepto' => "Liberación de anticipo del pedido {$pedido->folio}",
+        ]);
+        $general = max(0, $this->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'general'));
+        ClienteSaldoMovimiento::create([
+            'empresa_id' => $pedido->empresa_id, 'sucursal_id' => $pedido->sucursal_id,
+            'cliente_id' => $pedido->cliente_id, 'pedido_id' => $pedido->id,
+            'movimiento_origen_id' => $debito->id, 'user_id' => $userId,
+            'tipo' => 'ajuste_credito', 'alcance' => 'general', 'forma_pago' => 'saldo_favor',
+            'monto' => $reservado, 'saldo_resultante' => round($general + $reservado, 2),
+            'concepto' => "Saldo liberado por cancelación del pedido {$pedido->folio}",
+        ]);
+    }
+
+    /**
+     * Libera el saldo reservado solo si el pedido ya no tiene renglones pendientes
+     * (p. ej. al cancelar/devolver la venta que entregó su último renglón).
+     */
+    public function liberarSaldoSiPedidoCerrado(Pedido $pedido, int $userId): void
+    {
+        if ($pedido->detalles()->whereNotIn('estado', ['entregado', 'devuelto', 'cancelado'])->exists()) {
+            return;
+        }
+
+        $this->transferirSaldoPedidoAGeneral($pedido, $userId);
     }
 
     public function aplicarEnVenta(Venta $venta, float $monto, array $pedidoTopes, bool $permiteLegacy): array

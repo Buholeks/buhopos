@@ -1440,35 +1440,7 @@ class PedidoController extends Controller
 
     private function transferirSaldoPedidoAGeneral(Pedido $pedido, int $userId): void
     {
-        $servicio = app(\App\Servicios\ClienteSaldoServicio::class);
-
-        // Mismo patrón que ClienteSaldoServicio::aplicarEnVenta(): bloquea el ledger del
-        // cliente antes de leer/escribir para que esta función sea segura incluso si en
-        // el futuro se llama desde un lugar que no bloqueó el pedido primero.
-        ClienteSaldoMovimiento::where('empresa_id', $pedido->empresa_id)
-            ->where('sucursal_id', $pedido->sucursal_id)
-            ->where('cliente_id', $pedido->cliente_id)
-            ->lockForUpdate()->get(['id']);
-
-        $reservado = max(0, $servicio->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'pedido', (int) $pedido->id));
-        if ($reservado <= 0) return;
-
-        $debito = ClienteSaldoMovimiento::create([
-            'empresa_id' => $pedido->empresa_id, 'sucursal_id' => $pedido->sucursal_id,
-            'cliente_id' => $pedido->cliente_id, 'pedido_id' => $pedido->id, 'user_id' => $userId,
-            'tipo' => 'aplicacion', 'alcance' => 'pedido', 'forma_pago' => 'saldo_favor',
-            'monto' => $reservado, 'saldo_resultante' => 0,
-            'concepto' => "Liberación de anticipo del pedido {$pedido->folio}",
-        ]);
-        $general = max(0, $servicio->saldo((int) $pedido->empresa_id, (int) $pedido->sucursal_id, (int) $pedido->cliente_id, 'general'));
-        ClienteSaldoMovimiento::create([
-            'empresa_id' => $pedido->empresa_id, 'sucursal_id' => $pedido->sucursal_id,
-            'cliente_id' => $pedido->cliente_id, 'pedido_id' => $pedido->id,
-            'movimiento_origen_id' => $debito->id, 'user_id' => $userId,
-            'tipo' => 'ajuste_credito', 'alcance' => 'general', 'forma_pago' => 'saldo_favor',
-            'monto' => $reservado, 'saldo_resultante' => round($general + $reservado, 2),
-            'concepto' => "Saldo liberado por cancelación del pedido {$pedido->folio}",
-        ]);
+        app(\App\Servicios\ClienteSaldoServicio::class)->transferirSaldoPedidoAGeneral($pedido, $userId);
     }
 
     private function reservarInventario(Pedido $pedido, PedidoDetalle $detalle, int $productoId, ?int $varianteId, int $cantidad): void

@@ -66,6 +66,13 @@ const consultasOperativas = [
         badge: "Disponible",
         permiso: "pedidos.ver",
     },
+    {
+        label: "Consulta de series",
+        icon: PackageSearch,
+        to: { name: "consulta-series" },
+        badge: "Disponible",
+        permiso: "reportes.ver",
+    },
 ];
 
 const consultasInventario = [
@@ -138,8 +145,20 @@ const reportes = [
 ];
 
 const grupos = [
-    { title: "Consultas operativas", description: "Movimientos e historiales del trabajo diario.", items: consultasOperativas },
-    { title: "Consultas de inventario", description: "Entradas, salidas, conteos y ajustes.", items: consultasInventario },
-    { title: "Reportes", description: "Indicadores financieros y comerciales.", items: reportes },
+    {
+        title: "Consultas operativas",
+        description: "Movimientos e historiales del trabajo diario.",
+        items: consultasOperativas,
+    },
+    {
+        title: "Consultas de inventario",
+        description: "Entradas, salidas, conteos y ajustes.",
+        items: consultasInventario,
+    },
+    {
+        title: "Reportes",
+        description: "Indicadores financieros y comerciales.",
+        items: reportes,
+    },
 ];
 </script>

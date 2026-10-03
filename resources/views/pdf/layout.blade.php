@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        @page { margin-bottom: 30px !important; }
 
         body {
             font-family: DejaVu Sans, sans-serif;
@@ -89,7 +90,7 @@
             margin-right: 6px;
         }
         .filtros .filtro-item {
-            display: inline;
+            display: inline-block;
             margin-right: 14px;
         }
         .filtros .filtro-item b {
@@ -104,7 +105,7 @@
         /* ── Pie de página ─────────────────────────────────────── */
         .pie {
             position: fixed;
-            bottom: 0;
+            bottom: -24px;
             left: 0;
             right: 0;
             padding: 6px 16px;

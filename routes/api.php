@@ -434,6 +434,14 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
 
+    Route::prefix('consulta-series')->controller(\App\Http\Controllers\ConsultaSeriesController::class)->group(function () {
+        Route::get('/catalogos', 'catalogos');
+        Route::get('/buscar', 'buscar');
+        Route::get('/reporte', 'reporte');
+        Route::get('/exportar', 'exportar');
+        Route::get('/{id}', 'show')->whereNumber('id');
+    });
+
     Route::prefix('series')->group(function () {
         Route::get('/', [SerieController::class, 'index']);
         Route::get('/verificar-imei', [SerieController::class, 'verificarImei']);

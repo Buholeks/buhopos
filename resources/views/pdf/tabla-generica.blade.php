@@ -2,6 +2,11 @@
 
 @section('contenido')
 
+@php
+    $anchosPdf = $anchosPdf ?? [];
+    $compacta = !empty($anchosPdf);
+@endphp
+
 <style>
     table {
         width: 100%;
@@ -41,11 +46,21 @@
     }
 </style>
 
-<table>
+@if ($compacta)
+<style>
+    .tabla-reporte { table-layout: fixed; }
+    .tabla-reporte thead { display: table-header-group; }
+    .tabla-reporte tr { page-break-inside: avoid; }
+    .tabla-reporte thead tr th { font-size: 7px; padding: 5px 3px; word-wrap: break-word; }
+    .tabla-reporte tbody tr td { font-size: 7px; padding: 4px 3px; line-height: 1.4; word-wrap: break-word; }
+</style>
+@endif
+
+<table class="tabla-reporte">
     <thead>
         <tr>
-            @foreach ($cabeceras as $cabecera)
-                <th>{{ $cabecera }}</th>
+            @foreach ($cabeceras as $indice => $cabecera)
+                <th @if ($compacta) style="width: {{ $anchosPdf[$indice] / array_sum($anchosPdf) * 100 }}%" @endif>{{ $cabecera }}</th>
             @endforeach
         </tr>
     </thead>

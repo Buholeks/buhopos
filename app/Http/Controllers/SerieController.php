@@ -291,7 +291,28 @@ class SerieController extends Controller
             return response()->json(['error' => 'No se puede editar una serie ya vendida.'], 422);
         }
 
-        $serie->update($datos);
+        DB::transaction(function () use ($serie, $datos, $user) {
+            $antes = $serie->only(array_keys($datos));
+            $serie->fill($datos);
+            $cambios = $serie->getDirty();
+            if (! $cambios) return;
+            $serie->save();
+            $stock = Inventario::where('empresa_id', $serie->empresa_id)
+                ->where('sucursal_id', $serie->sucursal_id)->where('producto_id', $serie->producto_id)
+                ->where('variante_id', $serie->variante_id)->value('stock') ?? 0;
+            app(KardexServicio::class)->registrar([
+                'empresa_id' => $serie->empresa_id, 'sucursal_id' => $serie->sucursal_id,
+                'producto_id' => $serie->producto_id, 'variante_id' => $serie->variante_id,
+                'serie_id' => $serie->id, 'user_id' => $user->id,
+                'tipo' => 'actualizacion_serie', 'direccion' => 'neutro', 'cantidad' => 0,
+                'stock_antes' => $stock, 'stock_despues' => $stock,
+                'referencia_tipo' => 'serie', 'referencia_id' => $serie->id, 'folio' => $serie->identificador,
+                'notas' => array_key_exists('estado', $cambios)
+                    ? 'Estado: '.($antes['estado'] ?? 'sin estado').' → '.$serie->estado
+                    : 'Actualización de '.implode(', ', array_keys($cambios)),
+                'metadata' => ['antes' => $antes, 'despues' => $serie->only(array_keys($cambios))],
+            ]);
+        });
 
         return response()->json([
             'message' => 'Serie actualizada.',

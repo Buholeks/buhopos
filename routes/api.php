@@ -45,6 +45,7 @@ use App\Http\Controllers\ReporteInventarioController;
 use App\Http\Controllers\ReporteArticuloController;
 use App\Http\Controllers\DevolucionProveedorController;
 use App\Http\Controllers\RolController;
+use App\Http\Controllers\ComisionEsquemaController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EtiquetaController;
 use App\Http\Controllers\MediaController;
@@ -177,6 +178,28 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/permisos', [RolController::class, 'listarPermisos']);
     Route::apiResource('roles', RolController::class);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Comisiones (configuración)
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('comisiones')->group(function () {
+        Route::get('/esquemas', [ComisionEsquemaController::class, 'index']);
+        Route::post('/esquemas', [ComisionEsquemaController::class, 'store']);
+        Route::get('/esquemas/{id}', [ComisionEsquemaController::class, 'show']);
+        Route::put('/esquemas/{id}', [ComisionEsquemaController::class, 'update']);
+        Route::delete('/esquemas/{id}', [ComisionEsquemaController::class, 'destroy']);
+        Route::post('/esquemas/{id}/duplicar', [ComisionEsquemaController::class, 'duplicar']);
+        Route::post('/esquemas/{id}/probar', [ComisionEsquemaController::class, 'probar']);
+        Route::put('/esquemas/{id}/grupos', [ComisionEsquemaController::class, 'guardarGrupo']);
+        Route::delete('/esquemas/{id}/grupos', [ComisionEsquemaController::class, 'eliminarGrupo']);
+        Route::get('/usuarios', [ComisionEsquemaController::class, 'usuarios']);
+        Route::put('/usuarios/{id}', [ComisionEsquemaController::class, 'asignar']);
+        Route::get('/catalogo/categorias', [ComisionEsquemaController::class, 'buscarCategorias']);
+        Route::get('/catalogo/productos', [ComisionEsquemaController::class, 'buscarProductos']);
+    });
 
     /*
     |--------------------------------------------------------------------------

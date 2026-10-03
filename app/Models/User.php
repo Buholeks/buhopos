@@ -14,6 +14,8 @@ class User extends Authenticatable
     protected $fillable = [
         'empresa_id',
         'sucursal_id',
+        'esquema_vendedor_id',
+        'esquema_cajero_id',
         'name',
         'email',
         'password',
@@ -63,6 +65,21 @@ class User extends Authenticatable
     public function ventasComoVendedor()
     {
         return $this->hasMany(Venta::class, 'vendedor_id');
+    }
+
+    public function esquemaVendedor()
+    {
+        return $this->belongsTo(ComisionEsquema::class, 'esquema_vendedor_id');
+    }
+
+    public function esquemaCajero()
+    {
+        return $this->belongsTo(ComisionEsquema::class, 'esquema_cajero_id');
+    }
+
+    public function comisionMovimientos()
+    {
+        return $this->hasMany(ComisionMovimiento::class);
     }
 
     // ── Permisos ──────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ use App\Models\Serie;
 use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Models\VentaDetalle;
+use App\Services\ComisionService;
 use App\Services\FolioService;
 use App\Servicios\KardexServicio;
 use App\Support\TerminalResolver;
@@ -210,6 +211,8 @@ class CancelacionDevolucionController extends Controller
                 'motivo_cancelacion' => $data['motivo'],
             ]);
 
+            app(ComisionService::class)->sinBloquear(fn(ComisionService $s) => $s->revertirCancelacion($venta));
+
             $venta->corte?->recalcularVentas();
             $venta->corte?->recalcularEsperados();
 
@@ -378,6 +381,8 @@ class CancelacionDevolucionController extends Controller
             }
 
             $this->liberarSaldoPedidosCerrados($venta, $user->id);
+
+            app(ComisionService::class)->sinBloquear(fn(ComisionService $s) => $s->registrarDevolucion($devolucion));
 
             return response()->json([
                 'message' => 'Devolucion registrada correctamente.',

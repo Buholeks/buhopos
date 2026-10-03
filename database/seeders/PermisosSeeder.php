@@ -55,6 +55,12 @@ class PermisosSeeder extends Seeder
             ['modulo' => 'reportes',   'clave' => 'reportes.venta_general',    'descripcion' => 'Ver venta general de todas las sucursales'],
             ['modulo' => 'reportes',   'clave' => 'reportes.utilidades',      'descripcion' => 'Ver reportes con costos y utilidades'],
 
+            // ── Comisiones ────────────────────────────────────────────────────
+            ['modulo' => 'comisiones', 'clave' => 'comisiones.configurar',    'descripcion' => 'Crear y editar esquemas y reglas de comisiones; asignarlos a usuarios'],
+            ['modulo' => 'comisiones', 'clave' => 'comisiones.ver',           'descripcion' => 'Ver comisiones de todos los empleados'],
+            ['modulo' => 'comisiones', 'clave' => 'comisiones.ver_propias',   'descripcion' => 'Ver sus propias comisiones'],
+            ['modulo' => 'comisiones', 'clave' => 'comisiones.liquidar',      'descripcion' => 'Generar y pagar liquidaciones de comisiones'],
+
             // ── Inventario ────────────────────────────────────────────────────
             ['modulo' => 'inventario', 'clave' => 'inventario.ver',           'descripcion' => 'Ver exhibición de productos'],
             ['modulo' => 'inventario', 'clave' => 'inventario.traspasos',     'descripcion' => 'Realizar traspasos entre sucursales'],

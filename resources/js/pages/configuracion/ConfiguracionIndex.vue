@@ -6,7 +6,7 @@
 
 <script setup>
 import HubSection from "@/components/hub/HubSection.vue";
-import { CalendarClock, CreditCard, Ruler, ShieldCheck, SlidersHorizontal, Store, Ticket, Tags, UsersRound } from "lucide-vue-next";
+import { BadgePercent, CalendarClock, CreditCard, Ruler, ShieldCheck, SlidersHorizontal, Store, Ticket, Tags, UsersRound } from "lucide-vue-next";
 
 const items = [
     {
@@ -35,6 +35,13 @@ const items = [
         to: { name: "roles" },
         badge: "Disponible",
         permiso: "usuarios.gestionar",
+    },
+    {
+        label: "Comisiones",
+        icon: BadgePercent,
+        to: { name: "comisiones-configuracion" },
+        badge: "Disponible",
+        permiso: "comisiones.configurar",
     },
     {
         label: "Atributos",

@@ -71,6 +71,7 @@ import VigenciaPedidos from "@/pages/configuracion/VigenciaPedidos.vue";
 import SucursalesConfiguracion from "@/pages/configuracion/SucursalesIndex.vue";
 import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
 import RolesIndex from "@/pages/roles/RolesIndex.vue";
+import ComisionesConfig from "@/pages/comisiones/ComisionesConfig.vue";
 import SinPermiso from "@/pages/errores/SinPermiso.vue";
 import NotFound from "@/pages/errores/NotFound.vue";
 import PerfilIndex from "@/pages/perfil/PerfilIndex.vue";
@@ -181,6 +182,7 @@ const routes = [
       { path: "configuracion/sucursales", name: "sucursales-configuracion", component: SucursalesConfiguracion, meta: { title: "Sucursales", superAdmin: true } },
       { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios",permiso: "usuarios.gestionar" } },
       { path: "roles",    name: "roles",    component: RolesIndex,    meta: { title: "Roles y permisos", permiso: "usuarios.gestionar" } },
+      { path: "comisiones/configuracion", name: "comisiones-configuracion", component: ComisionesConfig, meta: { title: "Comisiones", permiso: "comisiones.configurar" } },
       { path: "perfil",   name: "perfil",   component: PerfilIndex,   meta: { title: "Mi perfil" } },
       { path: "facturacion", name: "facturacion", component: FacturacionIndex, meta: { title: "Plan y facturación" } },
 

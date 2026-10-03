@@ -15,6 +15,7 @@ use App\Models\PedidoDetalle;
 use App\Models\ProductoVariante;
 use App\Models\Producto;
 use App\Models\Sucursal;
+use App\Services\ComisionService;
 use App\Services\FolioService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -409,12 +410,12 @@ class VentaController extends Controller
                 $varianteNombre = $varianteId
                     ? ($variantes[$varianteId]?->nombreVariante() ?: null)
                     : null;
-                $listaPrecioUsada = $det['lista_precio_usada']
-                    ?? $this->resolverListaPrecioUsada(
-                        $precioVenta,
-                        $varianteId ? $variantes[$varianteId] ?? null : null,
-                        $productos[$productoId] ?? null
-                    );
+                $listaPrecioUsada = $this->resolverListaPrecioUsada(
+                    $precioVenta,
+                    $varianteId ? $variantes[$varianteId] ?? null : null,
+                    $productos[$productoId] ?? null,
+                    $det['lista_precio_usada'] ?? null
+                );
 
                 $detalle = VentaDetalle::create([
                     'venta_id'      => $venta->id,
@@ -511,6 +512,8 @@ class VentaController extends Controller
             }
 
             $venta->recalcularTotales();
+
+            app(ComisionService::class)->sinBloquear(fn(ComisionService $s) => $s->registrarVenta($venta));
 
             if ($saldoAplicado > 0) {
                 app(ClienteSaldoServicio::class)->aplicarEnVenta(
@@ -618,7 +621,12 @@ class VentaController extends Controller
     // ────────────────────────────────────────────────────────────────────────────
 
 
-    private function resolverListaPrecioUsada(float $precioAplicado, ?ProductoVariante $variante, ?Producto $producto): ?string
+    /**
+     * Lista de precio que corresponde al precio cobrado (P.Venta, P1..P5) o null si fue manual.
+     * La etiqueta que manda el POS solo se respeta si su precio coincide con el cobrado
+     * (desempata cuando dos listas valen lo mismo); las comisiones dependen de este valor.
+     */
+    private function resolverListaPrecioUsada(float $precioAplicado, ?ProductoVariante $variante, ?Producto $producto, ?string $preferida = null): ?string
     {
         $precios = [
             'P.Venta' => $variante?->precio_venta ?? $producto?->precio_venta,
@@ -628,6 +636,12 @@ class VentaController extends Controller
             'P4' => $variante?->precio4 ?? $producto?->precio4,
             'P5' => $variante?->precio5 ?? $producto?->precio5,
         ];
+
+        if ($preferida !== null
+            && isset($precios[$preferida])
+            && abs((float) $precios[$preferida] - $precioAplicado) < 0.01) {
+            return $preferida;
+        }
 
         foreach ($precios as $nombre => $precio) {
             if ($precio !== null && abs((float) $precio - $precioAplicado) < 0.01) {

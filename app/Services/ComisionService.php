@@ -421,7 +421,8 @@ class ComisionService
             'user_id'          => $original->user_id,
             'beneficiario'     => $original->beneficiario,
             'tipo'             => $tipo,
-            'fecha'            => now()->toDateString(),
+            // Fecha local: el periodo de comisiones se consulta por día en hora de México.
+            'fecha'            => now('America/Mexico_City')->toDateString(),
             'venta_id'         => $original->venta_id,
             'venta_detalle_id' => $original->venta_detalle_id,
             'esquema_id'       => $original->esquema_id,

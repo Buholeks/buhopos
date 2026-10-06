@@ -72,6 +72,8 @@ import SucursalesConfiguracion from "@/pages/configuracion/SucursalesIndex.vue";
 import UsuariosIndex from "@/pages/usuarios/UsuariosIndex.vue";
 import RolesIndex from "@/pages/roles/RolesIndex.vue";
 import ComisionesConfig from "@/pages/comisiones/ComisionesConfig.vue";
+import ComisionesReporte from "@/pages/comisiones/ComisionesReporte.vue";
+import MisComisiones from "@/pages/comisiones/MisComisiones.vue";
 import SinPermiso from "@/pages/errores/SinPermiso.vue";
 import NotFound from "@/pages/errores/NotFound.vue";
 import PerfilIndex from "@/pages/perfil/PerfilIndex.vue";
@@ -183,6 +185,8 @@ const routes = [
       { path: "usuarios", name: "usuarios", component: UsuariosIndex, meta: { title: "Usuarios",permiso: "usuarios.gestionar" } },
       { path: "roles",    name: "roles",    component: RolesIndex,    meta: { title: "Roles y permisos", permiso: "usuarios.gestionar" } },
       { path: "comisiones/configuracion", name: "comisiones-configuracion", component: ComisionesConfig, meta: { title: "Comisiones", permiso: "comisiones.configurar" } },
+      { path: "comisiones/reporte", name: "comisiones-reporte", component: ComisionesReporte, meta: { title: "Reporte de comisiones", permiso: "comisiones.ver" } },
+      { path: "mis-comisiones", name: "mis-comisiones", component: MisComisiones, meta: { title: "Mis comisiones", permiso: "comisiones.ver_propias" } },
       { path: "perfil",   name: "perfil",   component: PerfilIndex,   meta: { title: "Mi perfil" } },
       { path: "facturacion", name: "facturacion", component: FacturacionIndex, meta: { title: "Plan y facturación" } },
 

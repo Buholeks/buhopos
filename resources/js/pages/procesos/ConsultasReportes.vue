@@ -21,6 +21,7 @@ import {
     ClipboardList,
     PackageSearch,
     SlidersHorizontal,
+    BadgePercent,
 } from "lucide-vue-next";
 
 const consultasOperativas = [
@@ -141,6 +142,13 @@ const reportes = [
         to: { name: "reportes-inventario" },
         badge: "Disponible",
         permiso: "reportes.ver",
+    },
+    {
+        label: "Comisiones",
+        icon: BadgePercent,
+        to: { name: "comisiones-reporte" },
+        badge: "Disponible",
+        permiso: "comisiones.ver",
     },
 ];
 

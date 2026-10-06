@@ -25,6 +25,14 @@
                     </span>
                 </div>
             </div>
+            <RouterLink
+                v-if="auth.can('comisiones.ver_propias')"
+                :to="{ name: 'mis-comisiones' }"
+                class="flex shrink-0 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+            >
+                <BadgePercent class="h-4 w-4" />
+                Mis comisiones
+            </RouterLink>
             <div class="text-right text-xs text-slate-400 shrink-0">
                 <p>Miembro desde</p>
                 <p class="font-medium text-slate-600">{{ fmtFecha(auth.user?.created_at) }}</p>
@@ -267,8 +275,7 @@ import { useAuthStore } from "@/stores/auth";
 import {
     Building2, ChevronDown, DollarSign, ImagePlus, Loader2, LockKeyhole,
     Mail, MapPin, Package, Save, ShieldAlert, ShieldCheck,
-    ShoppingCart, Trash2, UserRound, Users,
-} from "lucide-vue-next";
+    ShoppingCart, Trash2, UserRound, Users, BadgePercent } from "lucide-vue-next";
 
 const auth = useAuthStore();
 

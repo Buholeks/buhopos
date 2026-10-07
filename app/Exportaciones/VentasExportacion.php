@@ -57,7 +57,7 @@ class VentasExportacion extends ExportacionBase
         if ($this->porDia) {
             return ['Fecha', 'Ventas', 'Canceladas', 'Efectivo', 'Tarjeta', 'Transferencia', 'Descuentos', 'Total', 'Ticket prom.'];
         }
-        return ['Folio', 'Fecha', 'Hora', 'Cajero', 'Forma pago', 'Estado', 'Subtotal', 'Descuento', 'Total'];
+        return ['Folio', 'Fecha', 'Hora', 'Cajero', 'Forma pago', 'Estado', 'Subtotal', 'Descuento', 'Total', 'IMEI / Serie'];
     }
 
     private ?array $totalesCache = null;
@@ -123,7 +123,7 @@ class VentasExportacion extends ExportacionBase
         }
 
         // Listado individual
-        $ventas = $query->with(['user:id,name', 'pagos'])->orderByDesc('fecha')->orderByDesc('id')->get();
+        $ventas = $query->with(['user:id,name', 'pagos', 'detalles.serie:id,serie,imei,imei2'])->orderByDesc('fecha')->orderByDesc('id')->get();
 
         $confirmadas = $ventas->where('estado', 'confirmada');
 
@@ -132,6 +132,7 @@ class VentasExportacion extends ExportacionBase
             number_format($confirmadas->sum('subtotal'), 2),
             number_format($confirmadas->sum('descuento'), 2),
             number_format($confirmadas->sum('total'), 2),
+            '',
         ];
 
         return $ventas->map(fn($v) => [
@@ -144,7 +145,17 @@ class VentasExportacion extends ExportacionBase
             number_format((float) $v->subtotal, 2),
             number_format((float) $v->descuento, 2),
             number_format((float) $v->total, 2),
+            $this->etiquetaSeries($v->detalles),
         ]);
+    }
+
+    private function etiquetaSeries(Collection $detalles): string
+    {
+        $series = $detalles->pluck('serie')->filter()->map(fn($s) =>
+            collect([$s->serie, $s->imei, $s->imei2])->filter()->implode(' / ')
+        )->filter();
+
+        return $series->isNotEmpty() ? $series->implode(', ') : '—';
     }
 
     private function etiquetaFormaPago(Collection $pagos): string
@@ -163,7 +174,7 @@ class VentasExportacion extends ExportacionBase
         if ($this->porDia) {
             return ['A' => 14, 'B' => 10, 'C' => 12, 'D' => 14, 'E' => 14, 'F' => 16, 'G' => 14, 'H' => 14, 'I' => 14];
         }
-        return ['A' => 14, 'B' => 12, 'C' => 8, 'D' => 22, 'E' => 14, 'F' => 12, 'G' => 14, 'H' => 14, 'I' => 14];
+        return ['A' => 14, 'B' => 12, 'C' => 8, 'D' => 22, 'E' => 14, 'F' => 12, 'G' => 14, 'H' => 14, 'I' => 14, 'J' => 34];
     }
 
     private function baseQuery()

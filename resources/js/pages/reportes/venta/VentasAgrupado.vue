@@ -488,6 +488,12 @@
                                         class="px-4 py-3 font-semibold text-slate-800"
                                     >
                                         {{ row.articulo || "Sin nombre" }}
+                                        <div
+                                            v-if="row.series"
+                                            class="mt-0.5 font-mono text-xs font-normal text-slate-500"
+                                        >
+                                            {{ row.series }}
+                                        </div>
                                     </td>
                                     <td class="px-4 py-3 text-slate-500">
                                         {{ row.categoria || "Sin categoría" }}

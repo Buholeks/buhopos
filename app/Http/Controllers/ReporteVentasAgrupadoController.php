@@ -264,11 +264,15 @@ class ReporteVentasAgrupadoController extends Controller
             ->selectRaw("pva.variante_id, GROUP_CONCAT(CONCAT(ta.nombre, ': ', a.valor) ORDER BY ta.nombre SEPARATOR ' / ') as nombre_variante")
             ->groupBy('pva.variante_id');
 
+        // La lista de IMEI/series puede superar el límite por defecto de GROUP_CONCAT (1024)
+        DB::statement('SET SESSION group_concat_max_len = 1000000');
+
         return $this->aplicarFiltros($request,
             $this->baseDetalles($user)
                 ->leftJoin('categorias as cat',        'cat.id', '=', 'p.categoria_id')
                 ->leftJoin('producto_variantes as pv', 'pv.id',  '=', 'vd.variante_id')
                 ->leftJoinSub($nombreVariantes, 'nv',  fn($j) => $j->on('nv.variante_id', '=', 'pv.id'))
+                ->leftJoin('series as s',              's.id',   '=', 'vd.serie_id')
                 ->when($request->filled('categoria_id'), fn($q) => $q->where('p.categoria_id', $request->categoria_id))
                 ->when($request->filled('producto_id'),  fn($q) => $q->where('p.id', $request->producto_id))
                 ->when($request->filled('producto'), function ($q) use ($request) {
@@ -282,7 +286,8 @@ class ReporteVentasAgrupadoController extends Controller
                     COALESCE(nv.nombre_variante, 'Sin variante') as nombre_variante,
                     vd.precio_venta,
                     COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vd.cantidad ELSE 0 END), 0) as cantidad_vendida,
-                    COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vd.subtotal ELSE 0 END), 0) as importe_subtotal
+                    COALESCE(SUM(CASE WHEN v.estado = 'confirmada' THEN vd.subtotal ELSE 0 END), 0) as importe_subtotal,
+                    GROUP_CONCAT(DISTINCT CASE WHEN v.estado = 'confirmada' THEN COALESCE(NULLIF(s.imei, ''), s.serie) END ORDER BY COALESCE(NULLIF(s.imei, ''), s.serie) SEPARATOR ', ') as series
                 ")
                 ->groupBy('p.id', 'vd.variante_id', 'p.codigo', 'p.nombre', 'cat.nombre', 'pv.sku', 'nv.nombre_variante', 'vd.precio_venta')
                 ->orderBy('p.nombre')
@@ -364,14 +369,15 @@ class ReporteVentasAgrupadoController extends Controller
     private function exportDetalleArticulos($user, Request $request): array
     {
         $rows = $this->queryDetalleArticulos($user, $request)->get();
-        $cols = ['Clave', 'Artículo', 'Categoría', 'Variante', 'Cantidad', 'Precio venta', 'Importe'];
+        $cols = ['Clave', 'Artículo', 'Categoría', 'Variante', 'IMEI / Serie', 'Cantidad', 'Precio venta', 'Importe'];
         $filas = $rows->map(fn($r) => [
             $r->clave ?? '—', $r->articulo, $r->categoria,
             $r->nombre_variante ?? $r->sku_variante ?? '—',
+            $r->series ?: '—',
             $r->cantidad_vendida, number_format($r->precio_venta, 2),
             number_format($r->importe_subtotal, 2),
         ]);
-        $tot = ['', '', '', '', $rows->sum('cantidad_vendida'), '', number_format($rows->sum('importe_subtotal'), 2)];
+        $tot = ['', '', '', '', '', $rows->sum('cantidad_vendida'), '', number_format($rows->sum('importe_subtotal'), 2)];
         return [$cols, $filas, $tot, 'Detalle de Artículos Vendidos'];
     }
 

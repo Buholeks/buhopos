@@ -820,6 +820,25 @@
                                                                         </div>
                                                                         <div
                                                                             v-if="
+                                                                                d.serie
+                                                                            "
+                                                                            class="mt-0.5 font-mono text-xs text-slate-500"
+                                                                        >
+                                                                            {{
+                                                                                [
+                                                                                    d.serie.serie &&
+                                                                                        `S/N: ${d.serie.serie}`,
+                                                                                    d.serie.imei &&
+                                                                                        `IMEI: ${d.serie.imei}`,
+                                                                                    d.serie.imei2 &&
+                                                                                        `IMEI 2: ${d.serie.imei2}`,
+                                                                                ]
+                                                                                    .filter(Boolean)
+                                                                                    .join(" · ")
+                                                                            }}
+                                                                        </div>
+                                                                        <div
+                                                                            v-if="
                                                                                 d.motivo_precio
                                                                             "
                                                                             class="mt-0.5 text-xs italic text-slate-500"

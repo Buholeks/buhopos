@@ -98,6 +98,7 @@
                             { id: null, nombre: 'Todas las categorías' },
                             ...categorias,
                         ]"
+                        :limit="categorias.length + 1"
                         label-key="nombre"
                         value-key="id"
                         @change="buscar"

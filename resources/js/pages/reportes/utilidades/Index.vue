@@ -66,6 +66,7 @@
                         label="Categoría"
                         placeholder="Todas"
                         :items="categorias"
+                        :limit="categorias.length"
                         label-key="nombre"
                         value-key="id"
                         @change="buscar"

@@ -89,7 +89,7 @@ class ReporteUtilidadesController extends Controller
 
         $categorias = DB::table('categorias')
             ->where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
+            ->whereNull('deleted_at')
             ->select('id', 'nombre')
             ->orderBy('nombre')
             ->get();

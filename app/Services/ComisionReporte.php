@@ -86,47 +86,57 @@ class ComisionReporte
     public function detalle(int $empresaId, int $userId, array $filtros, int $porPagina = 50): LengthAwarePaginator
     {
         return $this->base($empresaId, $filtros + ['user_id' => $userId])
-            ->when($filtros['beneficiario'] ?? null, fn($q, $b) => $q->where('comision_movimientos.beneficiario', $b))
-            ->when($filtros['tipo'] ?? null, fn($q, $t) => $q->where('comision_movimientos.tipo', $t))
-            ->with([
-                'venta:id,folio,fecha',
-                'ventaDetalle:id,producto_nombre,variante_nombre,precio_venta',
-                'devolucion:id,folio',
-                'sucursal:id,nombre',
-                'liquidacion:id,estado',
-            ])
+            ->with(self::RELACIONES_DETALLE)
             ->orderByDesc('comision_movimientos.fecha')
             ->orderByDesc('comision_movimientos.id')
             ->select('comision_movimientos.*')
             ->paginate($porPagina)
-            ->through(fn(ComisionMovimiento $m) => [
-                'id'           => $m->id,
-                'fecha'        => $m->fecha?->toDateString(),
-                'tipo'         => $m->tipo,
-                'beneficiario' => $m->beneficiario,
-                'sucursal'     => $m->sucursal?->nombre,
-                'venta_id'     => $m->venta_id,
-                'folio'        => $m->venta?->folio,
-                'devolucion'   => $m->devolucion?->folio,
-                'producto'     => trim(($m->ventaDetalle?->producto_nombre ?? '') . ' ' . ($m->ventaDetalle?->variante_nombre ?? '')) ?: ($m->concepto ?? null),
-                'precio'       => $m->ventaDetalle?->precio_venta !== null ? (float) $m->ventaDetalle->precio_venta : null,
-                'cantidad'     => (float) $m->cantidad,
-                'lista_precio' => $m->lista_precio,
-                'base'         => $m->base,
-                'regla_tipo'   => $m->regla_tipo,
-                'tasa'         => (float) $m->tasa,
-                'base_calculo' => (float) $m->base_calculo,
-                'monto'        => (float) $m->monto,
-                'estado_pago'  => $m->liquidacion?->estado === ComisionLiquidacion::ESTADO_PAGADA ? 'pagada' : 'pendiente',
-            ]);
+            ->through(fn(ComisionMovimiento $m) => self::formatear($m));
+    }
+
+    /** Relaciones que necesita formatear(). */
+    public const RELACIONES_DETALLE = [
+        'venta:id,folio,fecha',
+        'ventaDetalle:id,producto_nombre,variante_nombre,precio_venta',
+        'devolucion:id,folio',
+        'sucursal:id,nombre',
+        'liquidacion:id,estado',
+    ];
+
+    /** Renglón de detalle de un movimiento (reporte, mis comisiones y liquidaciones). */
+    public static function formatear(ComisionMovimiento $m): array
+    {
+        return [
+            'id'           => $m->id,
+            'fecha'        => $m->fecha?->toDateString(),
+            'tipo'         => $m->tipo,
+            'beneficiario' => $m->beneficiario,
+            'sucursal'     => $m->sucursal?->nombre,
+            'venta_id'     => $m->venta_id,
+            'folio'        => $m->venta?->folio,
+            'devolucion'   => $m->devolucion?->folio,
+            'producto'     => trim(($m->ventaDetalle?->producto_nombre ?? '') . ' ' . ($m->ventaDetalle?->variante_nombre ?? '')) ?: ($m->concepto ?? null),
+            'precio'       => $m->ventaDetalle?->precio_venta !== null ? (float) $m->ventaDetalle->precio_venta : null,
+            'cantidad'     => (float) $m->cantidad,
+            'lista_precio' => $m->lista_precio,
+            'base'         => $m->base,
+            'regla_tipo'   => $m->regla_tipo,
+            'tasa'         => (float) $m->tasa,
+            'base_calculo' => (float) $m->base_calculo,
+            'monto'        => (float) $m->monto,
+            'estado_pago'  => $m->liquidacion?->estado === ComisionLiquidacion::ESTADO_PAGADA ? 'pagada' : 'pendiente',
+        ];
     }
 
     private function base(int $empresaId, array $filtros): Builder
     {
         return ComisionMovimiento::query()
             ->where('comision_movimientos.empresa_id', $empresaId)
-            ->whereDate('comision_movimientos.fecha', '>=', $filtros['desde'])
-            ->whereDate('comision_movimientos.fecha', '<=', $filtros['hasta'])
+            ->where('comision_movimientos.fecha', '>=', $filtros['desde'])
+            ->where('comision_movimientos.fecha', '<', \Illuminate\Support\Carbon::parse($filtros['hasta'])->addDay()->toDateString())
+            ->when(isset($filtros['sucursales_autorizadas']), fn($q) => $q->whereIn('comision_movimientos.sucursal_id', $filtros['sucursales_autorizadas']))
+            ->when($filtros['beneficiario'] ?? null, fn($q, $b) => $q->where('comision_movimientos.beneficiario', $b))
+            ->when($filtros['tipo'] ?? null, fn($q, $t) => $q->where('comision_movimientos.tipo', $t))
             ->when($filtros['sucursal_id'] ?? null, fn($q, $s) => $q->where('comision_movimientos.sucursal_id', $s))
             ->when($filtros['user_id'] ?? null, fn($q, $u) => $q->where('comision_movimientos.user_id', $u));
     }

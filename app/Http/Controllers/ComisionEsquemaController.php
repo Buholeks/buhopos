@@ -169,9 +169,9 @@ class ComisionEsquemaController extends Controller
     {
         $user = $this->autorizar();
         $esquema = $this->esquemaDeEmpresa($id, (int) $user->empresa_id);
-        $data = $this->validarGrupo($request, $esquema);
-
-        DB::transaction(function () use ($esquema, $data) {
+        DB::transaction(function () use ($esquema, $request) {
+            ComisionEsquema::whereKey($esquema->id)->lockForUpdate()->firstOrFail();
+            $data = $this->validarGrupo($request, $esquema);
             // Si se cambió la categoría/producto de un grupo existente, se retira el anterior.
             if (! empty($data['anterior_referencia_id']) && (int) $data['anterior_referencia_id'] !== (int) $data['referencia_id']) {
                 $this->retirarGrupo($esquema, $data['aplica_a'], (int) $data['anterior_referencia_id']);
@@ -202,7 +202,10 @@ class ComisionEsquemaController extends Controller
         ]);
         $referencia = $data['aplica_a'] === ComisionRegla::APLICA_GENERAL ? null : ($data['referencia_id'] ?? null);
 
-        DB::transaction(fn() => $this->retirarGrupo($esquema, $data['aplica_a'], $referencia));
+        DB::transaction(function () use ($esquema, $data, $referencia) {
+            ComisionEsquema::whereKey($esquema->id)->lockForUpdate()->firstOrFail();
+            $this->retirarGrupo($esquema, $data['aplica_a'], $referencia);
+        });
 
         return response()->json(['message' => 'Regla eliminada.', 'esquema' => $this->esquemaCompleto($esquema)]);
     }
@@ -331,6 +334,8 @@ class ComisionEsquemaController extends Controller
     {
         $user = Auth::user();
         abort_unless($user->tienePermiso('comisiones.configurar'), 403, 'Sin permiso: comisiones.configurar');
+        abort_unless(\App\Services\ComisionAcceso::puedeConfigurar($user), 403,
+            'Los esquemas afectan a toda la empresa. Necesitas permiso de configuración de comisiones en todas sus sucursales.');
         return $user;
     }
 

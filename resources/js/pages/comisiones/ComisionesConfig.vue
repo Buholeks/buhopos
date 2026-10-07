@@ -64,7 +64,7 @@
                         <label class="relative block">
                             <span class="sr-only">Buscar esquema</span>
                             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                            <input v-model="filtroEsquemas" type="search" placeholder="Buscar esquema…" class="campo pl-9" />
+                            <input v-model="filtroEsquemas" type="search" placeholder="Buscar esquema…" class="campo campo-busqueda" />
                         </label>
                     </div>
                     <div class="max-h-[65vh] overflow-y-auto">
@@ -248,7 +248,7 @@
                 <label class="relative block sm:w-72">
                     <span class="sr-only">Buscar usuario</span>
                     <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input v-model="filtroUsuarios" type="search" placeholder="Buscar usuario…" class="campo pl-9" />
+                    <input v-model="filtroUsuarios" type="search" placeholder="Buscar usuario…" class="campo campo-busqueda" />
                 </label>
             </div>
 
@@ -289,7 +289,7 @@
                             <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-500 md:sr-only">Como vendedor</span>
                             <select
                                 v-model="u.esquema_vendedor_id"
-                                class="campo py-2"
+                                class="campo campo-select"
                                 :class="u.esquema_vendedor_id ? 'border-emerald-200 bg-emerald-50/40 font-medium text-emerald-900' : 'text-slate-500'"
                                 :disabled="guardandoUsuario === u.id"
                                 @change="asignar(u)"
@@ -302,7 +302,7 @@
                             <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-500 md:sr-only">Como cajero</span>
                             <select
                                 v-model="u.esquema_cajero_id"
-                                class="campo py-2"
+                                class="campo campo-select"
                                 :class="u.esquema_cajero_id ? 'border-emerald-200 bg-emerald-50/40 font-medium text-emerald-900' : 'text-slate-500'"
                                 :disabled="guardandoUsuario === u.id"
                                 @change="asignar(u)"
@@ -411,10 +411,13 @@ async function cargarEsquemas() {
 }
 
 async function abrirEsquema(id) {
+    const actual = ++solicitudEsquema;
     try {
         const { data } = await http.get(`/api/comisiones/esquemas/${id}`);
+        if (actual !== solicitudEsquema) return;
         esquema.value = data;
     } catch {
+        if (actual !== solicitudEsquema) return;
         toastError("No se pudo cargar el esquema.");
     }
 }
@@ -468,6 +471,9 @@ async function eliminarEsquema() {
         await http.delete(`/api/comisiones/esquemas/${esquema.value.id}`);
         toastSuccess("Esquema eliminado.");
         esquema.value = null;
+        ++solicitudEsquema;
+        usuariosCargados.value = false;
+        usuarios.value = [];
         await cargarEsquemas();
     } catch (e) {
         toastError(e?.response?.data?.message || "No se pudo eliminar el esquema.");
@@ -515,6 +521,7 @@ async function eliminarGrupo(grupo) {
 // ── Asignación ────────────────────────────────────────────────────────────────
 
 const usuarios = ref([]);
+let solicitudEsquema = 0;
 const cargandoUsuarios = ref(false);
 const usuariosCargados = ref(false);
 const filtroUsuarios = ref("");
@@ -581,6 +588,13 @@ onMounted(async () => {
 
 .campo {
     @apply block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:opacity-60;
+}
+/* Deja espacio al ícono de lupa. */
+.campo-busqueda {
+    @apply pl-9;
+}
+.campo-select {
+    @apply py-2;
 }
 .chip {
     @apply inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600;

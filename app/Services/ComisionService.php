@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
  * Si no hay ninguna regla, la comisión es $0.
  *
  * Las comisiones se guardan como movimientos (snapshot); cancelaciones y devoluciones
- * generan movimientos negativos. Solo se guardan movimientos con monto distinto de cero.
+ * generan movimientos negativos. Los reversos de $0 conservan la cantidad devuelta.
  */
 class ComisionService
 {
@@ -39,18 +39,12 @@ class ComisionService
     // ── Registro ──────────────────────────────────────────────────────────────
 
     /**
-     * Ejecuta un registro de comisiones sin bloquear la operación que lo llama.
-     * Corre en un savepoint: si falla, solo se deshacen los movimientos de comisión,
-     * se reporta el error y la venta/cancelación/devolución continúa. Lo faltante se
-     * puede regenerar después con el comando de recálculo (las operaciones son idempotentes).
+     * La comisión forma parte de la transacción de venta/cancelación/devolución.
+     * Un error se propaga para impedir confirmar una operación con saldo incompleto.
      */
-    public function sinBloquear(callable $registro): void
+    public function registrarAtomico(callable $registro): void
     {
-        try {
-            DB::transaction(fn() => $registro($this));
-        } catch (\Throwable $e) {
-            report($e);
-        }
+        DB::transaction(fn() => $registro($this));
     }
 
     /**
@@ -150,11 +144,9 @@ class ComisionService
             }
 
             $original = $grupo->firstWhere('tipo', ComisionMovimiento::TIPO_VENTA) ?? $grupo->first();
-            // Proporción vigente respecto a la comisión original (menor a 1 si hubo devoluciones).
-            $proporcion = (float) $original->monto != 0.0 ? $neto / (float) $original->monto : 1;
             $movimientos->push($this->reverso($original, ComisionMovimiento::TIPO_CANCELACION, -$neto, [
-                'cantidad'     => round(-(float) $original->cantidad * $proporcion, 3),
-                'base_calculo' => round(-(float) $original->base_calculo * $proporcion, 2),
+                'cantidad'     => round(-(float) $grupo->sum('cantidad'), 3),
+                'base_calculo' => round(-(float) $grupo->sum('base_calculo'), 2),
             ]));
         }
 
@@ -181,22 +173,28 @@ class ComisionService
                 continue;
             }
 
-            $proporcion = min(1, (float) $detDev->cantidad / (float) $ventaDetalle->cantidad);
-
             $originales = ComisionMovimiento::where('venta_detalle_id', $ventaDetalle->id)
                 ->where('tipo', ComisionMovimiento::TIPO_VENTA)
                 ->get();
 
             foreach ($originales as $original) {
-                $monto = round(-(float) $original->monto * $proporcion, 2);
-                if ($monto == 0.0) {
-                    continue;
-                }
+                $previos = ComisionMovimiento::where('venta_detalle_id', $ventaDetalle->id)
+                    ->where('user_id', $original->user_id)
+                    ->where('beneficiario', $original->beneficiario)
+                    ->where('tipo', ComisionMovimiento::TIPO_DEVOLUCION)
+                    ->get();
+                $cantidadAcumulada = min((float) $original->cantidad,
+                    abs((float) $previos->sum('cantidad')) + (float) $detDev->cantidad);
+                $fraccion = $cantidadAcumulada / (float) $original->cantidad;
+                $monto = round(-round((float) $original->monto * $fraccion, 2) - (float) $previos->sum('monto'), 2);
+                $baseRevertida = round(-round((float) $original->base_calculo * $fraccion, 2) - (float) $previos->sum('base_calculo'), 2);
+                // Se conserva también el reverso de $0 para contabilizar la cantidad
+                // y compensar el redondeo en devoluciones posteriores.
 
                 $movimientos->push($this->reverso($original, ComisionMovimiento::TIPO_DEVOLUCION, $monto, [
                     'devolucion_id' => $devolucion->id,
                     'cantidad'      => -(float) $detDev->cantidad,
-                    'base_calculo'  => round(-(float) $original->base_calculo * $proporcion, 2),
+                    'base_calculo'  => $baseRevertida,
                 ]));
             }
         }

@@ -63,7 +63,7 @@ class ServicioExportacion
         return $pdf->download("{$nombreArchivo}.pdf");
     }
 
-    private function logoBase64(?Empresa $empresa): ?string
+    public function logoBase64(?Empresa $empresa): ?string
     {
         if (! $empresa?->logo) {
             return null;

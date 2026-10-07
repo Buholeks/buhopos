@@ -211,7 +211,7 @@ class CancelacionDevolucionController extends Controller
                 'motivo_cancelacion' => $data['motivo'],
             ]);
 
-            app(ComisionService::class)->sinBloquear(fn(ComisionService $s) => $s->revertirCancelacion($venta));
+            app(ComisionService::class)->registrarAtomico(fn(ComisionService $s) => $s->revertirCancelacion($venta));
 
             $venta->corte?->recalcularVentas();
             $venta->corte?->recalcularEsperados();
@@ -382,7 +382,7 @@ class CancelacionDevolucionController extends Controller
 
             $this->liberarSaldoPedidosCerrados($venta, $user->id);
 
-            app(ComisionService::class)->sinBloquear(fn(ComisionService $s) => $s->registrarDevolucion($devolucion));
+            app(ComisionService::class)->registrarAtomico(fn(ComisionService $s) => $s->registrarDevolucion($devolucion));
 
             return response()->json([
                 'message' => 'Devolucion registrada correctamente.',

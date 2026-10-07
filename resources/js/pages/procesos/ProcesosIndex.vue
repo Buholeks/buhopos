@@ -25,6 +25,7 @@ import {
     Undo2,
     Upload,
     PackageMinus,
+    BadgeDollarSign,
 } from "lucide-vue-next";
 
 const ventasPedidos = [
@@ -65,6 +66,13 @@ const caja = [
         to: { name: "caja" },
         badge: "Disponible",
         permiso: "caja.abrir",
+    },
+    {
+        label: "Pago de comisiones",
+        icon: BadgeDollarSign,
+        to: { name: "comisiones-liquidaciones" },
+        badge: "Disponible",
+        permiso: "comisiones.liquidar",
     },
 ];
 

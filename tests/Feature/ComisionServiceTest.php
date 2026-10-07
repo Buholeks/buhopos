@@ -373,22 +373,48 @@ class ComisionServiceTest extends TestCase
 
     // ── Integración con ventas ────────────────────────────────────────────────
 
-    public function test_sin_bloquear_deshace_solo_la_comision_y_no_lanza(): void
+    public function test_registro_atomico_propaga_error_y_revierte_la_operacion(): void
     {
         $e = $this->esquema();
         $this->regla($e, ['valor' => 2]);
         $this->usuarios($e);
         $venta = $this->venta([[300, 1, 1000, 'P1']]);
 
-        DB::beginTransaction();
-        $this->servicio()->sinBloquear(function (ComisionService $s) use ($venta) {
-            $s->registrarVenta($venta);
-            throw new \RuntimeException('falla simulada');
-        });
-        $this->assertTrue(Venta::whereKey($venta->id)->exists()); // la venta sigue en la transacción externa
-        DB::commit();
+        try {
+            DB::transaction(function () use ($venta) {
+                $venta->update(['estado' => 'cancelada']);
+                $this->servicio()->registrarAtomico(function () {
+                    throw new \RuntimeException('falla simulada');
+                });
+            });
+            $this->fail('El error debe propagarse.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('falla simulada', $e->getMessage());
+        }
+        $this->assertSame('confirmada', $venta->fresh()->estado);
 
         $this->assertSame(0, ComisionMovimiento::count());
+    }
+
+    public function test_devoluciones_sucesivas_compensan_residuos_y_son_idempotentes(): void
+    {
+        $e = $this->esquema();
+        $this->regla($e, ['valor' => 100]);
+        $this->usuarios($e);
+        foreach ([1.0, 0.02] as $monto) {
+            $venta = $this->venta([[300, 3, 1, 'P1']]);
+            $this->servicio()->registrarVenta($venta);
+            $original = ComisionMovimiento::where('venta_id', $venta->id)->first();
+            $original->update(['monto' => $monto]);
+            for ($i = 0; $i < 3; $i++) {
+                $dev = Devolucion::create(['venta_id' => $venta->id, 'estado' => 'confirmada']);
+                $dev->detalles()->create(['venta_detalle_id' => $original->venta_detalle_id, 'cantidad' => 1]);
+                $this->servicio()->registrarDevolucion($dev);
+                $this->servicio()->registrarDevolucion($dev);
+            }
+            $this->assertEqualsWithDelta(0, ComisionMovimiento::where('venta_id', $venta->id)->sum('monto'), 0.00001);
+            $this->assertSame(3, ComisionMovimiento::where('venta_id', $venta->id)->where('tipo', 'devolucion')->count());
+        }
     }
 
     public function test_lista_de_precio_se_valida_contra_el_precio_cobrado(): void

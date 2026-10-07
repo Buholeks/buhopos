@@ -513,7 +513,7 @@ class VentaController extends Controller
 
             $venta->recalcularTotales();
 
-            app(ComisionService::class)->sinBloquear(fn(ComisionService $s) => $s->registrarVenta($venta));
+            app(ComisionService::class)->registrarAtomico(fn(ComisionService $s) => $s->registrarVenta($venta));
 
             if ($saldoAplicado > 0) {
                 app(ClienteSaldoServicio::class)->aplicarEnVenta(

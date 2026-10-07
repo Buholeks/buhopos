@@ -122,6 +122,7 @@ class ComisionReporteTest extends TestCase
         $this->assertSame(1, collect($r['movimientos']['data'])->where('estado_pago', 'pagada')->count());
 
         $this->getJson("/api/comisiones/reporte/{$this->ana->id}?" . $this->periodo(['beneficiario' => 'cajero']))
+            ->assertJsonPath('resumen.total', 5)
             ->assertJsonPath('movimientos.total', 1);
         $this->getJson("/api/comisiones/reporte/{$this->ana->id}?" . $this->periodo(['tipo' => 'devolucion']))
             ->assertJsonPath('movimientos.data.0.monto', -10);
@@ -143,6 +144,58 @@ class ComisionReporteTest extends TestCase
             ->assertOk()
             ->assertJsonPath('resumen.total', 95)
             ->assertJsonPath('empleado.name', 'Ana');
+    }
+
+    public function test_permiso_local_no_expone_otra_sucursal_ni_permite_configuracion_global(): void
+    {
+        DB::table('roles')->insert(['id' => 1, 'empresa_id' => 1, 'nombre' => 'Encargado']);
+        DB::table('permisos')->insert([
+            ['id' => 1, 'clave' => 'comisiones.ver'],
+            ['id' => 2, 'clave' => 'comisiones.configurar'],
+        ]);
+        DB::table('role_permiso')->insert([
+            ['role_id' => 1, 'permiso_id' => 1], ['role_id' => 1, 'permiso_id' => 2],
+        ]);
+        DB::table('sucursal_user')->insert(['sucursal_id' => 1, 'user_id' => $this->ana->id, 'role_id' => 1]);
+        $this->ana->update(['sucursal_id' => 1]);
+        $this->actingAs($this->ana);
+        $this->getJson('/api/comisiones/reporte?' . $this->periodo())
+            ->assertOk()->assertJsonCount(1, 'sucursales')->assertJsonCount(1, 'empleados');
+        $this->getJson('/api/comisiones/reporte?' . $this->periodo(['sucursal_id' => 2]))->assertForbidden();
+        $this->getJson("/api/comisiones/reporte/{$this->beto->id}?" . $this->periodo())
+            ->assertOk()->assertJsonPath('movimientos.total', 0);
+        $this->getJson('/api/comisiones/esquemas')->assertForbidden();
+    }
+
+    public function test_exporta_pdf_y_excel_con_los_mismos_datos_y_permisos(): void
+    {
+        \Illuminate\Support\Facades\Schema::create('empresas', function ($t) {
+            $t->id(); $t->string('nombre'); $t->string('logo')->nullable(); $t->string('direccion')->nullable(); $t->timestamps();
+        });
+        DB::table('empresas')->insert(['id' => 1, 'nombre' => 'Zapatería Búho']);
+
+        $r = $this->get('/api/comisiones/reporte/exportar?' . $this->periodo(['formato' => 'pdf']))->assertOk();
+        $this->assertSame('application/pdf', $r->headers->get('content-type'));
+        $this->assertStringContainsString('comisiones_2026-10-01_2026-10-31.pdf', $r->headers->get('content-disposition'));
+        $this->assertStringStartsWith('%PDF', $r->getContent());
+
+        $excel = $this->get('/api/comisiones/reporte/exportar?' . $this->periodo(['formato' => 'excel']))->assertOk();
+        $this->assertStringContainsString('comisiones_2026-10-01_2026-10-31.xlsx', $excel->headers->get('content-disposition'));
+        $this->get('/api/comisiones/reporte/exportar?' . $this->periodo(['formato' => 'csv']))->assertStatus(302);
+
+        // Mismos datos que el reporte en pantalla: texto en PDF, números en Excel.
+        $resumen = app(\App\Services\ComisionReporte::class)->resumen(1, ['desde' => '2026-10-01', 'hasta' => '2026-10-31']);
+        $filtros = ['desde' => '2026-10-01', 'hasta' => '2026-10-31'];
+        $enExcel = new \App\Exportaciones\ComisionesExportacion(1, $resumen, $filtros, null, 'excel');
+        $this->assertSame(['Ana', 2, 100.0, 1, 5.0, -10.0, 0.0, 95.0, 50.0, 45.0], $enExcel->datos()->firstWhere(0, 'Ana'));
+        $export = new \App\Exportaciones\ComisionesExportacion(1, $resumen, $filtros, null, 'pdf');
+        $ana = $export->datos()->firstWhere(0, 'Ana');
+        $this->assertSame(['Ana', 2, '$100.00', 1, '$5.00', '-$10.00', '$0.00', '$95.00', '$50.00', '$45.00'], $ana);
+        $this->assertSame('$103.00', $export->totales()[7]);
+
+        $this->get('/api/comisiones/reporte/exportar?formato=pdf&desde=2026-10-31&hasta=2026-10-01')->assertStatus(302);
+        $this->actingAs($this->usuarioCon(['comisiones.ver_propias'], $this->ana));
+        $this->get('/api/comisiones/reporte/exportar?' . $this->periodo(['formato' => 'excel']))->assertForbidden();
     }
 
     public function test_mias_sin_movimientos_regresa_ceros(): void

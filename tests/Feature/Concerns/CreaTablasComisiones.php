@@ -26,6 +26,19 @@ trait CreaTablasComisiones
             $t->rememberToken();
             $t->timestamps();
         });
+        Schema::create('roles', function (Blueprint $t) {
+            $t->id(); $t->integer('empresa_id'); $t->string('nombre');
+        });
+        Schema::create('permisos', function (Blueprint $t) {
+            $t->id(); $t->string('clave');
+        });
+        Schema::create('role_permiso', function (Blueprint $t) {
+            $t->integer('role_id'); $t->integer('permiso_id');
+        });
+        Schema::create('sucursal_user', function (Blueprint $t) {
+            $t->integer('sucursal_id'); $t->integer('user_id'); $t->integer('role_id')->nullable();
+            $t->timestamps();
+        });
         Schema::create('categorias', function (Blueprint $t) {
             $t->id();
             $t->integer('empresa_id')->default(1);
@@ -169,6 +182,32 @@ trait CreaTablasComisiones
             $t->integer('creado_por')->nullable();
             $t->integer('liquidacion_id')->nullable();
             $t->timestamps();
+        });
+    }
+
+    /** Tablas de caja para probar pagos de liquidaciones con salida de caja. */
+    protected function crearTablasCaja(): void
+    {
+        Schema::create('cuentas_bancarias', function (Blueprint $t) {
+            $t->id(); $t->integer('empresa_id'); $t->string('nombre'); $t->string('banco')->nullable();
+            $t->boolean('activo')->default(true); $t->timestamps(); $t->softDeletes();
+        });
+        Schema::create('cortes_caja', function (Blueprint $t) {
+            $t->id(); $t->integer('empresa_id'); $t->integer('sucursal_id'); $t->integer('user_id');
+            $t->string('terminal')->nullable(); $t->string('estado')->default('abierto');
+            $t->timestamp('fecha_apertura')->nullable(); $t->timestamp('fecha_cierre')->nullable();
+            foreach (['fondo_inicial_efectivo', 'ventas_efectivo', 'ventas_tarjeta', 'ventas_transferencia', 'ventas_saldo_favor',
+                'movs_efectivo', 'movs_tarjeta', 'movs_transferencia', 'esperado_efectivo', 'esperado_tarjeta', 'esperado_transferencia',
+                'contado_efectivo', 'contado_tarjeta', 'contado_transferencia', 'dif_efectivo', 'dif_tarjeta', 'dif_transferencia'] as $c) {
+                $t->decimal($c, 12, 2)->default(0);
+            }
+            $t->integer('num_ventas')->default(0); $t->text('notas_apertura')->nullable(); $t->text('notas_cierre')->nullable();
+            $t->timestamps();
+        });
+        Schema::create('movimientos_caja', function (Blueprint $t) {
+            $t->id(); $t->integer('corte_id'); $t->integer('user_id'); $t->string('tipo'); $t->string('forma_pago');
+            $t->integer('cuenta_bancaria_id')->nullable(); $t->integer('terminal_pago_id')->nullable();
+            $t->decimal('monto', 12, 2); $t->string('concepto'); $t->timestamps();
         });
     }
 }

@@ -47,6 +47,7 @@ use App\Http\Controllers\DevolucionProveedorController;
 use App\Http\Controllers\RolController;
 use App\Http\Controllers\ComisionEsquemaController;
 use App\Http\Controllers\ComisionReporteController;
+use App\Http\Controllers\ComisionLiquidacionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EtiquetaController;
 use App\Http\Controllers\MediaController;
@@ -202,8 +203,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/catalogo/productos', [ComisionEsquemaController::class, 'buscarProductos']);
 
         Route::get('/reporte', [ComisionReporteController::class, 'index']);
+        Route::get('/reporte/exportar', [ComisionReporteController::class, 'exportar']);
         Route::get('/reporte/{userId}', [ComisionReporteController::class, 'detalle']);
         Route::get('/mias', [ComisionReporteController::class, 'mias']);
+
+        Route::get('/liquidaciones/pendientes', [ComisionLiquidacionController::class, 'pendientes']);
+        Route::get('/liquidaciones', [ComisionLiquidacionController::class, 'index']);
+        Route::post('/liquidaciones', [ComisionLiquidacionController::class, 'store']);
+        Route::get('/liquidaciones/{id}', [ComisionLiquidacionController::class, 'show']);
+        Route::get('/liquidaciones/{id}/pdf', [ComisionLiquidacionController::class, 'pdf']);
+        Route::post('/liquidaciones/{id}/pagar', [ComisionLiquidacionController::class, 'pagar']);
+        Route::post('/liquidaciones/{id}/cancelar', [ComisionLiquidacionController::class, 'cancelar']);
     });
 
     /*

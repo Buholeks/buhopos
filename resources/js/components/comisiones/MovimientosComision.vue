@@ -2,8 +2,8 @@
     <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <!-- Filtros -->
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-            <h3 class="text-sm font-bold text-slate-900">Detalle</h3>
-            <div class="flex flex-wrap gap-2">
+            <h3 class="text-sm font-bold text-slate-900">{{ titulo }}</h3>
+            <div v-if="filtrable" class="flex flex-wrap gap-2">
                 <select v-model="beneficiario" class="campo" aria-label="Filtrar por rol" @change="emit('filtrar', filtros())">
                     <option value="">Vendedor y cajero</option>
                     <option value="vendedor">Como vendedor</option>
@@ -110,6 +110,8 @@ import { dinero, dineroCorto, etiquetaLista } from "@/helpers/comisiones";
 defineProps({
     pagina: { type: Object, default: null }, // paginador de Laravel
     cargando: { type: Boolean, default: false },
+    filtrable: { type: Boolean, default: true },
+    titulo: { type: String, default: "Detalle" },
 });
 
 const emit = defineEmits(["filtrar", "pagina"]);

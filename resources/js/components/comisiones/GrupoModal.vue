@@ -277,7 +277,7 @@ function formVacio() {
 }
 
 function preciosVacios() {
-    return LISTAS_PRECIO.map((lista) => ({ lista, activo: true, tipo: "porcentaje", valor: 0 }));
+    return LISTAS_PRECIO.map((lista) => ({ lista, activo: true, tipo: "porcentaje", valor: null }));
 }
 
 watch(
@@ -322,7 +322,7 @@ watch(
 watch(valorPorPrecio, (activo) => {
     if (!activo) return;
     for (const fila of precios.value) {
-        if (!fila.valor) {
+        if (fila.valor === null || fila.valor === undefined || fila.valor === "") {
             fila.tipo = form.value.tipo;
             fila.valor = form.value.valor;
         }

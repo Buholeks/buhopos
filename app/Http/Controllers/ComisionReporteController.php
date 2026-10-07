@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exportaciones\ComisionesExportacion;
+use App\Exportaciones\ServicioExportacion;
 use App\Models\ComisionMovimiento;
 use App\Models\Sucursal;
 use App\Models\User;
@@ -31,8 +33,27 @@ class ComisionReporteController extends Controller
         $filtros = $this->validarFiltros($request, (int) $user->empresa_id);
 
         return response()->json($this->reporte->resumen((int) $user->empresa_id, $filtros) + [
-            'sucursales' => Sucursal::where('empresa_id', $user->empresa_id)->orderBy('nombre')->get(['id', 'nombre']),
+            'sucursales' => Sucursal::where('empresa_id', $user->empresa_id)
+                ->whereIn('id', $filtros['sucursales_autorizadas'])->orderBy('nombre')->get(['id', 'nombre']),
         ]);
+    }
+
+    // ── GET /api/comisiones/reporte/exportar ──────────────────────────────────
+
+    public function exportar(Request $request, ServicioExportacion $servicio)
+    {
+        $user = Auth::user();
+        abort_unless($user->tienePermiso('comisiones.ver'), 403, 'Sin permiso: comisiones.ver');
+
+        $formato = $request->validate(['formato' => ['required', Rule::in(['excel', 'pdf'])]])['formato'];
+        $filtros = $this->validarFiltros($request, (int) $user->empresa_id);
+        $sucursal = ! empty($filtros['sucursal_id']) ? Sucursal::find($filtros['sucursal_id'])?->nombre : null;
+
+        return $servicio->exportar(
+            new ComisionesExportacion((int) $user->empresa_id, $this->reporte->resumen((int) $user->empresa_id, $filtros), $filtros, $sucursal, $formato),
+            $formato,
+            "comisiones_{$filtros['desde']}_{$filtros['hasta']}"
+        );
     }
 
     // ── GET /api/comisiones/reporte/{userId} ──────────────────────────────────
@@ -48,7 +69,7 @@ class ComisionReporteController extends Controller
         );
 
         $empleado = User::where('empresa_id', $user->empresa_id)->findOrFail($userId);
-        $filtros = $this->validarFiltros($request, (int) $user->empresa_id, conDetalle: true);
+        $filtros = $this->validarFiltros($request, (int) $user->empresa_id, conDetalle: true, propio: $propio);
 
         return response()->json([
             'empleado'    => $empleado->only(['id', 'name']),
@@ -68,7 +89,7 @@ class ComisionReporteController extends Controller
             'Sin permiso: comisiones.ver_propias'
         );
 
-        $filtros = $this->validarFiltros($request, (int) $user->empresa_id, conDetalle: true);
+        $filtros = $this->validarFiltros($request, (int) $user->empresa_id, conDetalle: true, propio: true);
 
         return response()->json([
             'empleado'    => $user->only(['id', 'name']),
@@ -83,7 +104,7 @@ class ComisionReporteController extends Controller
 
     // ── Internos ──────────────────────────────────────────────────────────────
 
-    private function validarFiltros(Request $request, int $empresaId, bool $conDetalle = false): array
+    private function validarFiltros(Request $request, int $empresaId, bool $conDetalle = false, bool $propio = false): array
     {
         $reglas = [
             'desde'       => ['required', 'date_format:Y-m-d'],
@@ -106,6 +127,14 @@ class ComisionReporteController extends Controller
                 'message' => 'El periodo no puede ser mayor a un año.',
                 'errors'  => ['hasta' => ['El periodo no puede ser mayor a un año.']],
             ], 422));
+        }
+
+        if (! $propio) {
+            $data['sucursales_autorizadas'] = \App\Services\ComisionAcceso::sucursales(Auth::user(), 'comisiones.ver');
+            if (! empty($data['sucursal_id'])) {
+                abort_unless(in_array((int) $data['sucursal_id'], $data['sucursales_autorizadas'], true), 403,
+                    'No tienes permiso para consultar comisiones de esta sucursal.');
+            }
         }
 
         return $data;

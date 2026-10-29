@@ -315,6 +315,7 @@ class EtiquetaController extends Controller
             'alto_mm' => ['required', 'numeric', 'min:10', 'max:500'],
             'diseno' => ['required', 'array'],
             'diseno.elementos' => ['required', 'array'],
+            'perfil_id' => ['nullable', 'integer', Rule::exists('etiqueta_perfiles', 'id')->where('empresa_id', $empresaId)->where('activo', true)],
             'predeterminada' => ['boolean'],
         ]);
 

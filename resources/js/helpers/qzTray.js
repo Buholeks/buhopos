@@ -154,12 +154,15 @@ export async function imprimirTicketHtml(nombreImpresora, html, anchomm = 80) {
     await qz.print(config, [{ type: "pixel", format: "html", flavor: "plain", data: html }]);
 }
 
-export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {
+export async function imprimirHtml(nombreImpresora, html, anchomm, altomm, { cintaContinua = false } = {}) {
     await asegurarConexion();
 
+    // Usar pulgadas con DPI evita el redondeo de la resolución métrica en Java.
+    const ancho = cintaContinua ? anchomm / 25.4 : anchomm;
+    const alto = cintaContinua ? altomm / 25.4 : altomm;
     const config = qz.configs.create(nombreImpresora, {
-        size: { width: anchomm, height: altomm },
-        units: "mm",
+        size: { width: ancho, height: alto, ...(cintaContinua ? { custom: true } : {}) },
+        units: cintaContinua ? "in" : "mm",
         orientation: "portrait",
         margins: { top: 0, right: 0, bottom: 0, left: 0 },
         colorType: "blackwhite",
@@ -167,7 +170,14 @@ export async function imprimirHtml(nombreImpresora, html, anchomm, altomm) {
         copies: 1,
         scaleContent: false,
         rasterize: false,
+        ...(cintaContinua ? { density: 300, interpolation: 'nearest-neighbor' } : {}),
     });
 
-    await qz.print(config, [{ type: "pixel", format: "html", flavor: "plain", data: html }]);
+    if (cintaContinua) {
+        const { etiquetaHtmlAPdf } = await import('./printing/etiquetaPdf.js');
+        const pdf = await etiquetaHtmlAPdf(html, Number(anchomm), Number(altomm));
+        await qz.print(config, [{ type: 'pixel', format: 'pdf', flavor: 'base64', data: pdf }]);
+    } else {
+        await qz.print(config, [{ type: 'pixel', format: 'html', flavor: 'plain', data: html }]);
+    }
 }

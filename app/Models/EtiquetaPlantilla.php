@@ -10,6 +10,7 @@ class EtiquetaPlantilla extends Model
 
     protected $fillable = [
         'empresa_id',
+        'perfil_id',
         'nombre',
         'tipo',
         'ancho_mm',
@@ -20,6 +21,7 @@ class EtiquetaPlantilla extends Model
     ];
 
     protected $casts = [
+        'perfil_id' => 'integer',
         'ancho_mm' => 'float',
         'alto_mm' => 'float',
         'diseno' => 'array',

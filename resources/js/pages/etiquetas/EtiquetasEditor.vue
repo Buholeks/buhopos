@@ -118,6 +118,8 @@
                 <section class="rounded-2xl bg-white p-4 shadow-sm">
                     <h2 class="mb-3 text-sm font-black">Perfil Brother QL-800</h2>
                     <select v-model="perfilId" class="input" @change="cargarPerfil"><option v-for="p in perfiles" :key="p.id" :value="p.id">{{ p.nombre }}</option></select>
+                    <button class="mt-2 text-sm font-bold text-emerald-700" @click="duplicarPerfil">Crear perfil a partir de este</button>
+                    <p class="mt-2 text-xs text-slate-500">Guarda un perfil para cada medida. Al guardar la plantilla, recordará el perfil seleccionado.</p>
                     <input v-model="perfil.nombre" class="input mt-2" placeholder="Nombre del perfil">
                     <select v-model="perfil.material" class="input mt-2"><option value="precortada">Precortada</option><option value="continua">Cinta continua</option><option value="hoja">Hoja</option></select>
                     <div class="mt-2 grid grid-cols-2 gap-2">
@@ -200,7 +202,21 @@ function asignar(destino, origen) {
     }
     Object.assign(destino, copia);
 }
-function cargarSeleccionada() { const p = plantillas.value.find((x) => x.id === Number(plantillaId.value)); if (p) asignar(edicion, p); seleccionado.value = null; }
+function cargarSeleccionada() {
+    const p = plantillas.value.find((x) => x.id === Number(plantillaId.value));
+    if (p) {
+        asignar(edicion, p);
+        perfilId.value = (perfiles.value.find((x) => x.id === p.perfil_id) || perfiles.value.find((x) => x.predeterminado) || perfiles.value[0])?.id;
+        cargarPerfil();
+    }
+    seleccionado.value = null;
+}
+function duplicarPerfil() {
+    perfil.id = null;
+    perfilId.value = null;
+    perfil.nombre = `${perfil.nombre} (copia)`;
+    perfil.predeterminado = false;
+}
 function cargarPerfil() { const p = perfiles.value.find((x) => x.id === Number(perfilId.value)); if (p) asignar(perfil, p); if (perfil.material === "continua") normalizarContinua(); }
 function nueva() { asignar(edicion, { id: null, nombre: "Nueva plantilla", tipo: "compra", ancho_mm: 62, alto_mm: 29, predeterminada: false, diseno: { elementos: [] } }); plantillaId.value = null; }
 function agregar(item) {
@@ -247,10 +263,12 @@ async function eliminarPlantilla() {
     await http.delete(`/api/etiquetas/plantillas/${edicion.id}`);
     plantillas.value = plantillas.value.filter((p) => p.id !== edicion.id);
     const siguiente = plantillas.value[0] ?? null;
-    if (siguiente) { plantillaId.value = siguiente.id; asignar(edicion, siguiente); }
+    if (siguiente) { plantillaId.value = siguiente.id; cargarSeleccionada(); }
     else nueva();
 }
 async function guardar() {
+    await persistirPerfil();
+    edicion.perfil_id = perfil.id;
     const url = edicion.id ? `/api/etiquetas/plantillas/${edicion.id}` : "/api/etiquetas/plantillas";
     const { data } = await http[edicion.id ? "put" : "post"](url, edicion);
     const indice = plantillas.value.findIndex((p) => p.id === data.id);
@@ -260,7 +278,14 @@ async function guardar() {
     asignar(edicion, data);
     await Swal.fire("Plantilla guardada", data.nombre, "success");
 }
-async function guardarPerfil() {
+async function persistirPerfil() {
+    const original = perfiles.value.find((p) => p.id === perfil.id);
+    const compartido = plantillas.value.some((p) => p.id !== edicion.id && (p.perfil_id === perfil.id || (!p.perfil_id && original?.predeterminado)));
+    if (original && compartido && Object.keys(original).some((key) => JSON.stringify(original[key]) !== JSON.stringify(perfil[key]))) {
+        perfil.id = null;
+        perfil.predeterminado = false;
+        perfil.nombre = `${edicion.nombre} · ${perfil.ancho_mm}×${perfil.alto_mm}`.slice(0, 120);
+    }
     const url = perfil.id ? `/api/etiquetas/perfiles/${perfil.id}` : "/api/etiquetas/perfiles";
     const { data } = await http[perfil.id ? "put" : "post"](url, perfil);
     if (data.predeterminado) perfiles.value.forEach((p) => { p.predeterminado = p.id === data.id; });
@@ -269,6 +294,10 @@ async function guardarPerfil() {
     else perfiles.value.push(data);
     perfilId.value = data.id;
     asignar(perfil, data);
+}
+async function guardarPerfil() {
+    await persistirPerfil();
+    const data = perfil;
     await Swal.fire("Perfil guardado", `Medida conservada: ${data.ancho_mm} × ${data.alto_mm} mm.`, "success");
 }
 async function imprimirPrueba() {
@@ -284,7 +313,8 @@ async function imprimirPrueba() {
 }
 function aplicarTamanoPerfil() {
     if (perfil.material === "continua") {
-        edicion.ancho_mm = Math.min(62, Number(edicion.ancho_mm) || 62);
+        edicion.ancho_mm = Math.min(62, Number(perfil.ancho_mm) || 62);
+        edicion.alto_mm = Number(perfil.alto_mm) || edicion.alto_mm;
         return;
     }
     edicion.ancho_mm = Number(perfil.ancho_mm);

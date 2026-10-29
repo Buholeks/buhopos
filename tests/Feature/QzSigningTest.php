@@ -57,10 +57,20 @@ class QzSigningTest extends TestCase
                 $this->message('printers.find', []),
                 $this->message('printers.getDefault', null),
             ];
+            $jobs[] = $this->message('print', [
+                'printer' => ['name' => 'Brother QL-800'],
+                'options' => ['copies' => 1, 'units' => 'in', 'density' => 300,
+                    'size' => ['width' => 62 / 25.4, 'height' => 75 / 25.4, 'custom' => true],
+                    'rasterize' => true, 'scaleContent' => true],
+                'data' => [['type' => 'pixel', 'format' => 'html', 'flavor' => 'plain',
+                    'data' => '<html><body>Etiqueta continua</body></html>',
+                    'options' => ['pageWidth' => 62 / 25.4, 'pageHeight' => 75 / 25.4]]],
+            ]);
             foreach ([
                 ['type' => 'pixel', 'format' => 'html', 'flavor' => 'plain', 'data' => '<html><body>Ticket</body></html>'],
                 ['type' => 'pixel', 'format' => 'html', 'flavor' => 'plain', 'data' => '<style>@page {size:62mm 29mm}</style><img src="data:image/png;base64,AAAA">'],
                 ['type' => 'raw', 'format' => 'command', 'flavor' => 'hex', 'data' => '1b405052554542410a1b64041d5601'],
+                ['type' => 'pixel', 'format' => 'pdf', 'flavor' => 'base64', 'data' => base64_encode("%PDF-1.4\n%%EOF\n")],
             ] as $item) {
                 $jobs[] = $this->message('print', ['printer' => ['name' => 'POS-80-Series'], 'options' => ['copies' => 1], 'data' => [$item]]);
             }
@@ -72,6 +82,30 @@ class QzSigningTest extends TestCase
                     $publicKey, OPENSSL_ALGO_SHA512));
             }
         } finally { }
+    }
+
+    public function test_rejects_invalid_html_page_options(): void
+    {
+        $this->login();
+        foreach ([['pageWidth' => 0], ['pageHeight' => -1], ['pageWidth' => 3001],
+            ['pageHeight' => '75'], ['pageWidth' => []], ['path' => 'file:///tmp/test'], 'invalid'] as $page) {
+            $request = $this->message('print', [
+                'printer' => ['name' => 'Brother QL-800'], 'options' => ['copies' => 1, 'units' => 'mm'],
+                'data' => [['type' => 'pixel', 'format' => 'html', 'flavor' => 'plain',
+                    'data' => '<p>Etiqueta</p>', 'options' => $page]],
+            ]);
+            $this->postJson('/api/etiquetas/qztray/sign', compact('request'))->assertUnprocessable();
+        }
+    }
+
+    public function test_rejects_external_and_invalid_pdf_payloads(): void
+    {
+        $this->login();
+        foreach ([['file', 'https://example.com/label.pdf'], ['base64', '%%%'], ['base64', base64_encode('not a PDF')]] as [$flavor, $data]) {
+            $request = $this->message('print', ['printer' => ['name' => 'Brother QL-800'],
+                'data' => [['type' => 'pixel', 'format' => 'pdf', 'flavor' => $flavor, 'data' => $data]]]);
+            $this->postJson('/api/etiquetas/qztray/sign', compact('request'))->assertUnprocessable();
+        }
     }
 
     private function login(bool $allowed = true): void

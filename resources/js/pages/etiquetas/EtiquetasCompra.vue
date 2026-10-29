@@ -74,7 +74,7 @@
 </template>
 
 <script setup>
-import { computed, onErrorCaptured, onMounted, ref } from "vue";
+import { computed, onErrorCaptured, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { swal as Swal } from "@/lib/alert";
 import http from "@/lib/http";
@@ -96,6 +96,9 @@ const imprimiendo = ref(false);
 
 const plantillaActual = computed(() => plantillas.value.find((p) => p.id === Number(plantillaId.value)));
 const perfilActual = computed(() => perfiles.value.find((p) => p.id === Number(perfilId.value)));
+watch(plantillaActual, (plantilla) => {
+    perfilId.value = (perfiles.value.find((p) => p.id === plantilla?.perfil_id) || perfiles.value.find((p) => p.predeterminado) || perfiles.value[0])?.id;
+});
 const itemPreview = computed(() => items.value.find((i) => i.seleccionado) || items.value[0]);
 const totalEtiquetas = computed(() => items.value.filter((i) => i.seleccionado).reduce((t, i) => t + Math.max(0, Number(i.cantidad) || 0), 0));
 

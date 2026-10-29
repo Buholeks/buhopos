@@ -35,11 +35,28 @@ class QzMessageValidator
         $this->check(is_array($data) && array_is_list($data) && count($data) > 0 && count($data) <= 500, 'Contenido QZ inválido.');
         foreach ($data as $item) {
             $this->check(is_array($item) && is_string($item['data'] ?? null), 'Contenido inválido.');
-            $this->check(empty(array_diff(array_keys($item), ['type', 'format', 'flavor', 'data'])), 'Opciones de contenido no permitidas.');
+            $this->check(empty(array_diff(array_keys($item), ['type', 'format', 'flavor', 'data', 'options'])), 'Opciones de contenido no permitidas.');
             $html = ($item['type'] ?? '') === 'pixel' && ($item['format'] ?? '') === 'html' && ($item['flavor'] ?? '') === 'plain';
             $raw = ($item['type'] ?? '') === 'raw' && ($item['format'] ?? '') === 'command' && ($item['flavor'] ?? '') === 'hex';
-            $this->check($html || $raw, 'Solo se permite HTML inline o comandos RAW hexadecimales.');
-            if ($raw) {
+            $pdf = ($item['type'] ?? '') === 'pixel' && ($item['format'] ?? '') === 'pdf' && ($item['flavor'] ?? '') === 'base64';
+            $this->check($html || $raw || $pdf, 'Solo se permite HTML inline, PDF base64 o comandos RAW hexadecimales.');
+            if (array_key_exists('options', $item)) {
+                $page = $item['options'];
+                $this->check($html && is_array($page)
+                    && empty(array_diff(array_keys($page), ['pageWidth', 'pageHeight'])), 'Opciones de página no permitidas.');
+                $mmPorUnidad = ['mm' => 1, 'cm' => 10, 'in' => 25.4][$options['units'] ?? 'in'] ?? null;
+                $this->check($mmPorUnidad !== null, 'Unidad de página inválida.');
+                foreach ($page as $dimension) {
+                    $this->check((is_int($dimension) || is_float($dimension))
+                        && is_finite((float) $dimension) && $dimension > 0
+                        && $dimension * $mmPorUnidad <= 3000, 'Dimensión de página inválida.');
+                }
+            }
+            if ($pdf) {
+                $decoded = base64_decode($item['data'], true);
+                $this->check(strlen($item['data']) <= 4_000_000 && $decoded !== false
+                    && str_starts_with($decoded, '%PDF-') && str_ends_with(rtrim($decoded), '%%EOF'), 'PDF inválido.');
+            } elseif ($raw) {
                 // 4,000,000 caracteres hex (~2 MB de bytes) cubre un ticket rasterizado largo a 600 DPI
                 // sin permitir payloads arbitrariamente grandes.
                 $this->check(strlen($item['data']) > 0 && strlen($item['data']) <= 4_000_000

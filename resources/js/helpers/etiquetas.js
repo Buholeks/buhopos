@@ -124,7 +124,7 @@ export async function imprimirEtiquetas({ plantilla, perfil, items, impresoraQz 
         // Cada etiqueta = trabajo separado → el driver Brother hace corte entre cada una
         for (const item of expandidos) {
             const html = envolver(crearEtiquetaHtml(plantilla, item), ancho, alto, plantilla, transformacion);
-            await imprimirHtml(impresoraQz, html, ancho, alto);
+            await imprimirHtml(impresoraQz, html, ancho, alto, { cintaContinua: perfil?.material === 'continua' });
         }
         return;
     }

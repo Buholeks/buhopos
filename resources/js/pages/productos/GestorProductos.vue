@@ -39,6 +39,26 @@
                         size="xs"
                     />
                 </div>
+                <button
+                    type="button"
+                    class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100"
+                    :aria-expanded="mostrarFiltros"
+                    aria-controls="filtros-productos"
+                    @click="mostrarFiltros = !mostrarFiltros"
+                >
+                    <ListFilter class="h-4 w-4" />
+                    Filtros
+                    <span
+                        v-if="cantidadFiltros"
+                        class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-100 px-1.5 text-[11px] font-bold text-emerald-700"
+                    >
+                        {{ cantidadFiltros }}
+                    </span>
+                    <ChevronDown
+                        class="h-4 w-4 transition-transform"
+                        :class="mostrarFiltros ? 'rotate-180' : ''"
+                    />
+                </button>
                 <BtnAgregar
                     v-if="auth.can('productos.editar')"
                     type="button"
@@ -49,14 +69,13 @@
             </div>
         </div>
 
-        <div class="mb-5 rounded-xl border border-slate-200 bg-white p-4">
-            <div class="mb-3 flex items-center justify-between gap-3">
-                <div>
-                    <p class="text-sm font-semibold text-slate-800">Filtros</p>
-                    <p class="text-xs text-slate-500">Combina uno o varios criterios</p>
-                </div>
+        <div
+            v-show="mostrarFiltros"
+            id="filtros-productos"
+            class="mb-5 rounded-xl border border-slate-200 bg-white p-4"
+        >
+            <div v-if="hayFiltros" class="mb-2 flex justify-end">
                 <button
-                    v-if="hayFiltros"
                     type="button"
                     class="text-xs font-medium text-emerald-700 hover:text-emerald-800"
                     @click="limpiarFiltros"
@@ -283,7 +302,7 @@ import VariantesModal from "@/components/productos/VariantesModal.vue";
 
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
-import { Boxes, Loader2 } from "lucide-vue-next";
+import { Boxes, ChevronDown, ListFilter, Loader2 } from "lucide-vue-next";
 
 const TABS = [
     { id: "general", label: "General" },
@@ -402,7 +421,9 @@ const margen = computed(() => {
     return ((form.precio_venta - form.precio_costo) / form.precio_costo) * 100;
 });
 
-const hayFiltros = computed(() => Object.values(filtros).some((valor) => valor !== null && valor !== ""));
+const mostrarFiltros = ref(false);
+const cantidadFiltros = computed(() => Object.values(filtros).filter((valor) => valor !== null && valor !== "").length);
+const hayFiltros = computed(() => cantidadFiltros.value > 0);
 
 // ── Init ───────────────────────────────────────────────────────────────────────
 onMounted(() => cargarProductos());

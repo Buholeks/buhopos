@@ -13,6 +13,7 @@ use App\Models\VarianteAtributo;
 use App\Servicios\KardexServicio;
 use App\Servicios\ProductosImportacionServicio;
 use App\Servicios\VarianteGrupoServicio;
+use App\Support\ProductVariantSearch;
 use App\Support\VariantImageResolver;
 use App\Traits\HandlesMediaImages;
 use Illuminate\Http\JsonResponse;
@@ -206,27 +207,41 @@ class ProductoController extends Controller
             return;
         }
 
-        // El comodín sólo se agrega al final para que los índices puedan
-        // participar en búsquedas por nombre, código, SKU y código de barras.
-        $prefijo = addcslashes($buscar, '\\%_') . '%';
-        $variantesCoincidentes = ProductoVariante::query()
-            ->select('producto_id')
-            ->where('empresa_id', $empresaId)
-            ->where(fn($q) => $q
-                ->where('sku', 'like', $prefijo)
-                ->orWhere('codigo_barras', 'like', $prefijo));
+        // Cada palabra debe aparecer en algún campo, en cualquier parte y en
+        // cualquier orden: "cab agu" o "cable con aguja 1m" encuentran
+        // "CABLE IPHONE USB C A C CON AGUJA 60W 1M".
+        $tokens = ProductVariantSearch::tokens($buscar);
+        if ($tokens === []) {
+            $tokens = [$buscar];
+        }
 
-        $query->where(function ($q) use ($prefijo, $variantesCoincidentes) {
-            $q->where('nombre', 'like', $prefijo)
-                ->orWhere('codigo', 'like', $prefijo)
-                ->orWhereHas('categoria', fn($sq) => $sq->where('nombre', 'like', $prefijo))
-                ->orWhereHas('marca', fn($sq) => $sq->where('nombre', 'like', $prefijo))
-                ->orWhereHas('modelo', fn($sq) => $sq->where('nombre', 'like', $prefijo))
-                ->orWhereHas('unidadMedida', fn($sq) => $sq
-                    ->where('nombre', 'like', $prefijo)
-                    ->orWhere('abreviatura', 'like', $prefijo))
-                ->orWhereIn('id', $variantesCoincidentes);
-        });
+        foreach ($tokens as $token) {
+            $contiene = '%' . addcslashes($token, '\\%_') . '%';
+            $variantesCoincidentes = ProductoVariante::query()
+                ->select('producto_id')
+                ->where('empresa_id', $empresaId)
+                ->where(fn($q) => $q
+                    ->where('sku', 'like', $contiene)
+                    ->orWhere('codigo_barras', 'like', $contiene));
+
+            $query->where(function ($q) use ($contiene, $variantesCoincidentes) {
+                $q->where('nombre', 'like', $contiene)
+                    ->orWhere('codigo', 'like', $contiene)
+                    ->orWhereHas('categoria', fn($sq) => $sq->where('nombre', 'like', $contiene))
+                    ->orWhereHas('marca', fn($sq) => $sq->where('nombre', 'like', $contiene))
+                    ->orWhereHas('modelo', fn($sq) => $sq->where('nombre', 'like', $contiene))
+                    ->orWhereHas('unidadMedida', fn($sq) => $sq
+                        ->where('nombre', 'like', $contiene)
+                        ->orWhere('abreviatura', 'like', $contiene))
+                    ->orWhereIn('id', $variantesCoincidentes);
+            });
+        }
+
+        // Primero los que empiezan con el texto buscado (código o nombre).
+        $prefijo = addcslashes($buscar, '\\%_') . '%';
+        $query->reorder()
+            ->orderByRaw('CASE WHEN codigo LIKE ? OR nombre LIKE ? THEN 0 ELSE 1 END', [$prefijo, $prefijo])
+            ->orderBy('id', 'desc');
     }
 
     public function updateActivo(Request $request, int $id): JsonResponse

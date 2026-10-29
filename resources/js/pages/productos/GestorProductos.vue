@@ -89,6 +89,7 @@
                     v-model="filtros.categoria_id"
                     :selected-item="filtrosSeleccionados.categoria"
                     :fetcher="buscarCategoriasFiltro"
+                    :label-key="(c) => c.ruta ?? c.nombre"
                     label="Categoría"
                     placeholder="Todas las categorías"
                     @selected="seleccionarFiltro('categoria', 'categoria_id', $event)"
@@ -204,7 +205,6 @@
                 v-else
                 :productos="productos"
                 :formatPrecio="formatPrecio"
-                :categoriaNombre="categoriaNombre"
                 @editar="abrirModal"
                 @duplicar="duplicarProducto"
                 @toggle-activo="toggleActivoProducto"
@@ -545,18 +545,6 @@ function formatPrecio(v) {
         style: "currency",
         currency: "MXN",
     }).format(v ?? 0);
-}
-
-function categoriaNombre(p) {
-    if (!p?.categoria_id) return "Sin categoria";
-
-    return (
-        catalogos.categorias.find(
-            (c) => Number(c.id) === Number(p.categoria_id),
-        )?.ruta ??
-        p.categoria?.nombre ??
-        "Categoria asignada"
-    );
 }
 
 async function duplicarProducto(p) {

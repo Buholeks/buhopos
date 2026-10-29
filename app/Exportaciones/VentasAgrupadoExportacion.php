@@ -2,6 +2,7 @@
 
 namespace App\Exportaciones;
 
+use App\Support\FiltroCuentaPago;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -32,6 +33,7 @@ class VentasAgrupadoExportacion extends ExportacionBase
         }
         if (!empty($this->filtros['forma_pago'])) {
             $r['Forma de pago'] = ucfirst($this->filtros['forma_pago']);
+            $r += FiltroCuentaPago::etiquetas($this->filtros);
         }
         if (!empty($this->filtros['estado'])) {
             $r['Estado'] = ucfirst($this->filtros['estado']);

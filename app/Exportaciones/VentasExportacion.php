@@ -4,6 +4,7 @@ namespace App\Exportaciones;
 
 use App\Models\User;
 use App\Models\Venta;
+use App\Support\FiltroCuentaPago;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,7 @@ class VentasExportacion extends ExportacionBase
         }
         if (!empty($this->filtros['forma_pago'])) {
             $r['Forma de pago'] = ucfirst($this->filtros['forma_pago']);
+            $r += FiltroCuentaPago::etiquetas($this->filtros);
         }
         if (!empty($this->filtros['estado'])) {
             $r['Estado'] = ucfirst($this->filtros['estado']);
@@ -188,7 +190,7 @@ class VentasExportacion extends ExportacionBase
             ->when(!empty($this->filtros['user_id']), fn($q) =>
                 $q->where('user_id', $this->filtros['user_id']))
             ->when(!empty($this->filtros['forma_pago']), fn($q) =>
-                $q->whereHas('pagos', fn($pq) => $pq->where('forma_pago', $this->filtros['forma_pago'])))
+                $q->whereHas('pagos', fn($pq) => FiltroCuentaPago::aplicar($pq->where('forma_pago', $this->filtros['forma_pago']), $this->filtros)))
             ->when(!empty($this->filtros['estado']), fn($q) =>
                 $q->where('estado', $this->filtros['estado']))
             ->when(!empty($this->filtros['folio']), fn($q) =>

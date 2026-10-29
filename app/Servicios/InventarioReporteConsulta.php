@@ -2,6 +2,7 @@
 
 namespace App\Servicios;
 
+use App\Models\Categoria;
 use Illuminate\Support\Facades\DB;
 
 class InventarioReporteConsulta
@@ -51,7 +52,7 @@ class InventarioReporteConsulta
             ->where('inv.sucursal_id', $sucursalId);
 
         if (!empty($filtros['categoria_id'])) {
-            $query->where('p.categoria_id', (int) $filtros['categoria_id']);
+            $query->whereIn('p.categoria_id', Categoria::idsConDescendientes($empresaId, (int) $filtros['categoria_id']));
         }
 
         match ($filtros['series'] ?? 'todos') {

@@ -7,6 +7,7 @@ use App\Exportaciones\ServicioExportacion;
 use App\Models\CorteCaja;
 use App\Models\MovimientoCaja;
 use App\Models\Venta;
+use App\Support\FiltroCuentaPago;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -231,6 +232,7 @@ class ReporteCajaController extends Controller
         abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
         $request->validate([
             'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia'],
+            ...FiltroCuentaPago::REGLAS,
             'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -246,7 +248,7 @@ class ReporteCajaController extends Controller
             ->where('estado', 'confirmada')
             ->when(
                 $request->filled('forma_pago'),
-                fn ($q) => $q->whereHas('pagos', fn ($pq) => $pq->where('forma_pago', $request->forma_pago))
+                fn ($q) => $q->whereHas('pagos', fn ($pq) => FiltroCuentaPago::aplicar($pq->where('forma_pago', $request->forma_pago), $request->only(['forma_pago', 'terminal_pago_id', 'cuenta_bancaria_id'])))
             )
             ->with([
                 'user:id,name',

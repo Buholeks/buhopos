@@ -3,6 +3,7 @@
 namespace App\Exportaciones;
 
 use App\Models\User;
+use App\Support\FiltroCuentaPago;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +59,7 @@ class ConsultaCajaExportacion extends ExportacionBase
                 default         => $this->filtros['forma_pago'],
             };
         }
+        $aplicados += FiltroCuentaPago::etiquetas($this->filtros);
         if (!empty($this->filtros['user_id'])) {
             $nombre = User::find($this->filtros['user_id'])?->name;
             $aplicados['Usuario'] = $nombre ?? "ID {$this->filtros['user_id']}";
@@ -129,6 +131,7 @@ class ConsultaCajaExportacion extends ExportacionBase
 
         if ($tipo)      $qMov->where('m.tipo', $tipo);
         if ($formaPago) $qMov->where('m.forma_pago', $formaPago);
+        FiltroCuentaPago::aplicar($qMov, $this->filtros, 'm.');
         if ($userId)    $qMov->where('m.user_id', $userId);
         if ($concepto)  $qMov->where('m.concepto', 'like', "%{$concepto}%");
 
@@ -158,6 +161,7 @@ class ConsultaCajaExportacion extends ExportacionBase
             ]);
 
         if ($formaPago) $qVentas->where('vp.forma_pago', $formaPago);
+        FiltroCuentaPago::aplicar($qVentas, $this->filtros, 'vp.');
         if ($userId)    $qVentas->where('v.user_id', $userId);
         if ($concepto)  $qVentas->where(DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id))"), 'like', "%{$concepto}%");
         if ($tipo === 'egreso') $qVentas->whereRaw('1=0');

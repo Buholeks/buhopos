@@ -149,7 +149,7 @@
                             />
                             <select
                                 v-model="f.forma_pago"
-                                @change="buscar"
+                                @change="cambiarFormaPago"
                                 class="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                             >
                                 <option value="">Todas</option>
@@ -159,6 +159,33 @@
                                     Transferencia
                                 </option>
                                 <option value="saldo_favor">Saldo a favor</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div v-if="filtroCuenta">
+                        <label
+                            class="mb-1.5 block text-sm font-medium text-slate-700"
+                        >
+                            {{ filtroCuenta.label }}
+                        </label>
+                        <div class="relative">
+                            <Wallet
+                                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            />
+                            <select
+                                v-model="f[filtroCuenta.campo]"
+                                @change="buscar"
+                                class="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                            >
+                                <option value="">Todas</option>
+                                <option
+                                    v-for="op in filtroCuenta.opciones"
+                                    :key="op.id"
+                                    :value="op.id"
+                                >
+                                    {{ op.nombre }}
+                                </option>
                             </select>
                         </div>
                     </div>
@@ -999,8 +1026,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import axios from "axios";
+import { useCuentasPago } from "@/helpers/cuentasPago";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import {
     CalendarDays,
@@ -1061,12 +1089,23 @@ const f = reactive({
     fecha_hasta: hoy(),
     user_id: "",
     forma_pago: "",
+    terminal_pago_id: "",
+    cuenta_bancaria_id: "",
     estado: "",
     folio: "",
     producto: "",
     por_dia: false,
     pagina: 1,
 });
+
+const { filtroPara } = useCuentasPago();
+const filtroCuenta = computed(() => filtroPara(f.forma_pago));
+
+function cambiarFormaPago() {
+    f.terminal_pago_id = "";
+    f.cuenta_bancaria_id = "";
+    buscar();
+}
 
 // ── Ciclo de vida ──────────────────────────────────────────────────────────
 onMounted(() => cargarVentas());
@@ -1186,6 +1225,8 @@ function limpiarFiltros() {
     f.fecha_hasta = hoy();
     f.user_id = "";
     f.forma_pago = "";
+    f.terminal_pago_id = "";
+    f.cuenta_bancaria_id = "";
     f.estado = "";
     f.folio = "";
     f.producto = "";
@@ -1203,6 +1244,8 @@ function params() {
         fecha_hasta: f.fecha_hasta || undefined,
         user_id: f.user_id || undefined,
         forma_pago: f.forma_pago || undefined,
+        terminal_pago_id: f.terminal_pago_id || undefined,
+        cuenta_bancaria_id: f.cuenta_bancaria_id || undefined,
         estado: f.estado || undefined,
         folio: f.folio || undefined,
         producto: f.producto || undefined,

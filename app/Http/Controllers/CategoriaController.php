@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Categoria;
+use App\Support\ProductVariantSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -37,15 +38,24 @@ class CategoriaController extends Controller
             'q' => ['nullable', 'string', 'max:150'],
         ]);
 
-        $q = trim($data['q'] ?? '');
+        // Se busca sobre la ruta completa ("CELULARES › LIBRE"): escribir "celulares"
+        // también muestra sus subcategorías, y "cel libre" encuentra la subcategoría.
+        $tokens = ProductVariantSearch::tokens($data['q'] ?? '');
+        $empresaId = $this->empresaId();
 
-        $categorias = Categoria::deEmpresa($this->empresaId())
+        $categorias = Categoria::deEmpresa($empresaId)
             ->activas()
             ->with(['padre:id,nombre,categoria_padre_id', 'padre.padre:id,nombre'])
-            ->when($q !== '', fn($query) => $query->where('nombre', 'like', "%{$q}%"))
-            ->orderBy('nombre')
-            ->limit(30)
             ->get(['id', 'nombre', 'categoria_padre_id']);
+        $rutas = Categoria::rutasPorId($empresaId, $categorias->pluck('id'));
+
+        $categorias = $categorias
+            ->each(fn($categoria) => $categoria->setAttribute('ruta', $rutas[$categoria->id] ?? $categoria->nombre))
+            ->filter(fn($categoria) => $tokens === []
+                || ProductVariantSearch::matches($tokens, ProductVariantSearch::normalize($categoria->ruta)))
+            ->sortBy('ruta', SORT_NATURAL | SORT_FLAG_CASE)
+            ->take(30)
+            ->values();
 
         return response()->json($categorias);
     }

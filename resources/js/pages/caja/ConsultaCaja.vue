@@ -33,7 +33,8 @@
                 class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
             >
                 <div
-                    class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7"
+                    class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+                    :class="filtroCuenta ? 'xl:grid-cols-8' : 'xl:grid-cols-7'"
                 >
                     <BaseInput
                         v-model="filtros.desde"
@@ -74,7 +75,19 @@
                         label-key="nombre"
                         value-key="id"
                         placeholder="Todas"
-                        @change="(v) => (filtros.forma_pago = v ?? '')"
+                        @change="cambiarFormaPago"
+                    />
+
+                    <BaseSearchSelect
+                        v-if="filtroCuenta"
+                        :key="filtroCuenta.campo"
+                        v-model="filtros[filtroCuenta.campo]"
+                        :label="filtroCuenta.label"
+                        :items="[{ id: '', nombre: 'Todas' }, ...filtroCuenta.opciones]"
+                        label-key="nombre"
+                        value-key="id"
+                        placeholder="Todas"
+                        @change="(v) => (filtros[filtroCuenta.campo] = v ?? '')"
                     />
 
                     <BaseInput
@@ -429,6 +442,7 @@ import http from "@/lib/http";
 import { alertColors, swal as Swal } from "@/lib/alert";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
+import { useCuentasPago } from "@/helpers/cuentasPago";
 import {
     ClipboardList,
     Search,
@@ -475,6 +489,8 @@ const filtros = ref({
     origen: "",
     tipo: "",
     forma_pago: "",
+    terminal_pago_id: "",
+    cuenta_bancaria_id: "",
     concepto: "",
     user_id: "",
 });
@@ -491,6 +507,16 @@ const resumen = ref(null);
 const cargando = ref(false);
 const exportando = ref(null);
 const opcionesUsuario = ref([{ id: "", nombre: "Todos" }]);
+const { filtroPara } = useCuentasPago();
+
+// Con tarjeta se filtra por terminal y con transferencia por cuenta; "Todas" no filtra.
+const filtroCuenta = computed(() => filtroPara(filtros.value.forma_pago));
+
+function cambiarFormaPago(v) {
+    filtros.value.forma_pago = v ?? "";
+    filtros.value.terminal_pago_id = "";
+    filtros.value.cuenta_bancaria_id = "";
+}
 
 onMounted(async () => {
     await cargarUsuarios();
@@ -576,6 +602,8 @@ function limpiar() {
         origen: "",
         tipo: "",
         forma_pago: "",
+        terminal_pago_id: "",
+        cuenta_bancaria_id: "",
         concepto: "",
         user_id: "",
     };

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Categoria;
 use App\Models\Inventario;
 use App\Models\InventarioExhibicion;
 use App\Support\ProductVariantSearch;
@@ -85,7 +86,8 @@ class ExhibicionController extends Controller
         // Filtros comerciales
         if ($request->filled('categoria_id')) {
             $categoriaId = (int) $request->input('categoria_id');
-            $query->whereHas('producto', fn($p) => $p->where('categoria_id', $categoriaId));
+            $categoriaIds = Categoria::idsConDescendientes($empresaId, $categoriaId);
+            $query->whereHas('producto', fn($p) => $p->whereIn('categoria_id', $categoriaIds));
         }
 
         if ($request->filled('marca_id')) {
@@ -740,13 +742,12 @@ class ExhibicionController extends Controller
     private function catalogos(int $empresaId, ?int $marcaId): array
     {
         return [
-            'categorias' => DB::table('categorias')
+            'categorias' => Categoria::nombresConRuta($empresaId, DB::table('categorias')
                 ->where('empresa_id', $empresaId)
                 ->where('activo', true)
                 ->whereNull('deleted_at')
                 ->select('id', 'nombre')
-                ->orderBy('nombre')
-                ->get(),
+                ->get()),
             'marcas' => DB::table('marcas')
                 ->where('empresa_id', $empresaId)
                 ->where('activo', true)

@@ -109,6 +109,93 @@ class Categoria extends Model
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
+    /**
+     * IDs de las categorías indicadas más todas sus subcategorías (cualquier nivel),
+     * para que filtrar por "CELULARES" incluya también "CELULARES › LIBRE".
+     *
+     * @param  int|int[]  $ids
+     * @return int[]
+     */
+    public static function idsConDescendientes(int $empresaId, int|array $ids): array
+    {
+        $resultado = array_values(array_unique(array_filter(array_map('intval', (array) $ids))));
+        if ($resultado === []) {
+            return [];
+        }
+
+        $hijosPorPadre = self::withTrashed()
+            ->where('empresa_id', $empresaId)
+            ->whereNotNull('categoria_padre_id')
+            ->get(['id', 'categoria_padre_id'])
+            ->groupBy('categoria_padre_id')
+            ->map(fn($hijos) => $hijos->pluck('id')->map(fn($id) => (int) $id)->all());
+
+        $pendientes = $resultado;
+        while ($pendientes !== []) {
+            $padre = array_pop($pendientes);
+            foreach ($hijosPorPadre->get($padre, []) as $hijo) {
+                // in_array protege de ciclos en datos corruptos.
+                if (! in_array($hijo, $resultado, true)) {
+                    $resultado[] = $hijo;
+                    $pendientes[] = $hijo;
+                }
+            }
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Ruta completa ("CELULARES › LIBRE") de las categorías indicadas.
+     *
+     * @param  iterable<int>  $ids
+     * @return array<int, string> id => ruta
+     */
+    public static function rutasPorId(int $empresaId, iterable $ids): array
+    {
+        $ids = collect($ids)->filter()->map(fn($id) => (int) $id)->unique();
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $categorias = self::withTrashed()
+            ->where('empresa_id', $empresaId)
+            ->get(['id', 'nombre', 'categoria_padre_id'])
+            ->keyBy('id');
+
+        return $ids->mapWithKeys(function ($id) use ($categorias) {
+            $nombres = [];
+            $actual = $categorias->get($id);
+            // Límite de profundidad para protegerse de ciclos en datos corruptos.
+            while ($actual && count($nombres) < 20) {
+                array_unshift($nombres, $actual->nombre);
+                $actual = $actual->categoria_padre_id ? $categorias->get($actual->categoria_padre_id) : null;
+            }
+
+            return [$id => implode(' › ', $nombres)];
+        })->filter()->all();
+    }
+
+    /**
+     * Para listas de filtros: reemplaza el nombre de cada categoría por su ruta
+     * completa ("CELULARES › LIBRE") y ordena por ella, así las subcategorías
+     * quedan debajo de su padre.
+     *
+     * @param  iterable<object>  $categorias  filas con id y nombre
+     */
+    public static function nombresConRuta(int $empresaId, iterable $categorias): \Illuminate\Support\Collection
+    {
+        $categorias = collect($categorias);
+        $rutas = self::rutasPorId($empresaId, $categorias->pluck('id'));
+
+        return $categorias
+            ->each(function ($categoria) use ($rutas) {
+                $categoria->nombre = $rutas[(int) $categoria->id] ?? $categoria->nombre;
+            })
+            ->sortBy('nombre', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+    }
+
     /** Calcula la profundidad según el padre */
     public function calcularProfundidad(): int
     {

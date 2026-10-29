@@ -198,6 +198,7 @@
                         >
                         <select
                             v-model="estado.forma_pago"
+                            @change="estado.terminal_pago_id = ''; estado.cuenta_bancaria_id = ''"
                             class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
                         >
                             <option value="">Todas</option>
@@ -205,6 +206,26 @@
                             <option value="tarjeta">Tarjeta</option>
                             <option value="transferencia">Transferencia</option>
                             <option value="saldo_favor">Saldo a favor</option>
+                        </select>
+                    </div>
+
+                    <div v-if="filtroCuenta">
+                        <label
+                            class="mb-1 block text-xs font-medium text-slate-500"
+                            >{{ filtroCuenta.label }}</label
+                        >
+                        <select
+                            v-model="estado[filtroCuenta.campo]"
+                            class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                        >
+                            <option value="">Todas</option>
+                            <option
+                                v-for="op in filtroCuenta.opciones"
+                                :key="op.id"
+                                :value="op.id"
+                            >
+                                {{ op.nombre }}
+                            </option>
                         </select>
                     </div>
 
@@ -747,6 +768,7 @@
 <script setup>
 import { ref, reactive, computed } from "vue";
 import axios from "axios";
+import { useCuentasPago } from "@/helpers/cuentasPago";
 import BaseInput from "@/components/ui/BaseInput.vue";
 
 import {
@@ -896,11 +918,15 @@ const crearEstado = () => ({
     fecha_desde: fechaLocal(),
     fecha_hasta: fechaLocal(),
     forma_pago: "",
+    terminal_pago_id: "",
+    cuenta_bancaria_id: "",
     estado: "",
     q: "",
     entidadSeleccionada: null,
     pagina: 1,
 });
+
+const { filtroPara } = useCuentasPago();
 
 const estadosPorTab = reactive(
     Object.fromEntries(TABS.map((t) => [t.key, crearEstado()])),
@@ -909,6 +935,7 @@ const estadosPorTab = reactive(
 // ── Computed ──────────────────────────────────────────────────────────────
 const tabActual = computed(() => TABS.find((t) => t.key === tabActiva.value));
 const estado = computed(() => estadosPorTab[tabActiva.value]);
+const filtroCuenta = computed(() => filtroPara(estado.value.forma_pago));
 const puedeEjecutar = computed(
     () => !!estado.value.fecha_desde && !!estado.value.fecha_hasta,
 );
@@ -1051,6 +1078,8 @@ async function exportar(formato) {
                 fecha_desde: e.fecha_desde,
                 fecha_hasta: e.fecha_hasta,
                 forma_pago: e.forma_pago || undefined,
+                terminal_pago_id: e.terminal_pago_id || undefined,
+                cuenta_bancaria_id: e.cuenta_bancaria_id || undefined,
                 estado: e.estado || undefined,
                 entidad_id: tabActual.value.usaAutocomplete ? (e.entidadSeleccionada?.id || undefined) : undefined,
                 producto: !tabActual.value.usaAutocomplete ? (e.q || undefined) : undefined,
@@ -1091,6 +1120,8 @@ function buildParams() {
         fecha_desde: e.fecha_desde,
         fecha_hasta: e.fecha_hasta,
         forma_pago: e.forma_pago || undefined,
+        terminal_pago_id: e.terminal_pago_id || undefined,
+        cuenta_bancaria_id: e.cuenta_bancaria_id || undefined,
         estado: e.estado || undefined,
         page: e.pagina,
         por_pagina: 30,

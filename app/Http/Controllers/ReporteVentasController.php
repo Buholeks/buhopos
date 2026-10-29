@@ -6,6 +6,7 @@ use App\Exportaciones\ServicioExportacion;
 use App\Exportaciones\VentasExportacion;
 use App\Models\Venta;
 use App\Models\User;
+use App\Support\FiltroCuentaPago;
 use App\Support\VentaPagosResumen;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class ReporteVentasController extends Controller
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
             'user_id'     => ['nullable', 'integer'],
             'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia,saldo_favor'],
+            ...FiltroCuentaPago::REGLAS,
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'folio'       => ['nullable', 'string', 'max:60'],
             'producto'    => ['nullable', 'string', 'max:120'],
@@ -42,7 +44,7 @@ class ReporteVentasController extends Controller
                     $q->whereDate('fecha', '<=', $request->fecha_hasta))
                 ->when($request->filled('user_id'),    fn($q) => $q->where('user_id', $request->user_id))
                 ->when($request->filled('forma_pago'), fn($q) =>
-                    $q->whereHas('pagos', fn($pq) => $pq->where('forma_pago', $request->forma_pago)))
+                    $q->whereHas('pagos', fn($pq) => FiltroCuentaPago::aplicar($pq->where('forma_pago', $request->forma_pago), $request->only(['forma_pago', 'terminal_pago_id', 'cuenta_bancaria_id']))))
                 ->when($request->filled('estado'),     fn($q) => $q->where('estado', $request->estado))
                 ->when($request->filled('folio'),      fn($q) =>
                     $q->where('folio', 'like', '%' . $request->folio . '%'))
@@ -174,6 +176,7 @@ class ReporteVentasController extends Controller
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
             'user_id'     => ['nullable', 'integer'],
             'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia,saldo_favor'],
+            ...FiltroCuentaPago::REGLAS,
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'folio'       => ['nullable', 'string', 'max:60'],
             'producto'    => ['nullable', 'string', 'max:120'],

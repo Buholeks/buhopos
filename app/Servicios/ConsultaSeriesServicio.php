@@ -2,6 +2,7 @@
 
 namespace App\Servicios;
 
+use App\Models\Categoria;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
@@ -67,8 +68,9 @@ class ConsultaSeriesServicio
         if (! empty($filtros['sucursal_id'])) $base->where('v.sucursal_id', $filtros['sucursal_id']);
         if (! empty($filtros['categoria_ids'])) {
             $ids = $filtros['categoria_ids'];
-            $base->where(function ($q) use ($ids) {
-                $q->whereIn('p.categoria_id', array_filter($ids));
+            $conSubcategorias = Categoria::idsConDescendientes($empresa, $ids);
+            $base->where(function ($q) use ($ids, $conSubcategorias) {
+                $q->whereIn('p.categoria_id', $conSubcategorias);
                 if (in_array(0, $ids)) $q->orWhereNull('p.categoria_id');
             });
         }

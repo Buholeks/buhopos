@@ -38,9 +38,8 @@ class InventarioConteoController extends Controller
         $user = Auth::user();
 
         return response()->json([
-            'categorias' => Categoria::where('empresa_id', $user->empresa_id)
-                ->orderBy('nombre')
-                ->get(['id', 'nombre']),
+            'categorias' => Categoria::nombresConRuta($user->empresa_id, Categoria::where('empresa_id', $user->empresa_id)
+                ->get(['id', 'nombre'])),
             'marcas' => Marca::where('empresa_id', $user->empresa_id)
                 ->orderBy('nombre')
                 ->get(['id', 'nombre']),
@@ -937,7 +936,7 @@ class InventarioConteoController extends Controller
     private function aplicarAlcanceProducto($query, $conteo): void
     {
         if (($conteo->alcance_tipo ?? 'total') === 'categoria' && $conteo->alcance_id) {
-            $query->where('categoria_id', $conteo->alcance_id);
+            $query->whereIn('categoria_id', $this->categoriasDelAlcance((int) $conteo->alcance_id));
         }
 
         if (($conteo->alcance_tipo ?? 'total') === 'marca' && $conteo->alcance_id) {
@@ -953,6 +952,16 @@ class InventarioConteoController extends Controller
         }
     }
 
+    /** @var array<int, int[]> categoría del alcance → ella más sus subcategorías */
+    private array $categoriasAlcanceCache = [];
+
+    /** El alcance por categoría incluye todas sus subcategorías. */
+    private function categoriasDelAlcance(int $categoriaId): array
+    {
+        return $this->categoriasAlcanceCache[$categoriaId]
+            ??= Categoria::idsConDescendientes((int) Auth::user()->empresa_id, $categoriaId);
+    }
+
     private function aplicarAlcanceVariante($query, $conteo): void
     {
         if (($conteo->alcance_tipo ?? 'total') !== 'grupo' || ! $conteo->alcance_id) return;
@@ -965,7 +974,7 @@ class InventarioConteoController extends Controller
     private function productoDentroDelAlcance(Producto $producto, InventarioConteo $conteo): bool
     {
         return match ($conteo->alcance_tipo ?? 'total') {
-            'categoria' => (int) $producto->categoria_id === (int) $conteo->alcance_id,
+            'categoria' => in_array((int) $producto->categoria_id, $this->categoriasDelAlcance((int) $conteo->alcance_id), true),
             'marca' => (int) $producto->marca_id === (int) $conteo->alcance_id,
             'producto' => (int) $producto->id === (int) $conteo->alcance_id,
             'grupo' => (int) $producto->id === (int) ($this->grupoDelConteo($conteo)?->producto_id ?? 0),

@@ -14,6 +14,7 @@ use App\Models\CorteDesgloseEfectivo;
 use App\Models\MovimientoCaja;
 use App\Models\User;
 use App\Models\Venta;
+use App\Support\FiltroCuentaPago;
 use App\Support\TerminalResolver;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -344,6 +345,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             'origen'     => ['nullable', Rule::in(['', 'venta', 'movimiento'])],
             'tipo'       => ['nullable', Rule::in(['', 'ingreso', 'egreso'])],
             'forma_pago' => ['nullable', Rule::in(['', 'efectivo', 'tarjeta', 'transferencia'])],
+            ...FiltroCuentaPago::REGLAS,
             'user_id'    => ['nullable', 'integer'],
             'concepto'   => ['nullable', 'string', 'max:120'],
             'formato'    => ['required', 'in:excel,pdf'],
@@ -424,6 +426,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             'origen' => ['nullable', Rule::in(['', 'venta', 'movimiento'])],
             'tipo' => ['nullable', Rule::in(['', 'ingreso', 'egreso'])],
             'forma_pago' => ['nullable', Rule::in(['', 'efectivo', 'tarjeta', 'transferencia'])],
+            ...FiltroCuentaPago::REGLAS,
             'user_id' => ['nullable', 'integer'],
             'concepto' => ['nullable', 'string', 'max:120'],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -466,6 +469,7 @@ public function cerrar(Request $request, int $id): JsonResponse
 
         if ($tipo)      $qMov->where('m.tipo', $tipo);
         if ($formaPago) $qMov->where('m.forma_pago', $formaPago);
+        FiltroCuentaPago::aplicar($qMov, $datos, 'm.');
         if ($userId)    $qMov->where('m.user_id', $userId);
         if ($concepto)  $qMov->where('m.concepto', 'like', "%{$concepto}%");
 
@@ -496,6 +500,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             ]);
 
         if ($formaPago) $qVentas->where('vp.forma_pago', $formaPago);
+        FiltroCuentaPago::aplicar($qVentas, $datos, 'vp.');
         if ($userId)    $qVentas->where('v.user_id', $userId);
         if ($concepto)  $qVentas->where(DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id))"), 'like', "%{$concepto}%");
         // ventas son siempre ingreso; si filtran egreso, excluimos ventas

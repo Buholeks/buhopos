@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Importaciones\ProductosPlantillaExportacion;
+use App\Models\Categoria;
 use App\Models\Inventario;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
@@ -63,7 +64,7 @@ class ProductoController extends Controller
             ->orderBy('id', 'desc');
 
         if ($request->filled('categoria_id')) {
-            $query->where('categoria_id', $request->integer('categoria_id'));
+            $query->whereIn('categoria_id', Categoria::idsConDescendientes($empresaId, $request->integer('categoria_id')));
         }
 
         if ($request->filled('marca_id')) {
@@ -122,8 +123,11 @@ class ProductoController extends Controller
             ? $this->existenciasPorSucursal($empresaId, $productos->getCollection()->pluck('id'), $sucursalId)
             : collect();
 
-        $productos->getCollection()->transform(function ($producto) use ($previewImagenes, $existencias, $verExistencias) {
+        $rutasCategoria = Categoria::rutasPorId($empresaId, $productos->getCollection()->pluck('categoria_id'));
+
+        $productos->getCollection()->transform(function ($producto) use ($previewImagenes, $existencias, $verExistencias, $rutasCategoria) {
             $producto->setAttribute('preview_imagenes', $previewImagenes[$producto->id] ?? []);
+            $producto->setAttribute('categoria_ruta', $rutasCategoria[$producto->categoria_id] ?? null);
 
             if ($verExistencias) {
                 $datos = $existencias->get($producto->id);

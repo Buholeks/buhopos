@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exportaciones\InventarioExportacion;
 use App\Exportaciones\ServicioExportacion;
+use App\Models\Categoria;
 use App\Models\Empresa;
 use App\Models\Sucursal;
 use App\Servicios\InventarioReporteConsulta;
@@ -70,7 +71,7 @@ class ReporteInventarioController extends Controller
         }
 
         return response()->json([
-            'categorias' => DB::table('categorias')->where('empresa_id', $user->empresa_id)->whereNull('deleted_at')->orderBy('nombre')->get(['id', 'nombre']),
+            'categorias' => Categoria::nombresConRuta($user->empresa_id, DB::table('categorias')->where('empresa_id', $user->empresa_id)->whereNull('deleted_at')->get(['id', 'nombre'])),
             'resumen' => $resumen,
             'agrupar' => $agrupar,
             'items' => $rows,

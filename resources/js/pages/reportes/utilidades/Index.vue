@@ -58,6 +58,18 @@
                         :items="formasPago"
                         label-key="nombre"
                         value-key="id"
+                        @change="cambiarFormaPago"
+                    />
+
+                    <BaseSearchSelect
+                        v-if="filtroCuenta"
+                        :key="filtroCuenta.campo"
+                        v-model="f[filtroCuenta.campo]"
+                        :label="filtroCuenta.label"
+                        placeholder="Todas"
+                        :items="[{ id: '', nombre: 'Todas' }, ...filtroCuenta.opciones]"
+                        label-key="nombre"
+                        value-key="id"
                         @change="buscar"
                     />
 
@@ -202,7 +214,8 @@
 </template>
 
 <script setup>
-import { defineComponent, h, onMounted, reactive, ref } from "vue";
+import { computed, defineComponent, h, onMounted, reactive, ref } from "vue";
+import { useCuentasPago } from "@/helpers/cuentasPago";
 import axios from "axios";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
@@ -234,10 +247,21 @@ const f = reactive({
     fecha_hasta: hoy(),
     user_id: "",
     forma_pago: "",
+    terminal_pago_id: "",
+    cuenta_bancaria_id: "",
     categoria_id: "",
     producto: "",
     page: 1,
 });
+
+const { filtroPara } = useCuentasPago();
+const filtroCuenta = computed(() => filtroPara(f.forma_pago));
+
+function cambiarFormaPago() {
+    f.terminal_pago_id = "";
+    f.cuenta_bancaria_id = "";
+    buscar();
+}
 
 onMounted(cargar);
 

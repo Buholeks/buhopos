@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Exportaciones\ServicioExportacion;
 use App\Exportaciones\VentasAgrupadoExportacion;
+use App\Models\Categoria;
+use App\Support\FiltroCuentaPago;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -110,6 +112,7 @@ class ReporteVentasAgrupadoController extends Controller
             'fecha_desde'  => ['required', 'date'],
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
             'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia'],
+            ...FiltroCuentaPago::REGLAS,
             'estado'       => ['nullable', 'in:confirmada,cancelada'],
             'entidad_id'   => ['nullable', 'integer'],
             'categoria_id' => ['nullable', 'integer'],
@@ -238,7 +241,7 @@ class ReporteVentasAgrupadoController extends Controller
         return $this->aplicarFiltros($request,
             $this->baseDetalles($user)
                 ->leftJoin('categorias as cat', 'cat.id', '=', 'p.categoria_id')
-                ->when($request->filled('categoria_id'), fn($q) => $q->where('p.categoria_id', $request->categoria_id))
+                ->when($request->filled('categoria_id'), fn($q) => $q->whereIn('p.categoria_id', Categoria::idsConDescendientes($user->empresa_id, (int) $request->categoria_id)))
                 ->when($request->filled('producto_id'),  fn($q) => $q->where('p.id', $request->producto_id))
                 ->when($request->filled('producto'), function ($q) use ($request) {
                     $txt = trim($request->producto);
@@ -273,7 +276,7 @@ class ReporteVentasAgrupadoController extends Controller
                 ->leftJoin('producto_variantes as pv', 'pv.id',  '=', 'vd.variante_id')
                 ->leftJoinSub($nombreVariantes, 'nv',  fn($j) => $j->on('nv.variante_id', '=', 'pv.id'))
                 ->leftJoin('series as s',              's.id',   '=', 'vd.serie_id')
-                ->when($request->filled('categoria_id'), fn($q) => $q->where('p.categoria_id', $request->categoria_id))
+                ->when($request->filled('categoria_id'), fn($q) => $q->whereIn('p.categoria_id', Categoria::idsConDescendientes($user->empresa_id, (int) $request->categoria_id)))
                 ->when($request->filled('producto_id'),  fn($q) => $q->where('p.id', $request->producto_id))
                 ->when($request->filled('producto'), function ($q) use ($request) {
                     $txt = trim($request->producto);
@@ -391,6 +394,7 @@ class ReporteVentasAgrupadoController extends Controller
             'fecha_desde' => ['required', 'date'],
             'fecha_hasta' => ['required', 'date', 'after_or_equal:fecha_desde'],
             'forma_pago'  => ['nullable', 'in:efectivo,tarjeta,transferencia'],
+            ...FiltroCuentaPago::REGLAS,
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'entidad_id'  => ['nullable', 'integer'],
             'por_pagina'  => ['nullable', 'integer', 'min:1', 'max:200'],
@@ -404,6 +408,7 @@ class ReporteVentasAgrupadoController extends Controller
             'fecha_desde'  => ['required', 'date'],
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
             'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia'],
+            ...FiltroCuentaPago::REGLAS,
             'estado'       => ['nullable', 'in:confirmada,cancelada'],
             'categoria_id' => ['nullable', 'integer'],
             'producto_id'  => ['nullable', 'integer'],
@@ -450,10 +455,10 @@ class ReporteVentasAgrupadoController extends Controller
             ->whereDate('v.fecha', '>=', $request->fecha_desde)
             ->whereDate('v.fecha', '<=', $request->fecha_hasta)
             ->when($request->filled('forma_pago'), fn($q) => $q->whereExists(
-                fn($sub) => $sub->select(DB::raw(1))
+                fn($sub) => FiltroCuentaPago::aplicar($sub->select(DB::raw(1))
                     ->from('venta_pagos')
                     ->whereColumn('venta_pagos.venta_id', 'v.id')
-                    ->where('venta_pagos.forma_pago', $request->forma_pago)
+                    ->where('venta_pagos.forma_pago', $request->forma_pago), $request->only(['forma_pago', 'terminal_pago_id', 'cuenta_bancaria_id']), 'venta_pagos.')
             ))
             ->when($request->filled('estado'),     fn($q) => $q->where('v.estado',     $request->estado));
     }

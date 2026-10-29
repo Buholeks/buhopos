@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\SucursalActivaController;
 
 use App\Http\Controllers\ClienteController;
+use App\Http\Controllers\CuentaPagoFiltroController;
 use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\UserController;
 
@@ -402,8 +403,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/desglose', [CorteCajaController::class, 'guardarDesgloseEnVivo']);
     });
 
-    Route::get('/movimientos-caja/usuarios', [CorteCajaController::class, 'usuariosConsulta']);
-    Route::get('/movimientos-caja/exportar', [CorteCajaController::class, 'exportarConsulta']);
+    Route::get('/movimientos-caja/usuarios', [CorteCajaController::class, 'usuariosConsulta']);    Route::get('/movimientos-caja/exportar', [CorteCajaController::class, 'exportarConsulta']);
     Route::get('/movimientos-caja', [CorteCajaController::class, 'consultaMovimientos']);
 
     /*
@@ -497,6 +497,8 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::prefix('reportes')->group(function () {
+        Route::get('/cuentas-pago', CuentaPagoFiltroController::class);
+
         /*
         | Caja
         */

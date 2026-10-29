@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Categoria;
 use App\Models\Empresa;
 use App\Models\Producto;
 use App\Models\ProductoVariante;
@@ -51,6 +52,77 @@ class ProductoBusquedaTest extends TestCase
         $this->assertSame([$otro->id], $this->buscar('mica'));
     }
 
+    public function test_filtrar_por_categoria_padre_incluye_subcategorias(): void
+    {
+        $user = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        $celulares = $this->crearCategoria($user, 'CELULARES');
+        $libre = $this->crearCategoria($user, 'LIBRE', $celulares->id);
+        $reacondicionado = $this->crearCategoria($user, 'REACONDICIONADO', $libre->id);
+        $accesorios = $this->crearCategoria($user, 'ACCESORIOS');
+
+        $enPadre = $this->crearProducto($user, 'CELULAR GENERICO', 'CEL-001', $celulares->id);
+        $enHija = $this->crearProducto($user, 'IPHONE 13 LIBRE', 'CEL-002', $libre->id);
+        $enNieta = $this->crearProducto($user, 'IPHONE 11 REACONDICIONADO', 'CEL-003', $reacondicionado->id);
+        $this->crearProducto($user, 'FUNDA', 'ACC-001', $accesorios->id);
+
+        $this->assertEqualsCanonicalizing(
+            [$enPadre->id, $enHija->id, $enNieta->id],
+            $this->filtrarCategoria($celulares->id)
+        );
+        $this->assertEqualsCanonicalizing([$enHija->id, $enNieta->id], $this->filtrarCategoria($libre->id));
+        $this->assertSame([$enNieta->id], $this->filtrarCategoria($reacondicionado->id));
+
+        $rutas = collect($this->getJson('/api/productos')->assertOk()->json('data'))
+            ->pluck('categoria_ruta', 'id');
+        $this->assertSame('CELULARES', $rutas[$enPadre->id]);
+        $this->assertSame('CELULARES › LIBRE', $rutas[$enHija->id]);
+        $this->assertSame('CELULARES › LIBRE › REACONDICIONADO', $rutas[$enNieta->id]);
+    }
+
+    public function test_buscador_de_categorias_muestra_y_busca_por_ruta_completa(): void
+    {
+        $user = $this->crearContexto();
+        Sanctum::actingAs($user);
+
+        $celulares = $this->crearCategoria($user, 'CELULARES');
+        $this->crearCategoria($user, 'LIBRE', $celulares->id);
+        $this->crearCategoria($user, 'TELCEL', $celulares->id);
+        $this->crearCategoria($user, 'ACCESORIOS');
+
+        $rutas = fn(string $q) => collect($this->getJson('/api/categorias/buscar?q=' . urlencode($q))
+            ->assertOk()
+            ->json())
+            ->pluck('ruta')
+            ->all();
+
+        $this->assertSame(['CELULARES', 'CELULARES › LIBRE', 'CELULARES › TELCEL'], $rutas('celulares'));
+        $this->assertSame(['CELULARES › LIBRE'], $rutas('cel libre'));
+        $this->assertSame(['ACCESORIOS', 'CELULARES', 'CELULARES › LIBRE', 'CELULARES › TELCEL'], $rutas(''));
+    }
+
+    private function filtrarCategoria(int $categoriaId): array
+    {
+        return collect($this->getJson('/api/productos?categoria_id=' . $categoriaId)
+            ->assertOk()
+            ->json('data'))
+            ->pluck('id')
+            ->all();
+    }
+
+    private function crearCategoria(User $user, string $nombre, ?int $padreId = null): Categoria
+    {
+        return Categoria::create([
+            'empresa_id' => $user->empresa_id,
+            'sucursal_id' => $user->sucursal_id,
+            'user_id' => $user->id,
+            'categoria_padre_id' => $padreId,
+            'nombre' => $nombre,
+            'activo' => true,
+        ]);
+    }
+
     private function buscar(string $texto): array
     {
         return collect($this->getJson('/api/productos?buscar=' . urlencode($texto))
@@ -60,9 +132,10 @@ class ProductoBusquedaTest extends TestCase
             ->all();
     }
 
-    private function crearProducto(User $user, string $nombre, string $codigo): Producto
+    private function crearProducto(User $user, string $nombre, string $codigo, ?int $categoriaId = null): Producto
     {
         return Producto::create([
+            'categoria_id' => $categoriaId,
             'empresa_id' => $user->empresa_id,
             'sucursal_id' => $user->sucursal_id,
             'user_id' => $user->id,

@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Exportaciones\ServicioExportacion;
 use App\Exportaciones\UtilidadesExportacion;
+use App\Models\Categoria;
 use App\Models\Empresa;
 use App\Models\Sucursal;
+use App\Support\FiltroCuentaPago;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +24,7 @@ class ReporteUtilidadesController extends Controller
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
             'user_id'      => ['nullable', 'integer'],
             'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia'],
+            ...FiltroCuentaPago::REGLAS,
             'categoria_id' => ['nullable', 'integer'],
             'producto'     => ['nullable', 'string', 'max:120'],
             'por_pagina'   => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -87,12 +90,11 @@ class ReporteUtilidadesController extends Controller
             ->orderBy('u.name')
             ->get();
 
-        $categorias = DB::table('categorias')
+        $categorias = Categoria::nombresConRuta($user->empresa_id, DB::table('categorias')
             ->where('empresa_id', $user->empresa_id)
             ->whereNull('deleted_at')
             ->select('id', 'nombre')
-            ->orderBy('nombre')
-            ->get();
+            ->get());
 
         return response()->json([
             'resumen' => [
@@ -130,8 +132,9 @@ class ReporteUtilidadesController extends Controller
                     ->from('venta_pagos')
                     ->whereColumn('venta_pagos.venta_id', 'v.id')
                     ->where('venta_pagos.forma_pago', $request->forma_pago)
+                    ->tap(fn($pagos) => FiltroCuentaPago::aplicar($pagos, $request->only(['forma_pago', 'terminal_pago_id', 'cuenta_bancaria_id']), 'venta_pagos.'))
             ))
-            ->when($request->filled('categoria_id'), fn($q) => $q->where('p.categoria_id', $request->categoria_id))
+            ->when($request->filled('categoria_id'), fn($q) => $q->whereIn('p.categoria_id', Categoria::idsConDescendientes($empresaId, (int) $request->categoria_id)))
             ->when($request->filled('producto'), function ($q) use ($request) {
                 $texto = trim((string) $request->producto);
                 $q->where(fn($sub) => $sub
@@ -160,6 +163,7 @@ class ReporteUtilidadesController extends Controller
             'fecha_hasta'  => ['required', 'date', 'after_or_equal:fecha_desde'],
             'user_id'      => ['nullable', 'integer'],
             'forma_pago'   => ['nullable', 'in:efectivo,tarjeta,transferencia'],
+            ...FiltroCuentaPago::REGLAS,
             'categoria_id' => ['nullable', 'integer'],
             'producto'     => ['nullable', 'string', 'max:120'],
             'formato'      => ['required', 'in:pdf,excel'],
@@ -171,6 +175,8 @@ class ReporteUtilidadesController extends Controller
             'fecha_hasta'  => $data['fecha_hasta'],
             'user_id'      => $data['user_id'] ?? null,
             'forma_pago'   => $data['forma_pago'] ?? null,
+            'terminal_pago_id'   => $data['terminal_pago_id'] ?? null,
+            'cuenta_bancaria_id' => $data['cuenta_bancaria_id'] ?? null,
             'categoria_id' => $data['categoria_id'] ?? null,
             'producto'     => $data['producto'] ?? null,
         ]);

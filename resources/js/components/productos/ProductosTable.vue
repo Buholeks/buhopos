@@ -118,22 +118,13 @@
 
                     <td class="hidden px-3 py-2 md:table-cell">
                         <p class="text-sm text-slate-900">
-                            {{ p.categoria?.nombre ?? "—" }}
+                            {{ p.categoria_ruta ?? p.categoria?.nombre ?? "—" }}
                         </p>
                         <p class="text-xs text-slate-500">
                             {{ p.marca?.nombre ?? "" }}
                             <span v-if="p.modelo?.nombre"
                                 >/ {{ p.modelo.nombre }}</span
                             >
-                        </p>
-                        <p
-                            v-if="
-                                categoriaNombre(p) !==
-                                (p.categoria?.nombre ?? 'Sin categoria')
-                            "
-                            class="text-[10px] text-slate-400"
-                        >
-                            {{ categoriaNombre(p) }}
                         </p>
                     </td>
 
@@ -232,13 +223,9 @@ import { useAuthStore } from "@/stores/auth";
 const auth = useAuthStore();
 const verExistencias = computed(() => auth.can("inventario.ver"));
 const verCostos = computed(() => auth.can("productos.precios"));
-const props = defineProps({
+defineProps({
     productos: { type: Array, default: () => [] },
     formatPrecio: { type: Function, required: true },
-    categoriaNombre: {
-        type: Function,
-        default: (p) => p.categoria?.nombre ?? "Sin categoria",
-    },
 });
 
 defineEmits(["editar", "duplicar", "toggle-activo", "eliminar", "variantes"]);
@@ -251,10 +238,6 @@ function pendientes(p) {
         p.marca_id && !p.modelo_id ? "Sin modelo" : null,
         Number(p.precio_venta ?? 0) <= 0 ? "Sin precio" : null,
     ].filter(Boolean);
-}
-
-function categoriaNombre(p) {
-    return props.categoriaNombre(p);
 }
 
 function formatCantidad(valor) {

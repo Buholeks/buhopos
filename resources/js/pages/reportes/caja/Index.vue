@@ -917,6 +917,7 @@
                                 type="button"
                                 @click="
                                     ventasFiltroFP = opt;
+                                    ventasFiltroCuenta = '';
                                     cargarVentasCorte(corteDetalle.corte.id, 1);
                                 "
                                 class="inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold capitalize transition"
@@ -928,6 +929,23 @@
                             >
                                 {{ opt === "" ? "Todas" : opt }}
                             </button>
+
+                            <select
+                                v-if="filtroCuenta"
+                                v-model="ventasFiltroCuenta"
+                                :aria-label="filtroCuenta.label"
+                                class="h-8 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                @change="cargarVentasCorte(corteDetalle.corte.id, 1)"
+                            >
+                                <option value="">{{ filtroCuenta.label }}: todas</option>
+                                <option
+                                    v-for="op in filtroCuenta.opciones"
+                                    :key="op.id"
+                                    :value="op.id"
+                                >
+                                    {{ op.nombre }}
+                                </option>
+                            </select>
                         </div>
 
                         <!-- SKELETON -->
@@ -1135,6 +1153,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
 import axios from "axios";
+import { useCuentasPago } from "@/helpers/cuentasPago";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import {
     ArrowLeft,
@@ -1177,6 +1196,9 @@ const ventasCorte = ref([]);
 const ventasPaginacion = ref(null);
 const ventasCargando = ref(false);
 const ventasFiltroFP = ref("");
+const ventasFiltroCuenta = ref("");
+const { filtroPara } = useCuentasPago();
+const filtroCuenta = computed(() => filtroPara(ventasFiltroFP.value));
 const ventasPagina = ref(1);
 const exportando = ref(null);
 
@@ -1246,6 +1268,7 @@ async function abrirDetalle(id) {
     ventasCorte.value = [];
     ventasPaginacion.value = null;
     ventasFiltroFP.value = "";
+    ventasFiltroCuenta.value = "";
     ventasPagina.value = 1;
 
     try {
@@ -1267,6 +1290,9 @@ async function cargarVentasCorte(id, pagina = 1) {
         const { data } = await axios.get(`${props.apiBase}/${id}/ventas`, {
             params: {
                 forma_pago: ventasFiltroFP.value || undefined,
+                ...(filtroCuenta.value && ventasFiltroCuenta.value
+                    ? { [filtroCuenta.value.campo]: ventasFiltroCuenta.value }
+                    : {}),
                 page: pagina,
                 por_pagina: 30,
             },
@@ -1290,6 +1316,7 @@ function cerrarDetalle() {
     ventasCorte.value = [];
     ventasPaginacion.value = null;
     ventasFiltroFP.value = "";
+    ventasFiltroCuenta.value = "";
     ventasPagina.value = 1;
 }
 

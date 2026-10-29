@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exportaciones\SeriesExportacion;
 use App\Exportaciones\SeriesPdfExportacion;
 use App\Exportaciones\ServicioExportacion;
+use App\Models\Categoria;
 use App\Servicios\ConsultaSeriesServicio;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +39,7 @@ class ConsultaSeriesController extends Controller
     {
         [$empresa, , $costos, $sucursales] = $this->alcance($request);
         return response()->json(['sucursales' => $sucursales, 'ver_costos' => $costos,
-            'categorias' => DB::table('categorias')->where('empresa_id', $empresa)->orderBy('nombre')->get(['id', 'nombre'])]);
+            'categorias' => Categoria::nombresConRuta($empresa, DB::table('categorias')->where('empresa_id', $empresa)->get(['id', 'nombre']))]);
     }
 
     public function buscar(Request $request, ConsultaSeriesServicio $servicio)

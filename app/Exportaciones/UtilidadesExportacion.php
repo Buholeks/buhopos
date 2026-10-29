@@ -2,6 +2,8 @@
 
 namespace App\Exportaciones;
 
+use App\Models\Categoria;
+use App\Support\FiltroCuentaPago;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +33,7 @@ class UtilidadesExportacion extends ExportacionBase
         }
         if (!empty($this->filtros['forma_pago'])) {
             $r['Forma de pago'] = ucfirst($this->filtros['forma_pago']);
+            $r += FiltroCuentaPago::etiquetas($this->filtros);
         }
         if (!empty($this->filtros['categoria'])) {
             $r['Categoría'] = $this->filtros['categoria'];
@@ -85,8 +88,9 @@ class UtilidadesExportacion extends ExportacionBase
                     ->from('venta_pagos')
                     ->whereColumn('venta_pagos.venta_id', 'v.id')
                     ->where('venta_pagos.forma_pago', $this->filtros['forma_pago'])
+                    ->tap(fn($pagos) => FiltroCuentaPago::aplicar($pagos, $this->filtros, 'venta_pagos.'))
             ))
-            ->when(!empty($this->filtros['categoria_id']), fn($q) => $q->where('p.categoria_id', $this->filtros['categoria_id']))
+            ->when(!empty($this->filtros['categoria_id']), fn($q) => $q->whereIn('p.categoria_id', Categoria::idsConDescendientes($this->empresaId, (int) $this->filtros['categoria_id'])))
             ->when(!empty($this->filtros['producto']), function ($q) {
                 $texto = trim((string) $this->filtros['producto']);
                 $q->where(fn($sub) => $sub

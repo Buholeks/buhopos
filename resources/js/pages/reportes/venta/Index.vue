@@ -49,7 +49,7 @@
                             Filtros
                         </h2>
                         <p class="text-sm text-slate-500">
-                            Filtra por fecha, cajero, forma de pago, estado,
+                            Filtra por fecha, cajero, vendedor, cliente, forma de pago, estado,
                             folio o producto.
                         </p>
                     </div>
@@ -128,6 +128,33 @@
                                 <option value="">Todos</option>
                                 <option
                                     v-for="u in cajerosDisponibles"
+                                    :key="u.id"
+                                    :value="u.id"
+                                >
+                                    {{ u.name }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label
+                            class="mb-1.5 block text-sm font-medium text-slate-700"
+                        >
+                            Vendedor
+                        </label>
+                        <div class="relative">
+                            <Users
+                                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            />
+                            <select
+                                v-model="f.vendedor_id"
+                                @change="buscar"
+                                class="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                            >
+                                <option value="">Todos</option>
+                                <option
+                                    v-for="u in vendedoresDisponibles"
                                     :key="u.id"
                                     :value="u.id"
                                 >
@@ -231,6 +258,17 @@
                     >
                         <template #icon>
                             <Search class="h-4 w-4" />
+                        </template>
+                    </BaseInput>
+
+                    <BaseInput
+                        v-model="f.cliente"
+                        label="Cliente"
+                        placeholder="Nombre del cliente…"
+                        @input="debounce"
+                    >
+                        <template #icon>
+                            <Users class="h-4 w-4" />
                         </template>
                     </BaseInput>
 
@@ -669,6 +707,18 @@
                                         </td>
                                         <td class="px-4 py-3 text-slate-700">
                                             {{ v.user?.name ?? "—" }}
+                                            <div
+                                                v-if="v.vendedor && v.vendedor.id !== v.user?.id"
+                                                class="text-[11px] text-slate-500"
+                                            >
+                                                Vend.: {{ v.vendedor.name }}
+                                            </div>
+                                            <div
+                                                v-if="v.cliente"
+                                                class="text-[11px] text-slate-500"
+                                            >
+                                                Cliente: {{ v.cliente.nombre }}
+                                            </div>
                                         </td>
                                         <td class="px-4 py-3">
                                             <span
@@ -795,8 +845,20 @@
                                                                 detalleActual.id
                                                             }}
                                                         </p>
+                                                        <p class="flex flex-wrap gap-x-4 text-xs text-slate-500">
+                                                            <span>Cajero: <b class="text-slate-700">{{ detalleActual.user?.name ?? "—" }}</b></span>
+                                                            <span v-if="detalleActual.vendedor">Vendedor: <b class="text-slate-700">{{ detalleActual.vendedor.name }}</b></span>
+                                                            <span v-if="detalleActual.cliente">Cliente: <b class="text-slate-700">{{ detalleActual.cliente.nombre }}</b></span>
+                                                        </p>
                                                     </div>
 
+                                                    <router-link
+                                                        v-if="detalleActual.corte_id && auth.can(['caja.historial', 'reportes.ver'])"
+                                                        :to="{ name: 'corte-detalle', params: { id: detalleActual.corte_id } }"
+                                                        class="inline-flex items-center gap-1.5 self-start rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 md:self-auto"
+                                                    >
+                                                        Ver corte #{{ detalleActual.corte_id }}
+                                                    </router-link>
                                                 </div>
 
                                                 <!-- DETALLE DE LÍNEAS -->
@@ -1041,6 +1103,7 @@
 import { ref, reactive, computed, onMounted } from "vue";
 import axios from "axios";
 import { useCuentasPago } from "@/helpers/cuentasPago";
+import { useAuthStore } from "@/stores/auth";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import PrecioLinea from "@/components/ventas/PrecioLinea.vue";
 import AjustesPrecioTarjeta from "@/components/ventas/AjustesPrecioTarjeta.vue";
@@ -1092,6 +1155,8 @@ const ventas = ref([]);
 const datosAgrupados = ref([]);
 const totales = ref(null);
 const cajerosDisponibles = ref(props.cajeros);
+const vendedoresDisponibles = ref([]);
+const auth = useAuthStore();
 const pag = ref({ current_page: 1, last_page: 1, total: 0 });
 const expandido = ref(null);
 const detalleActual = ref(null);
@@ -1109,6 +1174,8 @@ const f = reactive({
     estado: "",
     folio: "",
     producto: "",
+    cliente: "",
+    vendedor_id: "",
     precio_manual: false,
     por_dia: false,
     pagina: 1,
@@ -1147,6 +1214,7 @@ async function cargarVentas() {
 
         totales.value = data.totales;
         cajerosDisponibles.value = data.cajeros ?? cajerosDisponibles.value;
+        vendedoresDisponibles.value = data.vendedores ?? vendedoresDisponibles.value;
 
         if (f.por_dia) {
             datosAgrupados.value = data.datos ?? [];
@@ -1251,6 +1319,8 @@ function limpiarFiltros() {
     f.estado = "";
     f.folio = "";
     f.producto = "";
+    f.cliente = "";
+    f.vendedor_id = "";
     f.precio_manual = false;
     f.por_dia = false;
     f.pagina = 1;
@@ -1271,6 +1341,8 @@ function params() {
         estado: f.estado || undefined,
         folio: f.folio || undefined,
         producto: f.producto || undefined,
+        cliente: f.cliente || undefined,
+        vendedor_id: f.vendedor_id || undefined,
         precio_manual: f.precio_manual ? 1 : undefined,
         por_dia: f.por_dia ? 1 : 0,
         page: f.pagina,

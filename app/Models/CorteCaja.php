@@ -103,21 +103,7 @@ class CorteCaja extends Model
             return;
         }
 
-        $query = Venta::where('empresa_id', $this->empresa_id)
-            ->where('sucursal_id', $this->sucursal_id)
-            ->where('corte_id', $this->id) // ✅ exacto
-            ->where('estado', 'confirmada');
-
-        $totales = VentaPagosResumen::porFormaPago($query);
-        $num = (clone $query)->count();
-
-        $this->update([
-            'ventas_efectivo'      => $totales['efectivo'],
-            'ventas_tarjeta'       => $totales['tarjeta'],
-            'ventas_transferencia' => $totales['transferencia'],
-            'ventas_saldo_favor'   => $totales['saldo_favor'],
-            'num_ventas'           => $num,
-        ]);
+        $this->update($this->calcularVentas());
     }
 
     /** Recalcula movimientos extras desde tabla movimientos_caja */
@@ -127,20 +113,7 @@ class CorteCaja extends Model
             return;
         }
 
-        $movs = $this->movimientos()
-            ->selectRaw("
-            forma_pago,
-            SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE -monto END) as neto
-        ")
-            ->groupBy('forma_pago')
-            ->get()
-            ->keyBy('forma_pago');
-
-        $this->update([
-            'movs_efectivo'      => (float)($movs->get('efectivo')?->neto ?? 0),
-            'movs_tarjeta'       => (float)($movs->get('tarjeta')?->neto ?? 0),
-            'movs_transferencia' => (float)($movs->get('transferencia')?->neto ?? 0),
-        ]);
+        $this->update($this->calcularMovimientos());
 
         $this->recalcularEsperados(); // ✅ antes era recalcularEsperado()
     }
@@ -152,13 +125,73 @@ class CorteCaja extends Model
             return;
         }
 
+        $this->update($this->calcularEsperados());
+    }
+
+    /**
+     * Pone al día en memoria los totales de un corte abierto para mostrarlos, sin escribir
+     * en la BD. Las consultas usan esto; el guardado lo hacen las operaciones que mueven
+     * dinero (venta, cancelación, movimiento, pedido) y el cierre.
+     */
+    public function refrescarTotales(): static
+    {
+        if ($this->estado !== 'abierto') {
+            return $this;
+        }
+
+        $this->forceFill($this->calcularVentas());
+        $this->forceFill($this->calcularMovimientos());
+        $this->forceFill($this->calcularEsperados());
+
+        return $this;
+    }
+
+    private function calcularVentas(): array
+    {
+        $query = Venta::where('empresa_id', $this->empresa_id)
+            ->where('sucursal_id', $this->sucursal_id)
+            ->where('corte_id', $this->id) // ✅ exacto
+            ->where('estado', 'confirmada');
+
+        $totales = VentaPagosResumen::porFormaPago($query);
+
+        return [
+            'ventas_efectivo'      => $totales['efectivo'],
+            'ventas_tarjeta'       => $totales['tarjeta'],
+            'ventas_transferencia' => $totales['transferencia'],
+            'ventas_saldo_favor'   => $totales['saldo_favor'],
+            'num_ventas'           => (clone $query)->count(),
+        ];
+    }
+
+    private function calcularMovimientos(): array
+    {
+        $movs = $this->movimientos()
+            ->selectRaw("
+            forma_pago,
+            SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE -monto END) as neto
+        ")
+            ->groupBy('forma_pago')
+            ->get()
+            ->keyBy('forma_pago');
+
+        return [
+            'movs_efectivo'      => (float)($movs->get('efectivo')?->neto ?? 0),
+            'movs_tarjeta'       => (float)($movs->get('tarjeta')?->neto ?? 0),
+            'movs_transferencia' => (float)($movs->get('transferencia')?->neto ?? 0),
+        ];
+    }
+
+    /** Usa los ventas_X / movs_X que tenga el modelo en ese momento. */
+    private function calcularEsperados(): array
+    {
         $fondo = (float) ($this->fondo_inicial_efectivo ?? 0);
 
-        $this->update([
+        return [
             'esperado_efectivo'       => $fondo + (float)($this->ventas_efectivo ?? 0) + (float)($this->movs_efectivo ?? 0),
             'esperado_tarjeta'        => (float)($this->ventas_tarjeta ?? 0) + (float)($this->movs_tarjeta ?? 0),
             'esperado_transferencia'  => (float)($this->ventas_transferencia ?? 0) + (float)($this->movs_transferencia ?? 0),
-        ]);
+        ];
     }
 
     /** Recalcula diferencias al cerrar caja */

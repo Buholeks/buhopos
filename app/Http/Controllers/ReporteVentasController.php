@@ -31,6 +31,8 @@ class ReporteVentasController extends Controller
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'folio'       => ['nullable', 'string', 'max:60'],
             'producto'    => ['nullable', 'string', 'max:120'],
+            'cliente'     => ['nullable', 'string', 'max:120'],
+            'vendedor_id' => ['nullable', 'integer'],
             'precio_manual' => ['nullable', 'boolean'],
             'por_dia'     => ['nullable', 'boolean'],
             'por_pagina'  => ['nullable', 'integer', 'min:1', 'max:200'],
@@ -45,17 +47,22 @@ class ReporteVentasController extends Controller
                     $q->where('ventas.created_at', '>=', Carbon::parse($request->fecha_desde, 'America/Mexico_City')->startOfDay()->utc()))
                 ->when($request->filled('fecha_hasta'), fn($q) =>
                     $q->where('ventas.created_at', '<=', Carbon::parse($request->fecha_hasta, 'America/Mexico_City')->endOfDay()->utc()))
-                ->when($request->filled('user_id'),    fn($q) => $q->where('user_id', $request->user_id))
+                ->when($request->filled('user_id'),    fn($q) => $q->where('ventas.user_id', $request->user_id))
                 ->when($request->filled('forma_pago'), fn($q) =>
                     $q->whereHas('pagos', fn($pq) => FiltroCuentaPago::aplicar($pq->where('forma_pago', $request->forma_pago), $request->only(['forma_pago', 'terminal_pago_id', 'cuenta_bancaria_id']))))
                 ->when($request->filled('estado'),     fn($q) => $q->where('estado', $request->estado))
                 ->when($request->filled('folio'),      fn($q) =>
                     $q->where('folio', 'like', '%' . $request->folio . '%'))
                 ->when($request->filled('producto'),   fn($q) =>
-                    $q->whereHas('detalles.producto', fn($pq) =>
-                        $pq->where('nombre', 'like', '%' . $request->producto . '%')
-                           ->orWhere('codigo', 'like', '%' . $request->producto . '%')
-                    ))
+                    $q->whereHas('detalles', fn($dq) => $dq->where(fn($w) => $w
+                        // nombre guardado en la venta: encuentra productos renombrados
+                        ->where('producto_nombre', 'like', '%' . $request->producto . '%')
+                        ->orWhereHas('producto', fn($pq) =>
+                            $pq->where('nombre', 'like', '%' . $request->producto . '%')
+                               ->orWhere('codigo', 'like', '%' . $request->producto . '%')))))
+                ->when($request->filled('cliente'),    fn($q) =>
+                    $q->whereHas('cliente', fn($cq) => $cq->where('nombre', 'like', '%' . $request->cliente . '%')))
+                ->when($request->filled('vendedor_id'), fn($q) => $q->where('ventas.vendedor_id', $request->vendedor_id))
                 ->when($request->boolean('precio_manual'), fn($q) =>
                     $q->whereHas('detalles', fn($dq) => $dq->precioManual()));
         };
@@ -75,11 +82,18 @@ class ReporteVentasController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $vendedores = User::where('empresa_id', $user->empresa_id)
+            ->whereHas('ventasComoVendedor', fn($q) =>
+                $q->where('sucursal_id', $user->sucursal_id)
+            )
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         // ── Query principal (con eager loads) ─────────────────────
         $query = $aplicarFiltros(
             Venta::where('empresa_id', $user->empresa_id)
                  ->where('sucursal_id', $user->sucursal_id)
-                 ->with(['user:id,name', 'pagos.cuentaBancaria:id,nombre,banco', 'pagos.terminalPago:id,nombre,banco'])
+                 ->with(['user:id,name', 'cliente:id,nombre', 'vendedor:id,name', 'pagos.cuentaBancaria:id,nombre,banco', 'pagos.terminalPago:id,nombre,banco'])
                  ->withCount(['detalles as precios_manuales_count' => fn($q) => $q->precioManual()])
         )->orderByDesc('ventas.created_at')->orderByDesc('id');
 
@@ -117,6 +131,7 @@ class ReporteVentasController extends Controller
                 'datos'        => $agrupado,
                 'totales'      => $totales,
                 'cajeros'      => $cajeros,
+                'vendedores'   => $vendedores,
             ]);
         }
         // ── Listado paginado ──────────────────────────────────────
@@ -126,6 +141,7 @@ class ReporteVentasController extends Controller
             'ventas'  => $ventas,
             'totales' => $totales,
             'cajeros' => $cajeros,
+            'vendedores' => $vendedores,
         ]);
     }
 
@@ -186,6 +202,8 @@ class ReporteVentasController extends Controller
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'folio'       => ['nullable', 'string', 'max:60'],
             'producto'    => ['nullable', 'string', 'max:120'],
+            'cliente'     => ['nullable', 'string', 'max:120'],
+            'vendedor_id' => ['nullable', 'integer'],
             'precio_manual' => ['nullable', 'boolean'],
             'por_dia'     => ['nullable', 'boolean'],
             'formato'     => ['required', 'in:excel,pdf'],

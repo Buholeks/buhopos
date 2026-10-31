@@ -88,10 +88,7 @@ class CorteCajaController extends Controller
             ->with(['desglose', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco'])
             ->first();
 
-        if ($corte) {
-            $corte->recalcularVentas();
-            $corte->recalcularMovimientos();
-        }
+        $corte?->refrescarTotales();
 
         return response()->json($corte);
     }
@@ -298,7 +295,7 @@ public function cerrar(Request $request, int $id): JsonResponse
 
     public function show(int $id): JsonResponse
     {
-        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+        $this->autorizarConsultaCorte();
         $user = Auth::user();
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
@@ -306,15 +303,27 @@ public function cerrar(Request $request, int $id): JsonResponse
             ->with(['user:id,name', 'desglose', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco'])
             ->findOrFail($id);
 
-        // refrescar totales (si todavía estuviera abierto)
-        if ($corte->estado === 'abierto') {
-            $corte->recalcularVentas();
-            $corte->recalcularMovimientos();
-        }
+        // totales al día si sigue abierto (solo en memoria, no escribe)
+        $corte->refrescarTotales();
 
         $corte->setAttribute('ajustes_precio', AjustesPrecioResumen::resumen(
             Venta::where('corte_id', $corte->id)->where('estado', 'confirmada')
         ));
+
+        $corte->setAttribute('mov_resumen', $corte->movimientos
+            ->groupBy('forma_pago')
+            ->map(function ($movimientos, $formaPago) {
+                $ingresos = (float) $movimientos->where('tipo', 'ingreso')->sum('monto');
+                $egresos  = (float) $movimientos->where('tipo', 'egreso')->sum('monto');
+
+                return [
+                    'forma_pago' => $formaPago,
+                    'ingresos'   => round($ingresos, 2),
+                    'egresos'    => round($egresos, 2),
+                    'neto'       => round($ingresos - $egresos, 2),
+                ];
+            })
+            ->values());
 
         // Ventas de este turno que se cancelaron (en el mismo turno o después).
         $corte->setAttribute('ventas_canceladas', Venta::where('corte_id', $corte->id)
@@ -335,7 +344,12 @@ public function cerrar(Request $request, int $id): JsonResponse
 
     public function ventas(Request $request, int $id): JsonResponse
     {
-        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+        $this->autorizarConsultaCorte();
+        $request->validate([
+            'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia'],
+            ...FiltroCuentaPago::REGLAS,
+            'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
         $user = Auth::user();
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
@@ -344,14 +358,22 @@ public function cerrar(Request $request, int $id): JsonResponse
 
         $ventas = Venta::where('corte_id', $corte->id)
             ->where('estado', 'confirmada')
+            ->when(
+                $request->filled('forma_pago'),
+                fn ($q) => $q->whereHas('pagos', fn ($pq) => FiltroCuentaPago::aplicar(
+                    $pq->where('forma_pago', $request->forma_pago),
+                    $request->only(['forma_pago', 'terminal_pago_id', 'cuenta_bancaria_id'])
+                ))
+            )
             ->with([
                 'detalles.producto:id,nombre',
                 'detalles.variante:id,sku',
                 'user:id,name',
-                'pagos',
+                'pagos.cuentaBancaria:id,nombre,banco',
+                'pagos.terminalPago:id,nombre,banco',
             ])
             ->orderByDesc('created_at')
-            ->paginate($request->por_pagina ?? 30);
+            ->paginate((int) ($request->por_pagina ?? 30));
 
         return response()->json($ventas);
     }
@@ -486,6 +508,8 @@ public function cerrar(Request $request, int $id): JsonResponse
                 'm.concepto',
                 'c.terminal',
                 DB::raw('NULL as folio'),
+                'c.id as corte_id',
+                DB::raw('NULL as venta_id'),
             ]);
 
         if ($tipo)      $qMov->where('m.tipo', $tipo);
@@ -525,6 +549,8 @@ public function cerrar(Request $request, int $id): JsonResponse
                 DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id), IF(v.estado = 'cancelada', ' (cancelada después del corte)', '')) as concepto"),
                 'c.terminal',
                 'v.folio',
+                'c.id as corte_id',
+                'v.id as venta_id',
             ]);
 
         if ($formaPago) $qVentas->where('vp.forma_pago', $formaPago);
@@ -567,6 +593,45 @@ public function cerrar(Request $request, int $id): JsonResponse
         ]));
     }
 
+    /**
+     * El detalle de un corte (corte-detalle) se abre desde el historial de caja y desde
+     * reportes-caja, así que basta con cualquiera de los dos permisos.
+     */
+    private function autorizarConsultaCorte(): void
+    {
+        $user = Auth::user();
+        abort_unless(
+            $user->tienePermiso('caja.historial') || $user->tienePermiso('reportes.ver'),
+            403,
+            'Sin permiso: caja.historial'
+        );
+    }
+
+    /** Detalle de una venta para consulta-caja (mismo permiso que la consulta). */
+    public function ventaConsulta(int $id): JsonResponse
+    {
+        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+        $user = Auth::user();
+
+        $venta = Venta::where('empresa_id', $user->empresa_id)
+            ->where('sucursal_id', $user->sucursal_id)
+            ->with([
+                'user:id,name',
+                'cliente:id,nombre',
+                'vendedor:id,name',
+                'pagos.cuentaBancaria:id,nombre,banco',
+                'pagos.terminalPago:id,nombre,banco',
+                'detalles.producto:id,nombre,codigo',
+                'detalles.variante:id,sku',
+                'detalles.serie:id,serie,imei,imei2',
+            ])
+            ->findOrFail($id);
+
+        $venta->detalles->each->makeHidden('precio_costo');
+
+        return response()->json($venta);
+    }
+
     public function exportarHistorial(Request $request, ServicioExportacion $servicio)
     {
         abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
@@ -591,7 +656,7 @@ public function cerrar(Request $request, int $id): JsonResponse
 
     public function exportarDetalle(int $id)
     {
-        abort_unless(Auth::user()->tienePermiso('caja.historial'), 403, 'Sin permiso: caja.historial');
+        $this->autorizarConsultaCorte();
         $user = Auth::user();
 
         $corte = CorteCaja::where('empresa_id', $user->empresa_id)
@@ -599,12 +664,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             ->with(['user:id,name', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco'])
             ->findOrFail($id);
 
-        if ($corte->estado === 'abierto') {
-            $corte->recalcularVentas();
-            $corte->recalcularMovimientos();
-            $corte->refresh();
-            $corte->load(['user:id,name', 'movimientos.user:id,name', 'movimientos.cuentaBancaria:id,nombre,banco', 'movimientos.terminalPago:id,nombre,banco']);
-        }
+        $corte->refrescarTotales();
 
         $ventas = Venta::where('corte_id', $corte->id)
             ->where('estado', 'confirmada')

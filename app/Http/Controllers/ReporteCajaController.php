@@ -5,9 +5,6 @@ namespace App\Http\Controllers;
 use App\Exportaciones\CajaExportacion;
 use App\Exportaciones\ServicioExportacion;
 use App\Models\CorteCaja;
-use App\Models\Venta;
-use App\Support\AjustesPrecioResumen;
-use App\Support\FiltroCuentaPago;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -58,7 +55,7 @@ class ReporteCajaController extends Controller
 
         if ($request->boolean('por_dia')) {
             $cortes = $query->get();
-            $this->recalcularCortesAbiertos($cortes);
+            $this->refrescarCortesAbiertos($cortes);
 
             $agrupado = $cortes
                 ->groupBy(fn ($corte) => $corte->fecha_apertura->copy()->setTimezone('America/Mexico_City')->toDateString())
@@ -100,7 +97,7 @@ class ReporteCajaController extends Controller
 
         $cortes = $query->paginate($porPagina);
 
-        $this->recalcularCortesAbiertos($cortes->getCollection());
+        $this->refrescarCortesAbiertos($cortes->getCollection());
 
         $cortes->getCollection()->transform(function ($corte) {
             $this->agregarTotalesVenta($corte);
@@ -138,103 +135,6 @@ class ReporteCajaController extends Controller
         return $servicio->exportar($exportacion, $data['formato'], $nombre);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // 3. DETALLE DE UN CORTE  GET /api/reportes/caja/{id}
-    // ─────────────────────────────────────────────────────────────
-    public function show(int $id): JsonResponse
-    {
-        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
-        $user = Auth::user();
-
-        $corte = CorteCaja::query()
-            ->where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->findOrFail($id);
-
-        if ($corte->estado === 'abierto') {
-            $corte->recalcularVentas();
-            $corte->recalcularMovimientos();
-            $corte->refresh();
-        }
-
-        // Después del refresh(): refresh() solo recarga relaciones de primer nivel y
-        // perdería movimientos.user / cuentaBancaria / terminalPago.
-        $corte->load([
-            'user:id,name',
-            'desglose',
-            'movimientos.user:id,name',
-            'movimientos.cuentaBancaria:id,nombre,banco',
-            'movimientos.terminalPago:id,nombre,banco',
-        ]);
-
-        $this->agregarTotalesVenta($corte);
-        $corte->setAttribute('ajustes_precio', AjustesPrecioResumen::resumen(
-            Venta::where('corte_id', $corte->id)->where('estado', 'confirmada')
-        ));
-
-        $movResumen = $corte->movimientos
-            ->groupBy('forma_pago')
-            ->map(function ($movimientos, $formaPago) {
-                $ingresos = (float) $movimientos->where('tipo', 'ingreso')->sum('monto');
-                $egresos  = (float) $movimientos->where('tipo', 'egreso')->sum('monto');
-
-                return [
-                    'forma_pago' => $formaPago,
-                    'ingresos'   => round($ingresos, 2),
-                    'egresos'    => round($egresos, 2),
-                    'neto'       => round($ingresos - $egresos, 2),
-                ];
-            })
-            ->values();
-
-        return response()->json([
-            'corte'       => $corte,
-            'mov_resumen' => $movResumen,
-        ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // 4. VENTAS DE UN CORTE  GET /api/reportes/caja/{id}/ventas
-    // ─────────────────────────────────────────────────────────────
-    public function ventas(Request $request, int $id): JsonResponse
-    {
-        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
-        $request->validate([
-            'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia'],
-            ...FiltroCuentaPago::REGLAS,
-            'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
-
-        $user = Auth::user();
-
-        $corte = CorteCaja::query()
-            ->where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->findOrFail($id);
-
-        $ventas = Venta::query()
-            ->where('corte_id', $corte->id)
-            ->where('estado', 'confirmada')
-            ->when(
-                $request->filled('forma_pago'),
-                fn ($q) => $q->whereHas('pagos', fn ($pq) => FiltroCuentaPago::aplicar($pq->where('forma_pago', $request->forma_pago), $request->only(['forma_pago', 'terminal_pago_id', 'cuenta_bancaria_id'])))
-            )
-            ->with([
-                'user:id,name',
-                'pagos.cuentaBancaria:id,nombre,banco',
-                'pagos.terminalPago:id,nombre,banco',
-                'detalles.producto:id,nombre',
-                'detalles.variante:id,sku',
-            ])
-            ->orderByDesc('created_at')
-            ->paginate((int) ($request->por_pagina ?? 30));
-
-        return response()->json($ventas);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Helpers privados
-    // ─────────────────────────────────────────────────────────────
     private function calcularTotalesGlobales($cortes): array
     {
         return [
@@ -285,12 +185,9 @@ class ReporteCajaController extends Controller
         ), 2);
     }
 
-    private function recalcularCortesAbiertos($cortes): void
+    private function refrescarCortesAbiertos($cortes): void
     {
-        $cortes->where('estado', 'abierto')->each(function (CorteCaja $corte) {
-            $corte->recalcularVentas();
-            $corte->recalcularMovimientos();
-            $corte->refresh();
-        });
+        // Solo en memoria: consultar el reporte no escribe en los cortes.
+        $cortes->each(fn (CorteCaja $corte) => $corte->refrescarTotales());
     }
 }

@@ -51,6 +51,12 @@ class VentasExportacion extends ExportacionBase
         if (!empty($this->filtros['producto'])) {
             $r['Producto'] = $this->filtros['producto'];
         }
+        if (!empty($this->filtros['cliente'])) {
+            $r['Cliente'] = $this->filtros['cliente'];
+        }
+        if (!empty($this->filtros['vendedor_id'])) {
+            $r['Vendedor'] = User::find($this->filtros['vendedor_id'])?->name ?? "ID {$this->filtros['vendedor_id']}";
+        }
         if (filter_var($this->filtros['precio_manual'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
             $r['Precio manual'] = 'Solo ventas con precio manual';
         }
@@ -62,7 +68,7 @@ class VentasExportacion extends ExportacionBase
         if ($this->porDia) {
             return ['Fecha', 'Ventas', 'Canceladas', 'Efectivo', 'Tarjeta', 'Transferencia', 'Descuentos', 'Total', 'Ticket prom.'];
         }
-        return ['Folio', 'Fecha', 'Hora', 'Cajero', 'Forma pago', 'Estado', 'Subtotal', 'Descuento', 'Total', 'Precio manual', 'IMEI / Serie'];
+        return ['Folio', 'Fecha', 'Hora', 'Cajero', 'Vendedor', 'Cliente', 'Forma pago', 'Estado', 'Subtotal', 'Descuento', 'Total', 'Precio manual', 'IMEI / Serie'];
     }
 
     private ?array $totalesCache = null;
@@ -128,12 +134,12 @@ class VentasExportacion extends ExportacionBase
         }
 
         // Listado individual
-        $ventas = $query->with(['user:id,name', 'pagos', 'detalles.serie:id,serie,imei,imei2'])->orderByDesc('ventas.created_at')->orderByDesc('id')->get();
+        $ventas = $query->with(['user:id,name', 'vendedor:id,name', 'cliente:id,nombre', 'pagos', 'detalles.serie:id,serie,imei,imei2'])->orderByDesc('ventas.created_at')->orderByDesc('id')->get();
 
         $confirmadas = $ventas->where('estado', 'confirmada');
 
         $this->totalesCache = [
-            '', '', '', '', '', 'Totales',
+            '', '', '', '', '', '', '', 'Totales',
             number_format($confirmadas->sum('subtotal'), 2),
             number_format($confirmadas->sum('descuento'), 2),
             number_format($confirmadas->sum('total'), 2),
@@ -146,6 +152,8 @@ class VentasExportacion extends ExportacionBase
             $v->created_at->copy()->setTimezone('America/Mexico_City')->format('d/m/Y'),
             Carbon::parse($v->created_at)->setTimezone('America/Mexico_City')->format('H:i'),
             $v->user?->name ?? '—',
+            $v->vendedor?->name ?? '—',
+            $v->cliente?->nombre ?? '—',
             $this->etiquetaFormaPago($v->pagos),
             ucfirst($v->estado),
             number_format((float) $v->subtotal, 2),
@@ -213,7 +221,7 @@ class VentasExportacion extends ExportacionBase
             ->when(!empty($this->filtros['fecha_hasta']), fn($q) =>
                 $q->where('ventas.created_at', '<=', Carbon::parse($this->filtros['fecha_hasta'], 'America/Mexico_City')->endOfDay()->utc()))
             ->when(!empty($this->filtros['user_id']), fn($q) =>
-                $q->where('user_id', $this->filtros['user_id']))
+                $q->where('ventas.user_id', $this->filtros['user_id']))
             ->when(!empty($this->filtros['forma_pago']), fn($q) =>
                 $q->whereHas('pagos', fn($pq) => FiltroCuentaPago::aplicar($pq->where('forma_pago', $this->filtros['forma_pago']), $this->filtros)))
             ->when(!empty($this->filtros['estado']), fn($q) =>
@@ -221,10 +229,15 @@ class VentasExportacion extends ExportacionBase
             ->when(!empty($this->filtros['folio']), fn($q) =>
                 $q->where('folio', 'like', '%' . $this->filtros['folio'] . '%'))
             ->when(!empty($this->filtros['producto']), fn($q) =>
-                $q->whereHas('detalles.producto', fn($pq) =>
-                    $pq->where('nombre', 'like', '%' . $this->filtros['producto'] . '%')
-                       ->orWhere('codigo', 'like', '%' . $this->filtros['producto'] . '%')
-                ))
+                $q->whereHas('detalles', fn($dq) => $dq->where(fn($w) => $w
+                    ->where('producto_nombre', 'like', '%' . $this->filtros['producto'] . '%')
+                    ->orWhereHas('producto', fn($pq) =>
+                        $pq->where('nombre', 'like', '%' . $this->filtros['producto'] . '%')
+                           ->orWhere('codigo', 'like', '%' . $this->filtros['producto'] . '%')))))
+            ->when(!empty($this->filtros['cliente']), fn($q) =>
+                $q->whereHas('cliente', fn($cq) => $cq->where('nombre', 'like', '%' . $this->filtros['cliente'] . '%')))
+            ->when(!empty($this->filtros['vendedor_id']), fn($q) =>
+                $q->where('ventas.vendedor_id', $this->filtros['vendedor_id']))
             ->when(filter_var($this->filtros['precio_manual'] ?? false, FILTER_VALIDATE_BOOLEAN), fn($q) =>
                 $q->whereHas('detalles', fn($dq) => $dq->precioManual()));
     }

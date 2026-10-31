@@ -168,7 +168,7 @@ const routes = [
 
       { path: "caja",          name: "caja",          component: CorteCaja,      meta: { title: "Corte de caja",   permiso: "caja.abrir" } },
       { path: "cortes-caja",   name: "cortes-caja",   component: HistorialCortes,meta: { title: "Cortes de caja",  permiso: "caja.historial" } },
-      { path: "corte-detalle/:id", name: "corte-detalle", component: CorteDetalle, props: true, meta: { title: "Detalle de corte", permiso: "caja.historial" } },
+      { path: "corte-detalle/:id", name: "corte-detalle", component: CorteDetalle, props: true, meta: { title: "Detalle de corte", permiso: ["caja.historial", "reportes.ver"] } },
       { path: "consulta-caja",    name: "consulta-caja",    component: ConsultaCaja,    meta: { title: "Consulta de caja",   permiso: "caja.historial" } },
 
       { path: "reportes-caja",           name: "reportes-caja",           component: ReporteCaja,       meta: { title: "Reporte de caja",     permiso: "reportes.ver" } },

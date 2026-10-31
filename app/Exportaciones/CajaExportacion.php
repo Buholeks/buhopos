@@ -110,11 +110,7 @@ class CajaExportacion extends ExportacionBase
             ->orderByDesc('fecha_apertura')
             ->get();
 
-        $coleccion->where('estado', 'abierto')->each(function (CorteCaja $corte) {
-            $corte->recalcularVentas();
-            $corte->recalcularMovimientos();
-            $corte->refresh();
-        });
+        $coleccion->each(fn (CorteCaja $corte) => $corte->refrescarTotales());
 
         $totalCobradoCajaGlobal = $coleccion->sum(fn ($corte) => $this->totalCobradoCaja($corte));
         $totalVendidoGlobal = $coleccion->sum(fn ($corte) => $this->totalVendido($corte));

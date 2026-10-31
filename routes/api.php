@@ -404,6 +404,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/movimientos-caja/usuarios', [CorteCajaController::class, 'usuariosConsulta']);    Route::get('/movimientos-caja/exportar', [CorteCajaController::class, 'exportarConsulta']);
+    Route::get('/movimientos-caja/venta/{id}', [CorteCajaController::class, 'ventaConsulta'])->whereNumber('id');
     Route::get('/movimientos-caja', [CorteCajaController::class, 'consultaMovimientos']);
 
     /*
@@ -505,8 +506,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('caja')->group(function () {
             Route::get('/', [ReporteCajaController::class, 'index']);
             Route::get('/exportar', [ReporteCajaController::class, 'exportar']);
-            Route::get('/{id}', [ReporteCajaController::class, 'show']);
-            Route::get('/{id}/ventas', [ReporteCajaController::class, 'ventas']);
         });
 
         /*

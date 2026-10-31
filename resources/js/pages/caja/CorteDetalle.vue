@@ -17,11 +17,15 @@
 
                 <div>
                     <h1 class="text-lg font-semibold text-slate-900">
-                        Detalle del corte
+                        Corte #{{ corteId }}
                     </h1>
                     <p class="text-xs text-slate-500">
-                        {{ corte ? formatFecha(corte.fecha_apertura) : "…" }}
-                        {{ corte?.user?.name ? `· ${corte.user.name}` : "" }}
+                        <template v-if="corte">
+                            {{ corte.user?.name ?? "Sin cajero" }} · Apertura
+                            {{ formatFecha(fechaAperturaCorte(corte)) }} · Cierre
+                            {{ corte.fecha_cierre ? formatFecha(corte.fecha_cierre) : "sin cierre" }}
+                        </template>
+                        <template v-else>…</template>
                     </p>
                 </div>
 
@@ -102,6 +106,37 @@
             </div>
 
             <AjustesPrecioTarjeta :resumen="corte.ajustes_precio" />
+
+            <!-- VENTAS POR FORMA DE PAGO -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-5">
+                <div class="mb-4 flex items-center justify-between gap-3">
+                    <h2 class="text-sm font-semibold text-slate-900">
+                        Ventas por forma de pago
+                    </h2>
+                    <span class="text-xs text-slate-500">
+                        {{ corte.num_ventas ?? 0 }} ventas
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+                    <div v-for="fp in ventasPorForma" :key="fp.key" class="space-y-1.5">
+                        <div class="flex items-center justify-between gap-3 text-sm">
+                            <span class="font-medium text-slate-700">{{ fp.label }}</span>
+                            <span class="font-mono text-slate-600">
+                                {{ fmt(fp.monto) }}
+                                <span class="text-xs text-slate-400">({{ fp.pct }}%)</span>
+                            </span>
+                        </div>
+                        <div class="h-2 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                                class="h-full rounded-full transition-all duration-500"
+                                :class="fp.barra"
+                                :style="{ width: fp.pct + '%' }"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- DIFERENCIAS (solo si cerrado) -->
             <div
@@ -192,6 +227,26 @@
                         >({{ corte.movimientos.length }})</span
                     >
                 </h2>
+
+                <div v-if="corte.mov_resumen?.length" class="mb-4 flex flex-wrap gap-2">
+                    <div
+                        v-for="mr in corte.mov_resumen"
+                        :key="mr.forma_pago"
+                        class="inline-flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs"
+                    >
+                        <span class="font-medium text-slate-700">
+                            {{ ETIQUETAS_PAGO[mr.forma_pago] ?? mr.forma_pago }}
+                        </span>
+                        <span class="font-mono text-emerald-600">+{{ fmt(mr.ingresos) }}</span>
+                        <span class="font-mono text-red-600">-{{ fmt(mr.egresos) }}</span>
+                        <span
+                            class="font-mono font-semibold"
+                            :class="Number(mr.neto) >= 0 ? 'text-emerald-700' : 'text-red-700'"
+                        >
+                            = {{ fmt(mr.neto) }}
+                        </span>
+                    </div>
+                </div>
 
                 <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -364,7 +419,7 @@
             <!-- VENTAS -->
             <div class="rounded-2xl border border-slate-200 bg-white">
                 <div
-                    class="flex items-center justify-between border-b border-slate-100 px-5 py-4"
+                    class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                     <h2 class="text-sm font-semibold text-slate-900">
                         Ventas del turno
@@ -372,6 +427,40 @@
                             >({{ totalVentas }})</span
                         >
                     </h2>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            v-for="opt in FP_OPTS"
+                            :key="opt"
+                            type="button"
+                            @click="filtrarVentas(opt)"
+                            class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition"
+                            :class="
+                                filtroFP === opt
+                                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            "
+                        >
+                            {{ opt === "" ? "Todas" : ETIQUETAS_PAGO[opt] }}
+                        </button>
+
+                        <select
+                            v-if="filtroCuenta"
+                            v-model="filtroCuentaId"
+                            :aria-label="filtroCuenta.label"
+                            class="h-7 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                            @change="recargarVentas"
+                        >
+                            <option value="">{{ filtroCuenta.label }}: todas</option>
+                            <option
+                                v-for="op in filtroCuenta.opciones"
+                                :key="op.id"
+                                :value="op.id"
+                            >
+                                {{ op.nombre }}
+                            </option>
+                        </select>
+                    </div>
                 </div>
 
                 <div
@@ -385,7 +474,7 @@
                     v-else-if="ventas.length === 0"
                     class="py-10 text-center text-sm text-slate-400"
                 >
-                    Sin ventas en este turno
+                    {{ filtroFP ? "Sin ventas con esa forma de pago" : "Sin ventas en este turno" }}
                 </div>
 
                 <!-- ACORDEÓN DE VENTAS -->
@@ -415,6 +504,12 @@
                                     "
                                 >
                                     {{ formaPagoResumen(v).label }}
+                                </span>
+                                <span
+                                    v-if="formaPagoResumen(v).detalle"
+                                    class="text-xs text-slate-500"
+                                >
+                                    {{ formaPagoResumen(v).detalle }}
                                 </span>
                                 <span
                                     v-if="v.saldo_aplicado > 0"
@@ -613,6 +708,7 @@ import TarjetaResumen from "@/components/caja/TarjetaResumen.vue";
 import PrecioLinea from "@/components/ventas/PrecioLinea.vue";
 import AjustesPrecioTarjeta from "@/components/ventas/AjustesPrecioTarjeta.vue";
 import { esPrecioManual } from "@/helpers/precioLinea";
+import { useCuentasPago } from "@/helpers/cuentasPago";
 import {
     ArrowLeft,
     Loader2,
@@ -640,6 +736,12 @@ const metaVentas = ref({ current_page: 1, last_page: 1, total: 0 });
 
 const abiertos = ref(new Set());
 
+const FP_OPTS = ["", "efectivo", "tarjeta", "transferencia"];
+const filtroFP = ref("");
+const filtroCuentaId = ref("");
+const { filtroPara } = useCuentasPago();
+const filtroCuenta = computed(() => filtroPara(filtroFP.value));
+
 const totalVentas = computed(
     () => metaVentas.value.total ?? ventas.value.length,
 );
@@ -656,6 +758,35 @@ const totalCobradoCaja = computed(() => {
 const totalVendido = computed(
     () => totalCobradoCaja.value + Number(corte.value?.ventas_saldo_favor || 0),
 );
+
+const ventasPorForma = computed(() => {
+    const c = corte.value;
+    if (!c) return [];
+    const total = totalVendido.value;
+    return [
+        { key: "efectivo", label: "Efectivo", barra: "bg-emerald-500" },
+        { key: "tarjeta", label: "Tarjeta", barra: "bg-sky-500" },
+        { key: "transferencia", label: "Transferencia", barra: "bg-violet-500" },
+        { key: "saldo_favor", label: "Saldo a favor", barra: "bg-cyan-500" },
+    ].map((fp) => {
+        const monto = Number(c["ventas_" + fp.key] || 0);
+        return { ...fp, monto, pct: total ? Math.round((monto / total) * 100) : 0 };
+    });
+});
+
+// Corrige cortes antiguos donde fecha_apertura quedó igual a fecha_cierre.
+function fechaAperturaCorte(c) {
+    if (
+        c?.fecha_apertura &&
+        c?.fecha_cierre &&
+        c?.created_at &&
+        new Date(c.fecha_apertura).getTime() === new Date(c.fecha_cierre).getTime() &&
+        new Date(c.created_at).getTime() !== new Date(c.fecha_cierre).getTime()
+    ) {
+        return c.created_at;
+    }
+    return c?.fecha_apertura;
+}
 
 const DENOMINACIONES = [
     { campo: "billetes_1000", label: "Billete $1,000", valor: 1000 },
@@ -731,7 +862,14 @@ async function cargarVentas() {
     cargandoVentas.value = true;
     try {
         const { data } = await axios.get(`/api/cortes-caja/${corteId}/ventas`, {
-            params: { page: paginaVentas.value, por_pagina: 30 },
+            params: {
+                page: paginaVentas.value,
+                por_pagina: 30,
+                forma_pago: filtroFP.value || undefined,
+                ...(filtroCuenta.value && filtroCuentaId.value
+                    ? { [filtroCuenta.value.campo]: filtroCuentaId.value }
+                    : {}),
+            },
         });
         ventas.value = data.data ?? [];
         metaVentas.value = {
@@ -742,6 +880,18 @@ async function cargarVentas() {
     } finally {
         cargandoVentas.value = false;
     }
+}
+
+function filtrarVentas(fp) {
+    filtroFP.value = fp;
+    filtroCuentaId.value = "";
+    recargarVentas();
+}
+
+function recargarVentas() {
+    paginaVentas.value = 1;
+    abiertos.value = new Set();
+    cargarVentas();
 }
 
 function prevVentas() {
@@ -822,15 +972,25 @@ function formaPagoResumen(venta) {
 
     if (metodos.length === 0) {
         return pagos.length
-            ? { clave: "saldo_favor", label: "Saldo a favor" }
-            : { clave: "—", label: "—" };
+            ? { clave: "saldo_favor", label: "Saldo a favor", detalle: "" }
+            : { clave: "—", label: "—", detalle: "" };
     }
 
     if (metodos.length > 1) {
-        return { clave: "mixto", label: "Mixto" };
+        return {
+            clave: "mixto",
+            label: "Mixto",
+            detalle: metodos
+                .map((p) => `${ETIQUETAS_PAGO[p.forma_pago] ?? p.forma_pago}: ${fmt(p.monto)}`)
+                .join(" · "),
+        };
     }
 
-    const fp = metodos[0].forma_pago;
-    return { clave: fp, label: ETIQUETAS_PAGO[fp] ?? fp };
+    const unico = metodos[0];
+    return {
+        clave: unico.forma_pago,
+        label: ETIQUETAS_PAGO[unico.forma_pago] ?? unico.forma_pago,
+        detalle: unico.cuenta_bancaria?.nombre ?? unico.terminal_pago?.nombre ?? "",
+    };
 }
 </script>

@@ -33,10 +33,12 @@ export const useAuthStore = defineStore("auth", {
      * Devuelve true si el usuario tiene el permiso indicado.
      * - Super admin o sin rol asignado → siempre true (permisos = ['*'])
      * - Con rol → verifica la clave
+     * - Con un arreglo de claves → basta con tener cualquiera
      */
     can(clave) {
       if (!this.isAuth) return false;
       if (this.permisos.includes("*")) return true;
+      if (Array.isArray(clave)) return clave.some((c) => this.permisos.includes(c));
       return this.permisos.includes(clave);
     },
 

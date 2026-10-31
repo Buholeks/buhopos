@@ -239,6 +239,7 @@
                                     Fecha / Hora
                                 </th>
                                 <th class="px-4 py-3 text-left">Terminal</th>
+                                <th class="px-4 py-3 text-left">Corte</th>
                                 <th class="px-4 py-3 text-left">Usuario</th>
                                 <th class="px-4 py-3 text-left">Origen</th>
                                 <th class="px-4 py-3 text-left">Tipo</th>
@@ -252,9 +253,11 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            <tr
+                            <template
                                 v-for="mov in movimientos"
                                 :key="`${mov.origen}-${mov.id}`"
+                            >
+                            <tr
                                 class="transition hover:bg-slate-50"
                                 :class="
                                     mov.tipo === 'ingreso'
@@ -271,6 +274,16 @@
                                     class="whitespace-nowrap px-4 py-3 text-slate-700"
                                 >
                                     {{ mov.terminal ?? "—" }}
+                                </td>
+                                <td class="whitespace-nowrap px-4 py-3">
+                                    <router-link
+                                        v-if="mov.corte_id"
+                                        :to="{ name: 'corte-detalle', params: { id: mov.corte_id } }"
+                                        class="font-mono text-xs font-semibold text-sky-700 hover:underline"
+                                    >
+                                        #{{ mov.corte_id }}
+                                    </router-link>
+                                    <span v-else class="text-slate-400">—</span>
                                 </td>
                                 <td
                                     class="whitespace-nowrap px-4 py-3 text-slate-700"
@@ -361,7 +374,20 @@
                                 <td
                                     class="max-w-xs truncate px-4 py-3 text-slate-700"
                                 >
-                                    {{ mov.concepto }}
+                                    <button
+                                        v-if="mov.venta_id"
+                                        type="button"
+                                        class="inline-flex max-w-full items-center gap-1 truncate text-left text-sky-700 hover:underline"
+                                        :title="'Ver detalle de la venta'"
+                                        @click="toggleVenta(mov)"
+                                    >
+                                        <span class="truncate">{{ mov.concepto }}</span>
+                                        <ChevronDown
+                                            class="h-3.5 w-3.5 shrink-0 transition"
+                                            :class="expandido === claveFila(mov) ? 'rotate-180' : ''"
+                                        />
+                                    </button>
+                                    <template v-else>{{ mov.concepto }}</template>
                                 </td>
                                 <td
                                     class="whitespace-nowrap px-4 py-3 text-right font-mono font-semibold"
@@ -375,6 +401,101 @@
                                     }}{{ fmt(mov.monto) }}
                                 </td>
                             </tr>
+
+                            <!-- DETALLE DE LA VENTA -->
+                            <tr v-if="expandido === claveFila(mov)" class="bg-slate-50">
+                                <td colspan="9" class="px-4 py-4">
+                                    <div
+                                        v-if="cargandoVenta"
+                                        class="flex items-center gap-2 text-sm text-slate-500"
+                                    >
+                                        <Loader2 class="h-4 w-4 animate-spin" />
+                                        Cargando venta…
+                                    </div>
+                                    <div v-else-if="ventaDetalle" class="space-y-3">
+                                        <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                                            <span>Cajero: <b class="text-slate-700">{{ ventaDetalle.user?.name ?? "—" }}</b></span>
+                                            <span v-if="ventaDetalle.vendedor">Vendedor: <b class="text-slate-700">{{ ventaDetalle.vendedor.name }}</b></span>
+                                            <span v-if="ventaDetalle.cliente">Cliente: <b class="text-slate-700">{{ ventaDetalle.cliente.nombre }}</b></span>
+                                            <span>
+                                                Pagos:
+                                                <b class="text-slate-700">{{
+                                                    (ventaDetalle.pagos ?? [])
+                                                        .map((p) => `${etiquetaFormaPago(p.forma_pago)} ${fmt(p.monto)}`)
+                                                        .join(" · ") || "—"
+                                                }}</b>
+                                            </span>
+                                            <span
+                                                v-if="ventaDetalle.estado === 'cancelada'"
+                                                class="font-semibold text-red-600"
+                                            >
+                                                Cancelada{{ ventaDetalle.motivo_cancelacion ? `: ${ventaDetalle.motivo_cancelacion}` : "" }}
+                                            </span>
+                                        </div>
+
+                                        <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                            <table class="w-full text-sm">
+                                                <thead class="bg-slate-50 text-xs text-slate-500">
+                                                    <tr>
+                                                        <th class="px-3 py-2 text-left font-medium">Producto</th>
+                                                        <th class="px-3 py-2 text-right font-medium">Cant.</th>
+                                                        <th class="px-3 py-2 text-right font-medium">Precio</th>
+                                                        <th class="px-3 py-2 text-right font-medium">Subtotal</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-100">
+                                                    <tr v-for="d in ventaDetalle.detalles" :key="d.id">
+                                                        <td class="px-3 py-2">
+                                                            <div class="font-medium text-slate-800">
+                                                                {{ d.producto_nombre ?? d.producto?.nombre ?? "—" }}
+                                                            </div>
+                                                            <div
+                                                                v-if="d.variante_nombre || d.variante?.sku"
+                                                                class="text-xs text-slate-500"
+                                                            >
+                                                                {{ d.variante_nombre ?? d.variante?.sku }}
+                                                            </div>
+                                                            <div
+                                                                v-if="d.serie"
+                                                                class="font-mono text-xs text-slate-500"
+                                                            >
+                                                                {{ [d.serie.serie, d.serie.imei, d.serie.imei2].filter(Boolean).join(" · ") }}
+                                                            </div>
+                                                        </td>
+                                                        <td class="px-3 py-2 text-right font-mono text-slate-700">
+                                                            {{ Number(d.cantidad) }}
+                                                        </td>
+                                                        <td class="px-3 py-2 text-right">
+                                                            <PrecioLinea :detalle="d" />
+                                                        </td>
+                                                        <td class="px-3 py-2 text-right font-mono font-semibold text-slate-900">
+                                                            {{ fmt(d.subtotal) }}
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                                <tfoot class="border-t border-slate-200 bg-slate-50 text-sm">
+                                                    <tr v-if="Number(ventaDetalle.descuento) > 0">
+                                                        <td colspan="3" class="px-3 py-1.5 text-right text-slate-500">Descuento</td>
+                                                        <td class="px-3 py-1.5 text-right font-mono text-red-600">−{{ fmt(ventaDetalle.descuento) }}</td>
+                                                    </tr>
+                                                    <tr class="font-semibold text-slate-900">
+                                                        <td colspan="3" class="px-3 py-2 text-right">Total</td>
+                                                        <td class="px-3 py-2 text-right font-mono">{{ fmt(ventaDetalle.total) }}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+
+                                        <p v-if="ventaDetalle.notas" class="text-xs italic text-slate-500">
+                                            Nota: {{ ventaDetalle.notas }}
+                                        </p>
+                                    </div>
+                                    <p v-else class="text-sm text-red-600">
+                                        No se pudo cargar la venta.
+                                    </p>
+                                </td>
+                            </tr>
+                            </template>
                         </tbody>
                     </table>
                 </div>
@@ -443,6 +564,7 @@ import { alertColors, swal as Swal } from "@/lib/alert";
 import BaseInput from "@/components/ui/BaseInput.vue";
 import BaseSearchSelect from "@/components/ui/BaseSearchSelect.vue";
 import { useCuentasPago } from "@/helpers/cuentasPago";
+import PrecioLinea from "@/components/ventas/PrecioLinea.vue";
 import {
     ClipboardList,
     Search,
@@ -460,6 +582,7 @@ import {
     SlidersHorizontal,
     FileSpreadsheet,
     FileText,
+    ChevronDown,
 } from "lucide-vue-next";
 
 const hoy = fechaLocal();
@@ -507,6 +630,9 @@ const resumen = ref(null);
 const cargando = ref(false);
 const exportando = ref(null);
 const opcionesUsuario = ref([{ id: "", nombre: "Todos" }]);
+const expandido = ref(null);
+const ventaDetalle = ref(null);
+const cargandoVenta = ref(false);
 const { filtroPara } = useCuentasPago();
 
 // Con tarjeta se filtra por terminal y con transferencia por cuenta; "Todas" no filtra.
@@ -536,10 +662,36 @@ async function cargarUsuarios() {
     }
 }
 
+const claveFila = (mov) => `${mov.origen}-${mov.id}`;
+
+// Detalle bajo demanda: solo se pide al abrir la fila.
+async function toggleVenta(mov) {
+    const clave = claveFila(mov);
+    if (expandido.value === clave) {
+        expandido.value = null;
+        return;
+    }
+
+    expandido.value = clave;
+    if (ventaDetalle.value?.id === mov.venta_id) return;
+
+    ventaDetalle.value = null;
+    cargandoVenta.value = true;
+    try {
+        const { data } = await http.get(`/api/movimientos-caja/venta/${mov.venta_id}`);
+        ventaDetalle.value = data;
+    } catch {
+        ventaDetalle.value = null;
+    } finally {
+        cargandoVenta.value = false;
+    }
+}
+
 async function buscar(pagina = 1) {
     pagina = Number.isInteger(pagina) ? pagina : 1;
     cargando.value = true;
     resumen.value = null;
+    expandido.value = null;
     try {
         const { data } = await http.get("/api/movimientos-caja", {
             params: { ...filtros.value, page: pagina, por_pagina: 25 },

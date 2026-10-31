@@ -4,7 +4,9 @@
         <div
             class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur"
         >
-            <div class="flex w-full items-center gap-4 px-3 sm:px-6 py-3 sm:py-4">
+            <div
+                class="flex w-full items-center gap-4 px-3 sm:px-6 py-3 sm:py-4"
+            >
                 <button
                     type="button"
                     @click="goBack"
@@ -24,29 +26,32 @@
                 </div>
 
                 <div class="ml-auto flex items-center gap-2">
-                <button
-                    v-if="corte"
-                    type="button"
-                    :disabled="exportando"
-                    @click="exportarPdf"
-                    class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
-                >
-                    <Loader2 v-if="exportando" class="h-4 w-4 animate-spin" />
-                    <FileText v-else class="h-4 w-4" />
-                    PDF
-                </button>
+                    <button
+                        v-if="corte"
+                        type="button"
+                        :disabled="exportando"
+                        @click="exportarPdf"
+                        class="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100 disabled:opacity-50"
+                    >
+                        <Loader2
+                            v-if="exportando"
+                            class="h-4 w-4 animate-spin"
+                        />
+                        <FileText v-else class="h-4 w-4" />
+                        PDF
+                    </button>
 
-                <span
-                    v-if="corte"
-                    class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1"
-                    :class="
-                        corte.estado === 'abierto'
-                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                            : 'bg-slate-100 text-slate-600 ring-slate-200'
-                    "
-                >
-                    {{ corte.estado === "abierto" ? "Abierto" : "Cerrado" }}
-                </span>
+                    <span
+                        v-if="corte"
+                        class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1"
+                        :class="
+                            corte.estado === 'abierto'
+                                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                                : 'bg-slate-100 text-slate-600 ring-slate-200'
+                        "
+                    >
+                        {{ corte.estado === "abierto" ? "Abierto" : "Cerrado" }}
+                    </span>
                 </div>
             </div>
         </div>
@@ -58,7 +63,10 @@
             <Loader2 class="h-7 w-7 animate-spin" />
         </div>
 
-        <div v-else-if="corte" class="w-full space-y-6 px-3 sm:px-6 py-4 sm:py-6">
+        <div
+            v-else-if="corte"
+            class="w-full space-y-6 px-3 sm:px-6 py-4 sm:py-6"
+        >
             <!-- RESUMEN TOTALES -->
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
                 <TarjetaResumen
@@ -104,7 +112,7 @@
                     Arqueo final
                 </h2>
 
-                <div class="grid grid-cols-3 gap-4 text-sm">
+                <div class="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
                     <div
                         v-for="item in arqueoDatos"
                         :key="item.label"
@@ -136,6 +144,43 @@
                 </div>
             </div>
 
+            <!-- DESGLOSE DE EFECTIVO CONTADO -->
+            <div
+                v-if="corte.estado === 'cerrado' && desgloseFilas.length"
+                class="rounded-2xl border border-slate-200 bg-white p-5"
+            >
+                <h2 class="mb-4 text-sm font-semibold text-slate-900">
+                    Desglose de efectivo contado
+                </h2>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm sm:max-w-md">
+                        <thead
+                            class="border-b border-slate-100 text-xs font-medium uppercase text-slate-500"
+                        >
+                            <tr>
+                                <th class="pb-2 text-left">Denominación</th>
+                                <th class="pb-2 text-right">Cantidad</th>
+                                <th class="pb-2 text-right">Importe</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="fila in desgloseFilas" :key="fila.campo">
+                                <td class="py-1.5 text-slate-700">{{ fila.label }}</td>
+                                <td class="py-1.5 text-right font-mono text-slate-700">{{ fila.cantidad }}</td>
+                                <td class="py-1.5 text-right font-mono text-slate-900">{{ fmt(fila.importe) }}</td>
+                            </tr>
+                        </tbody>
+                        <tfoot class="border-t border-slate-200">
+                            <tr class="font-semibold text-slate-900">
+                                <td colspan="2" class="pt-2">Total contado</td>
+                                <td class="pt-2 text-right font-mono">{{ fmt(totalDesglose) }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
             <!-- MOVIMIENTOS -->
             <div
                 v-if="corte.movimientos?.length"
@@ -148,11 +193,13 @@
                     >
                 </h2>
 
+                <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead
                         class="border-b border-slate-100 text-xs font-medium uppercase text-slate-500"
                     >
                         <tr>
+                            <th class="pb-2 text-left">Fecha/Hora</th>
                             <th class="pb-2 text-left">Tipo</th>
                             <th class="pb-2 text-left">Concepto</th>
                             <th class="pb-2 text-left">Forma pago</th>
@@ -163,6 +210,9 @@
 
                     <tbody class="divide-y divide-slate-100">
                         <tr v-for="m in corte.movimientos" :key="m.id">
+                            <td class="whitespace-nowrap py-2 text-slate-500">
+                                {{ formatFecha(m.created_at) }}
+                            </td>
                             <td class="py-2">
                                 <span
                                     class="font-medium capitalize"
@@ -180,6 +230,12 @@
                             </td>
                             <td class="py-2 capitalize text-slate-500">
                                 {{ m.forma_pago }}
+                                <div
+                                    v-if="m.cuenta_bancaria || m.terminal_pago"
+                                    class="text-[11px] normal-case text-slate-400"
+                                >
+                                    {{ (m.cuenta_bancaria ?? m.terminal_pago)?.nombre }}
+                                </div>
                             </td>
                             <td
                                 class="py-2 text-right font-medium"
@@ -198,6 +254,111 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
+            </div>
+
+            <!-- CANCELACIONES Y DEVOLUCIONES -->
+            <div
+                v-if="corte.ventas_canceladas?.length || corte.devoluciones?.length"
+                class="rounded-2xl border border-slate-200 bg-white p-5"
+            >
+                <h2 class="mb-1 text-sm font-semibold text-slate-900">
+                    Cancelaciones y devoluciones
+                </h2>
+                <p class="mb-4 text-xs text-slate-500">
+                    Las ventas canceladas no suman en los totales del turno, salvo las
+                    canceladas después del cierre. Los reembolsos salen como movimientos
+                    del turno en que se hicieron.
+                </p>
+
+                <div v-if="corte.ventas_canceladas?.length" class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead
+                            class="border-b border-slate-100 text-xs font-medium uppercase text-slate-500"
+                        >
+                            <tr>
+                                <th class="pb-2 text-left">Folio</th>
+                                <th class="pb-2 text-left">Vendida</th>
+                                <th class="pb-2 text-left">Cancelada</th>
+                                <th class="pb-2 text-left">Motivo</th>
+                                <th class="pb-2 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="vc in corte.ventas_canceladas" :key="vc.id">
+                                <td class="whitespace-nowrap py-2">
+                                    <span
+                                        class="rounded bg-red-50 px-2 py-0.5 font-mono text-xs font-semibold text-red-700"
+                                    >
+                                        {{ vc.folio }}
+                                    </span>
+                                    <span
+                                        v-if="canceladaDespuesDelCierre(vc)"
+                                        class="ml-1.5 rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+                                        title="Se canceló con el turno ya cerrado: sigue contada en este corte"
+                                    >
+                                        Después del cierre
+                                    </span>
+                                </td>
+                                <td class="whitespace-nowrap py-2 text-slate-500">
+                                    {{ formatFecha(vc.created_at) }}
+                                    <span class="text-xs text-slate-400">· {{ vc.user?.name ?? "—" }}</span>
+                                </td>
+                                <td class="whitespace-nowrap py-2 text-slate-500">
+                                    {{ formatFecha(vc.cancelado_en) }}
+                                    <span class="text-xs text-slate-400">· {{ vc.cancelador?.name ?? "—" }}</span>
+                                </td>
+                                <td class="py-2 text-xs italic text-slate-500">
+                                    {{ vc.motivo_cancelacion || "—" }}
+                                </td>
+                                <td class="py-2 text-right font-medium text-slate-900">
+                                    {{ fmt(vc.total) }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div
+                    v-if="corte.devoluciones?.length"
+                    class="overflow-x-auto"
+                    :class="corte.ventas_canceladas?.length ? 'mt-5 border-t border-slate-100 pt-4' : ''"
+                >
+                    <table class="w-full text-sm">
+                        <thead
+                            class="border-b border-slate-100 text-xs font-medium uppercase text-slate-500"
+                        >
+                            <tr>
+                                <th class="pb-2 text-left">Devolución</th>
+                                <th class="pb-2 text-left">Fecha/Hora</th>
+                                <th class="pb-2 text-left">Forma</th>
+                                <th class="pb-2 text-left">Motivo</th>
+                                <th class="pb-2 text-right">Devuelto</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="dv in corte.devoluciones" :key="dv.id">
+                                <td class="whitespace-nowrap py-2">
+                                    <span class="font-mono text-xs font-semibold text-slate-700">{{ dv.folio }}</span>
+                                    <span class="text-xs text-slate-400"> · venta {{ dv.venta?.folio ?? "—" }}</span>
+                                </td>
+                                <td class="whitespace-nowrap py-2 text-slate-500">
+                                    {{ formatFecha(dv.fecha) }}
+                                    <span class="text-xs text-slate-400">· {{ dv.user?.name ?? "—" }}</span>
+                                </td>
+                                <td class="py-2 text-slate-500">
+                                    {{ ETIQUETAS_PAGO[dv.forma_devolucion] ?? dv.forma_devolucion }}
+                                </td>
+                                <td class="py-2 text-xs italic text-slate-500">
+                                    {{ dv.motivo || "—" }}
+                                </td>
+                                <td class="py-2 text-right font-medium text-red-700">
+                                    -{{ fmt(dv.total_devuelto) }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- VENTAS -->
@@ -247,7 +408,11 @@
                                 }}</span>
                                 <span
                                     class="rounded px-2 py-0.5 text-xs capitalize"
-                                    :class="formaPagoClase(formaPagoResumen(v).clave)"
+                                    :class="
+                                        formaPagoClase(
+                                            formaPagoResumen(v).clave,
+                                        )
+                                    "
                                 >
                                     {{ formaPagoResumen(v).label }}
                                 </span>
@@ -309,10 +474,18 @@
                                         <td
                                             class="py-1.5 font-medium text-slate-800"
                                         >
-                                            {{ d.producto_nombre ?? d.producto?.nombre ?? "—" }}
+                                            {{
+                                                d.producto_nombre ??
+                                                d.producto?.nombre ??
+                                                "—"
+                                            }}
                                         </td>
                                         <td class="py-1.5 text-slate-500">
-                                            {{ d.variante_nombre ?? d.variante?.sku ?? "—" }}
+                                            {{
+                                                d.variante_nombre ??
+                                                d.variante?.sku ??
+                                                "—"
+                                            }}
                                         </td>
                                         <td
                                             class="py-1.5 text-right text-slate-700"
@@ -331,7 +504,9 @@
                                 </tbody>
                             </table>
 
-                            <div class="mt-3 flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm">
+                            <div
+                                class="mt-3 flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm"
+                            >
                                 <span
                                     v-if="v.descuento > 0"
                                     class="text-slate-500"
@@ -349,15 +524,28 @@
                                     class="text-emerald-600"
                                 >
                                     Saldo a favor aplicado:
-                                    <span class="font-semibold">-{{ fmt(v.saldo_aplicado) }}</span>
+                                    <span class="font-semibold"
+                                        >-{{ fmt(v.saldo_aplicado) }}</span
+                                    >
                                 </span>
                                 <span
                                     v-if="v.saldo_aplicado > 0"
                                     class="font-semibold"
-                                    :class="formaPagoClase(formaPagoResumen(v).clave)"
+                                    :class="
+                                        formaPagoClase(
+                                            formaPagoResumen(v).clave,
+                                        )
+                                    "
                                 >
                                     {{ formaPagoResumen(v).label }}:
-                                    {{ fmt(Math.max(0, v.total - v.saldo_aplicado)) }}
+                                    {{
+                                        fmt(
+                                            Math.max(
+                                                0,
+                                                v.total - v.saldo_aplicado,
+                                            ),
+                                        )
+                                    }}
                                 </span>
                             </div>
 
@@ -438,7 +626,6 @@ import {
 const router = useRouter();
 const goBack = () => router.back();
 
-
 const route = useRoute();
 const corteId = Number(route.params.id);
 
@@ -459,12 +646,49 @@ const totalVentas = computed(
 
 const totalCobradoCaja = computed(() => {
     if (!corte.value) return 0;
-    return Number(corte.value.ventas_efectivo || 0)
-        + Number(corte.value.ventas_tarjeta || 0)
-        + Number(corte.value.ventas_transferencia || 0);
+    return (
+        Number(corte.value.ventas_efectivo || 0) +
+        Number(corte.value.ventas_tarjeta || 0) +
+        Number(corte.value.ventas_transferencia || 0)
+    );
 });
 
-const totalVendido = computed(() => totalCobradoCaja.value + Number(corte.value?.ventas_saldo_favor || 0));
+const totalVendido = computed(
+    () => totalCobradoCaja.value + Number(corte.value?.ventas_saldo_favor || 0),
+);
+
+const DENOMINACIONES = [
+    { campo: "billetes_1000", label: "Billete $1,000", valor: 1000 },
+    { campo: "billetes_500", label: "Billete $500", valor: 500 },
+    { campo: "billetes_200", label: "Billete $200", valor: 200 },
+    { campo: "billetes_100", label: "Billete $100", valor: 100 },
+    { campo: "billetes_50", label: "Billete $50", valor: 50 },
+    { campo: "billetes_20", label: "Billete $20", valor: 20 },
+    { campo: "monedas_20", label: "Moneda $20", valor: 20 },
+    { campo: "monedas_10", label: "Moneda $10", valor: 10 },
+    { campo: "monedas_5", label: "Moneda $5", valor: 5 },
+    { campo: "monedas_2", label: "Moneda $2", valor: 2 },
+    { campo: "monedas_1", label: "Moneda $1", valor: 1 },
+    { campo: "monedas_050", label: "Moneda $0.50", valor: 0.5 },
+];
+
+const desgloseFilas = computed(() => {
+    const d = corte.value?.desglose;
+    if (!d) return [];
+    return DENOMINACIONES.map((den) => {
+        const cantidad = Number(d[den.campo] ?? 0);
+        return { ...den, cantidad, importe: cantidad * den.valor };
+    }).filter((f) => f.cantidad > 0);
+});
+
+const totalDesglose = computed(() =>
+    desgloseFilas.value.reduce((s, f) => s + f.importe, 0),
+);
+
+function canceladaDespuesDelCierre(venta) {
+    const cierre = corte.value?.fecha_cierre;
+    return Boolean(cierre && venta.cancelado_en && new Date(venta.cancelado_en) > new Date(cierre));
+}
 
 const arqueoDatos = computed(() => {
     if (!corte.value) return [];
@@ -535,11 +759,16 @@ function nextVentas() {
 async function exportarPdf() {
     exportando.value = true;
     try {
-        const resp = await axios.get(`/api/cortes-caja/${corteId}/exportar-pdf`, {
-            responseType: 'blob',
-        });
-        const url = URL.createObjectURL(new Blob([resp.data], { type: 'application/pdf' }));
-        const a = document.createElement('a');
+        const resp = await axios.get(
+            `/api/cortes-caja/${corteId}/exportar-pdf`,
+            {
+                responseType: "blob",
+            },
+        );
+        const url = URL.createObjectURL(
+            new Blob([resp.data], { type: "application/pdf" }),
+        );
+        const a = document.createElement("a");
         a.href = url;
         a.download = `corte_${corteId}.pdf`;
         a.click();
@@ -570,19 +799,19 @@ const formatFecha = (f) =>
         : "—";
 
 const ETIQUETAS_PAGO = {
-    efectivo:      "Efectivo",
-    tarjeta:       "Tarjeta",
+    efectivo: "Efectivo",
+    tarjeta: "Tarjeta",
     transferencia: "Transferencia",
-    mixto:         "Mixto",
-    saldo_favor:   "Saldo a favor",
+    mixto: "Mixto",
+    saldo_favor: "Saldo a favor",
 };
 
 const CLASES_PAGO = {
-    efectivo:      "bg-emerald-50 text-emerald-700",
-    tarjeta:       "bg-sky-50 text-sky-700",
+    efectivo: "bg-emerald-50 text-emerald-700",
+    tarjeta: "bg-sky-50 text-sky-700",
     transferencia: "bg-emerald-50 text-emerald-700",
-    mixto:         "bg-amber-50 text-amber-700",
-    saldo_favor:   "bg-emerald-50 text-emerald-700",
+    mixto: "bg-amber-50 text-amber-700",
+    saldo_favor: "bg-emerald-50 text-emerald-700",
 };
 
 const formaPagoClase = (fp) => CLASES_PAGO[fp] ?? "bg-slate-100 text-slate-600";

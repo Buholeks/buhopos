@@ -80,7 +80,7 @@ class VentasExportacion extends ExportacionBase
             $ventas = $query->with('pagos')->get();
 
             $agrupado = $ventas
-                ->groupBy(fn($v) => Carbon::parse($v->fecha)->toDateString())
+                ->groupBy(fn($v) => $v->created_at->copy()->setTimezone('America/Mexico_City')->toDateString())
                 ->map(function ($g, $fecha) {
                     $confirmadas = $g->where('estado', 'confirmada');
                     $pagosConfirmados = $confirmadas->flatMap(fn($v) => $v->pagos);
@@ -128,7 +128,7 @@ class VentasExportacion extends ExportacionBase
         }
 
         // Listado individual
-        $ventas = $query->with(['user:id,name', 'pagos', 'detalles.serie:id,serie,imei,imei2'])->orderByDesc('fecha')->orderByDesc('id')->get();
+        $ventas = $query->with(['user:id,name', 'pagos', 'detalles.serie:id,serie,imei,imei2'])->orderByDesc('ventas.created_at')->orderByDesc('id')->get();
 
         $confirmadas = $ventas->where('estado', 'confirmada');
 
@@ -143,7 +143,7 @@ class VentasExportacion extends ExportacionBase
 
         return $ventas->map(fn($v) => [
             $v->folio ?? $v->id,
-            Carbon::parse($v->fecha)->format('d/m/Y'),
+            $v->created_at->copy()->setTimezone('America/Mexico_City')->format('d/m/Y'),
             Carbon::parse($v->created_at)->setTimezone('America/Mexico_City')->format('H:i'),
             $v->user?->name ?? '—',
             $this->etiquetaFormaPago($v->pagos),
@@ -209,9 +209,9 @@ class VentasExportacion extends ExportacionBase
         return Venta::where('empresa_id', $this->empresaId)
             ->where('sucursal_id', $this->sucursalId)
             ->when(!empty($this->filtros['fecha_desde']), fn($q) =>
-                $q->whereDate('fecha', '>=', $this->filtros['fecha_desde']))
+                $q->where('ventas.created_at', '>=', Carbon::parse($this->filtros['fecha_desde'], 'America/Mexico_City')->startOfDay()->utc()))
             ->when(!empty($this->filtros['fecha_hasta']), fn($q) =>
-                $q->whereDate('fecha', '<=', $this->filtros['fecha_hasta']))
+                $q->where('ventas.created_at', '<=', Carbon::parse($this->filtros['fecha_hasta'], 'America/Mexico_City')->endOfDay()->utc()))
             ->when(!empty($this->filtros['user_id']), fn($q) =>
                 $q->where('user_id', $this->filtros['user_id']))
             ->when(!empty($this->filtros['forma_pago']), fn($q) =>

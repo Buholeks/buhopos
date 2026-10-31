@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\AjustesPrecioResumen;
 use App\Support\FiltroCuentaPago;
 use App\Support\VentaPagosResumen;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,9 +42,9 @@ class ReporteVentasController extends Controller
         $aplicarFiltros = function ($q) use ($request) {
             return $q
                 ->when($request->filled('fecha_desde'), fn($q) =>
-                    $q->whereDate('fecha', '>=', $request->fecha_desde))
+                    $q->where('ventas.created_at', '>=', Carbon::parse($request->fecha_desde, 'America/Mexico_City')->startOfDay()->utc()))
                 ->when($request->filled('fecha_hasta'), fn($q) =>
-                    $q->whereDate('fecha', '<=', $request->fecha_hasta))
+                    $q->where('ventas.created_at', '<=', Carbon::parse($request->fecha_hasta, 'America/Mexico_City')->endOfDay()->utc()))
                 ->when($request->filled('user_id'),    fn($q) => $q->where('user_id', $request->user_id))
                 ->when($request->filled('forma_pago'), fn($q) =>
                     $q->whereHas('pagos', fn($pq) => FiltroCuentaPago::aplicar($pq->where('forma_pago', $request->forma_pago), $request->only(['forma_pago', 'terminal_pago_id', 'cuenta_bancaria_id']))))
@@ -80,14 +81,14 @@ class ReporteVentasController extends Controller
                  ->where('sucursal_id', $user->sucursal_id)
                  ->with(['user:id,name', 'pagos.cuentaBancaria:id,nombre,banco', 'pagos.terminalPago:id,nombre,banco'])
                  ->withCount(['detalles as precios_manuales_count' => fn($q) => $q->precioManual()])
-        )->orderByDesc('fecha')->orderByDesc('id');
+        )->orderByDesc('ventas.created_at')->orderByDesc('id');
 
         // ── Modo agrupado por día ─────────────────────────────────
         if ($request->boolean('por_dia')) {
             $ventas = $query->get();
 
             $agrupado = $ventas
-                ->groupBy(fn($v) => \Carbon\Carbon::parse($v->fecha)->toDateString())
+                ->groupBy(fn($v) => $v->created_at->copy()->setTimezone('America/Mexico_City')->toDateString())
                 ->map(function ($grupo, $fecha) {
                     $confirmadas = $grupo->where('estado', 'confirmada');
                     $pagosConfirmados = $confirmadas->flatMap(fn($v) => $v->pagos);

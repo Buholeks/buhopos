@@ -824,7 +824,7 @@
                                     <td
                                         class="whitespace-nowrap px-3 py-3 text-slate-500"
                                     >
-                                        {{ fmtDatetime(m.fecha || m.fecha) }}
+                                        {{ fmtDatetime(m.created_at) }}
                                     </td>
                                     <td class="px-3 py-3 text-slate-700">
                                         {{ m.user?.name || "—" }}
@@ -1437,11 +1437,6 @@ const metricasDetalle = computed(() => {
         {
             label: "# Ventas",
             valor: c.num_ventas,
-            color: "",
-        },
-        {
-            label: "Fondo inicial",
-            valor: fmt(c.fondo_inicial_efectivo),
             color: "",
         },
         {

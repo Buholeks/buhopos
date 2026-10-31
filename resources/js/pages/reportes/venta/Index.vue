@@ -1342,24 +1342,21 @@ function fmt(v) {
     return mxn.format(+v || 0);
 }
 
+// Misma fecha que usa el filtro: created_at en hora de México.
 function fmtVentaDatetime(venta) {
-    if (!venta?.fecha) return "—";
+    if (!venta?.created_at) return "—";
 
-    const fecha = String(venta.fecha).slice(0, 10);
-    const fechaFormateada = new Date(`${fecha}T12:00:00`).toLocaleDateString(
-        "es-MX",
-        {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-        },
-    );
-
-    if (!venta.created_at) return fechaFormateada;
-
-    const hora = new Date(venta.created_at).toLocaleTimeString("es-MX", {
+    const creada = new Date(venta.created_at);
+    const fechaFormateada = creada.toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "America/Mexico_City",
+    });
+    const hora = creada.toLocaleTimeString("es-MX", {
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: "America/Mexico_City",
     });
 
     return `${fechaFormateada}, ${hora}`;

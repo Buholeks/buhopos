@@ -143,7 +143,14 @@ class ConsultaCajaExportacion extends ExportacionBase
             ->where('v.empresa_id', $this->empresaId)
             ->where('v.sucursal_id', $this->sucursalId)
             ->where('c.empresa_id', $this->empresaId)
-            ->where('v.estado', 'confirmada')
+            // Una venta cancelada después de cerrar su corte sigue contada en ese corte
+            // (el reembolso sale como egreso en el corte donde se canceló).
+            ->where(fn($q) => $q
+                ->where('v.estado', 'confirmada')
+                ->orWhere(fn($c) => $c
+                    ->where('v.estado', 'cancelada')
+                    ->whereNotNull('c.fecha_cierre')
+                    ->whereColumn('v.cancelado_en', '>', 'c.fecha_cierre')))
             ->whereNotNull('v.corte_id')
             ->whereIn('vp.forma_pago', ['efectivo', 'tarjeta', 'transferencia'])
             ->whereBetween('v.created_at', [$desdeTs, $hastaTs])
@@ -155,7 +162,7 @@ class ConsultaCajaExportacion extends ExportacionBase
                 DB::raw("'ingreso' as tipo"),
                 'vp.forma_pago',
                 DB::raw('CAST(vp.monto AS DECIMAL(14,2)) as monto'),
-                DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id)) as concepto"),
+                DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id), IF(v.estado = 'cancelada', ' (cancelada después del corte)', '')) as concepto"),
                 'c.terminal',
                 'v.folio',
             ]);

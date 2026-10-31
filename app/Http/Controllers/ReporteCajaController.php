@@ -149,13 +149,6 @@ class ReporteCajaController extends Controller
         $corte = CorteCaja::query()
             ->where('empresa_id', $user->empresa_id)
             ->where('sucursal_id', $user->sucursal_id)
-            ->with([
-                'user:id,name',
-                'desglose',
-                'movimientos.user:id,name',
-                'movimientos.cuentaBancaria:id,nombre,banco',
-                'movimientos.terminalPago:id,nombre,banco',
-            ])
             ->findOrFail($id);
 
         if ($corte->estado === 'abierto') {
@@ -163,6 +156,16 @@ class ReporteCajaController extends Controller
             $corte->recalcularMovimientos();
             $corte->refresh();
         }
+
+        // Después del refresh(): refresh() solo recarga relaciones de primer nivel y
+        // perdería movimientos.user / cuentaBancaria / terminalPago.
+        $corte->load([
+            'user:id,name',
+            'desglose',
+            'movimientos.user:id,name',
+            'movimientos.cuentaBancaria:id,nombre,banco',
+            'movimientos.terminalPago:id,nombre,banco',
+        ]);
 
         $this->agregarTotalesVenta($corte);
         $corte->setAttribute('ajustes_precio', AjustesPrecioResumen::resumen(

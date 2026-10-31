@@ -11,6 +11,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use App\Models\CorteCaja;
 use App\Models\CorteDesgloseEfectivo;
+use App\Models\Devolucion;
 use App\Models\MovimientoCaja;
 use App\Models\User;
 use App\Models\Venta;
@@ -315,6 +316,20 @@ public function cerrar(Request $request, int $id): JsonResponse
             Venta::where('corte_id', $corte->id)->where('estado', 'confirmada')
         ));
 
+        // Ventas de este turno que se cancelaron (en el mismo turno o después).
+        $corte->setAttribute('ventas_canceladas', Venta::where('corte_id', $corte->id)
+            ->where('estado', 'cancelada')
+            ->with(['user:id,name', 'cancelador:id,name'])
+            ->orderBy('cancelado_en')
+            ->get(['id', 'folio', 'user_id', 'total', 'created_at', 'cancelado_en', 'cancelado_por', 'motivo_cancelacion']));
+
+        // Devoluciones parciales registradas durante este turno (de ventas de este u otro turno).
+        $corte->setAttribute('devoluciones', Devolucion::where('corte_id', $corte->id)
+            ->where('estado', 'confirmada')
+            ->with(['venta:id,folio', 'user:id,name'])
+            ->orderBy('fecha')
+            ->get(['id', 'folio', 'venta_id', 'user_id', 'fecha', 'forma_devolucion', 'total_devuelto', 'motivo']));
+
         return response()->json($corte);
     }
 
@@ -487,7 +502,14 @@ public function cerrar(Request $request, int $id): JsonResponse
             ->where('v.empresa_id', $eid)
             ->where('v.sucursal_id', $sid)
             ->where('c.empresa_id', $eid)
-            ->where('v.estado', 'confirmada')
+            // Una venta cancelada después de cerrar su corte sigue contada en ese corte
+            // (el reembolso sale como egreso en el corte donde se canceló).
+            ->where(fn($q) => $q
+                ->where('v.estado', 'confirmada')
+                ->orWhere(fn($c) => $c
+                    ->where('v.estado', 'cancelada')
+                    ->whereNotNull('c.fecha_cierre')
+                    ->whereColumn('v.cancelado_en', '>', 'c.fecha_cierre')))
             ->whereNotNull('v.corte_id')
             ->whereIn('vp.forma_pago', ['efectivo', 'tarjeta', 'transferencia'])
             ->where('v.created_at', '>=', $desdeTs)
@@ -500,7 +522,7 @@ public function cerrar(Request $request, int $id): JsonResponse
                 DB::raw("'ingreso' as tipo"),
                 'vp.forma_pago',
                 DB::raw('CAST(vp.monto AS DECIMAL(14,2)) as monto'),
-                DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id)) as concepto"),
+                DB::raw("CONCAT('Venta ', COALESCE(v.folio, v.id), IF(v.estado = 'cancelada', ' (cancelada después del corte)', '')) as concepto"),
                 'c.terminal',
                 'v.folio',
             ]);

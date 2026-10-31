@@ -172,8 +172,8 @@ const routes = [
       { path: "consulta-caja",    name: "consulta-caja",    component: ConsultaCaja,    meta: { title: "Consulta de caja",   permiso: "caja.historial" } },
 
       { path: "reportes-caja",           name: "reportes-caja",           component: ReporteCaja,       meta: { title: "Reporte de caja",     permiso: "reportes.ver" } },
-      { path: "reportes-ventas",         name: "reportes-ventas",         component: ReporteVentas,     meta: { title: "Consulta de ventas",  permiso: "ventas.ver" } },
-      { path: "reportes-ventas-agrupado",name: "reportes-ventas-agrupado",component: VentasAgrupado,    meta: { title: "Ventas agrupadas",    permiso: "ventas.ver" } },
+      { path: "reportes-ventas",         name: "reportes-ventas",         component: ReporteVentas,     meta: { title: "Consulta de ventas",  permiso: "reportes.ver" } },
+      { path: "reportes-ventas-agrupado",name: "reportes-ventas-agrupado",component: VentasAgrupado,    meta: { title: "Ventas agrupadas",    permiso: "reportes.ver" } },
       { path: "reportes-venta-general", name: "reportes-venta-general", component: VentaGeneral, meta: { title: "Venta general", permiso: "reportes.venta_general" } },
       { path: "reportes-utilidades",     name: "reportes-utilidades",     component: ReporteUtilidades, meta: { title: "Reporte de utilidades",permiso: "reportes.utilidades" } },
       { path: "consulta-series", name: "consulta-series", component: () => import("@/pages/reportes/series/ConsultaSeries.vue"), meta: { title: "Consulta de series", permiso: "reportes.ver" } },

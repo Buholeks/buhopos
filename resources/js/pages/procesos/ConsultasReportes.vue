@@ -37,7 +37,7 @@ const consultasOperativas = [
         icon: CreditCard,
         to: { name: "reportes-ventas" },
         badge: "Disponible",
-        permiso: "ventas.ver",
+        permiso: "reportes.ver",
     },
     {
         label: "Consulta de compras",
@@ -127,7 +127,7 @@ const reportes = [
         icon: BarChart3,
         to: { name: "reportes-ventas-agrupado" },
         badge: "Disponible",
-        permiso: "ventas.ver",
+        permiso: "reportes.ver",
     },
     {
         label: "Reporte de utilidades",

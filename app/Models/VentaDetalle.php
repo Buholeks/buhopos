@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -36,6 +37,15 @@ class VentaDetalle extends Model
         'descuento'    => 'decimal:2',
         'subtotal'     => 'decimal:2',
     ];
+
+    /**
+     * Líneas cobradas con un precio capturado a mano en el POS (no tomado de una lista).
+     * El POS exige motivo en ese caso; series y pedidos traen su propio precio sin motivo.
+     */
+    public function scopePrecioManual(Builder $query): Builder
+    {
+        return $query->whereNotNull('motivo_precio')->where('motivo_precio', '!=', '');
+    }
 
     public function venta(): BelongsTo
     {

@@ -14,6 +14,7 @@ use App\Models\CorteDesgloseEfectivo;
 use App\Models\MovimientoCaja;
 use App\Models\User;
 use App\Models\Venta;
+use App\Support\AjustesPrecioResumen;
 use App\Support\FiltroCuentaPago;
 use App\Support\TerminalResolver;
 use Carbon\Carbon;
@@ -310,6 +311,10 @@ public function cerrar(Request $request, int $id): JsonResponse
             $corte->recalcularMovimientos();
         }
 
+        $corte->setAttribute('ajustes_precio', AjustesPrecioResumen::resumen(
+            Venta::where('corte_id', $corte->id)->where('estado', 'confirmada')
+        ));
+
         return response()->json($corte);
     }
 
@@ -328,6 +333,7 @@ public function cerrar(Request $request, int $id): JsonResponse
                 'detalles.producto:id,nombre',
                 'detalles.variante:id,sku',
                 'user:id,name',
+                'pagos',
             ])
             ->orderByDesc('created_at')
             ->paginate($request->por_pagina ?? 30);
@@ -601,6 +607,7 @@ public function cerrar(Request $request, int $id): JsonResponse
             'corte'             => $corte,
             'movimientos'       => $corte->movimientos,
             'ventas'            => $ventas,
+            'ajustesPrecio'     => AjustesPrecioResumen::resumen(Venta::where('corte_id', $corte->id)->where('estado', 'confirmada')),
             'fmt'               => $fmt,
             'empresaNombre'     => $empresa?->nombre ?? config('app.name'),
             'empresaLogoB64'    => $logoB64,

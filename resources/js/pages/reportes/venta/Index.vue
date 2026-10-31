@@ -237,6 +237,22 @@
                     <div class="flex items-end">
                         <button
                             type="button"
+                            @click="togglePrecioManual"
+                            class="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border px-4 text-sm font-medium transition"
+                            :class="
+                                f.precio_manual
+                                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            "
+                        >
+                            <Tag class="h-4 w-4" />
+                            {{ f.precio_manual ? "Solo con precio manual" : "Todas (precio manual)" }}
+                        </button>
+                    </div>
+
+                    <div class="flex items-end">
+                        <button
+                            type="button"
                             @click="limpiarFiltros"
                             class="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                         >
@@ -324,6 +340,8 @@
                                 {{ fmt(totales.descuentos) }}
                             </p>
                         </div>
+
+                        <AjustesPrecioTarjeta :resumen="totales.ajustes_precio" />
 
                         <div
                             v-for="fp in formasPago"
@@ -636,6 +654,13 @@
                                             class="whitespace-nowrap px-4 py-3 font-semibold text-emerald-700"
                                         >
                                             {{ v.folio }}
+                                            <span
+                                                v-if="v.precios_manuales_count > 0"
+                                                class="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200"
+                                                :title="`${v.precios_manuales_count} línea(s) con precio manual`"
+                                            >
+                                                Precio manual
+                                            </span>
                                         </td>
                                         <td
                                             class="whitespace-nowrap px-4 py-3 text-slate-500"
@@ -839,6 +864,7 @@
                                                                             class="font-medium text-slate-900"
                                                                         >
                                                                             {{
+                                                                                d.producto_nombre ??
                                                                                 d
                                                                                     .producto
                                                                                     ?.nombre ??
@@ -862,16 +888,6 @@
                                                                                 ]
                                                                                     .filter(Boolean)
                                                                                     .join(" · ")
-                                                                            }}
-                                                                        </div>
-                                                                        <div
-                                                                            v-if="
-                                                                                d.motivo_precio
-                                                                            "
-                                                                            class="mt-0.5 text-xs italic text-slate-500"
-                                                                        >
-                                                                            {{
-                                                                                d.motivo_precio
                                                                             }}
                                                                         </div>
                                                                     </td>
@@ -924,13 +940,9 @@
                                                                         }}
                                                                     </td>
                                                                     <td
-                                                                        class="px-4 py-3 text-right font-mono text-slate-700"
+                                                                        class="px-4 py-3 text-right"
                                                                     >
-                                                                        {{
-                                                                            fmt(
-                                                                                d.precio_venta,
-                                                                            )
-                                                                        }}
+                                                                        <PrecioLinea :detalle="d" />
                                                                     </td>
                                                                     <td
                                                                         class="px-4 py-3 text-right font-mono font-semibold text-emerald-700"
@@ -951,7 +963,7 @@
                                                                     class="font-semibold text-slate-900"
                                                                 >
                                                                     <td
-                                                                        colspan="4"
+                                                                        colspan="5"
                                                                         class="px-4 py-3"
                                                                     >
                                                                         Totales
@@ -1030,6 +1042,8 @@ import { ref, reactive, computed, onMounted } from "vue";
 import axios from "axios";
 import { useCuentasPago } from "@/helpers/cuentasPago";
 import BaseInput from "@/components/ui/BaseInput.vue";
+import PrecioLinea from "@/components/ventas/PrecioLinea.vue";
+import AjustesPrecioTarjeta from "@/components/ventas/AjustesPrecioTarjeta.vue";
 import {
     CalendarDays,
     ChevronDown,
@@ -1046,6 +1060,7 @@ import {
     Rows3,
     Search,
     ShieldCheck,
+    Tag,
     Users,
     Wallet,
 } from "lucide-vue-next";
@@ -1094,6 +1109,7 @@ const f = reactive({
     estado: "",
     folio: "",
     producto: "",
+    precio_manual: false,
     por_dia: false,
     pagina: 1,
 });
@@ -1215,6 +1231,11 @@ function cambiarPag(p) {
     cargarVentas();
 }
 
+function togglePrecioManual() {
+    f.precio_manual = !f.precio_manual;
+    buscar();
+}
+
 function togglePorDia() {
     f.por_dia = !f.por_dia;
     buscar();
@@ -1230,6 +1251,7 @@ function limpiarFiltros() {
     f.estado = "";
     f.folio = "";
     f.producto = "";
+    f.precio_manual = false;
     f.por_dia = false;
     f.pagina = 1;
     expandido.value = null;
@@ -1249,6 +1271,7 @@ function params() {
         estado: f.estado || undefined,
         folio: f.folio || undefined,
         producto: f.producto || undefined,
+        precio_manual: f.precio_manual ? 1 : undefined,
         por_dia: f.por_dia ? 1 : 0,
         page: f.pagina,
         por_pagina: 30,

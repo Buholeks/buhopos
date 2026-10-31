@@ -93,6 +93,8 @@
                 />
             </div>
 
+            <AjustesPrecioTarjeta :resumen="corte.ajustes_precio" />
+
             <!-- DIFERENCIAS (solo si cerrado) -->
             <div
                 v-if="corte.estado === 'cerrado'"
@@ -255,6 +257,12 @@
                                 >
                                     Saldo: {{ fmt(v.saldo_aplicado) }}
                                 </span>
+                                <span
+                                    v-if="v.detalles?.some(esPrecioManual)"
+                                    class="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+                                >
+                                    Precio manual
+                                </span>
                                 <span class="text-xs text-slate-400">{{
                                     v.user?.name
                                 }}</span>
@@ -293,9 +301,6 @@
                                         <th class="pb-2 text-right">
                                             Subtotal
                                         </th>
-                                        <th class="pb-2 text-left">
-                                            Motivo precio
-                                        </th>
                                     </tr>
                                 </thead>
 
@@ -304,30 +309,23 @@
                                         <td
                                             class="py-1.5 font-medium text-slate-800"
                                         >
-                                            {{ d.producto?.nombre ?? "—" }}
+                                            {{ d.producto_nombre ?? d.producto?.nombre ?? "—" }}
                                         </td>
                                         <td class="py-1.5 text-slate-500">
-                                            {{ d.variante?.sku ?? "—" }}
+                                            {{ d.variante_nombre ?? d.variante?.sku ?? "—" }}
                                         </td>
                                         <td
                                             class="py-1.5 text-right text-slate-700"
                                         >
                                             {{ d.cantidad }}
                                         </td>
-                                        <td
-                                            class="py-1.5 text-right text-slate-700"
-                                        >
-                                            {{ fmt(d.precio_venta) }}
+                                        <td class="py-1.5 text-right">
+                                            <PrecioLinea :detalle="d" />
                                         </td>
                                         <td
                                             class="py-1.5 text-right font-medium text-slate-900"
                                         >
                                             {{ fmt(d.subtotal) }}
-                                        </td>
-                                        <td
-                                            class="py-1.5 text-xs italic text-slate-400"
-                                        >
-                                            {{ d.motivo_precio ?? "—" }}
                                         </td>
                                     </tr>
                                 </tbody>
@@ -424,6 +422,9 @@ import { ref, onMounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import axios from "axios";
 import TarjetaResumen from "@/components/caja/TarjetaResumen.vue";
+import PrecioLinea from "@/components/ventas/PrecioLinea.vue";
+import AjustesPrecioTarjeta from "@/components/ventas/AjustesPrecioTarjeta.vue";
+import { esPrecioManual } from "@/helpers/precioLinea";
 import {
     ArrowLeft,
     Loader2,

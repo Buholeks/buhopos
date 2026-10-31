@@ -223,7 +223,10 @@
             <td>{{ \Carbon\Carbon::parse($v->fecha)->setTimezone('America/Mexico_City')->format('H:i') }}</td>
             <td>{{ $v->user?->name ?? '—' }}</td>
             <td>{{ $v->pagos->pluck('forma_pago')->unique()->count() > 1 ? 'Mixto' : ucfirst(str_replace('_', ' ', $v->pagos->first()->forma_pago ?? '—')) }}</td>
-            <td>{{ $v->detalles->map(fn($d) => ($d->producto?->nombre ?? '—') . ' x' . $d->cantidad)->join(', ') }}</td>
+            <td>{{ $v->detalles->map(fn($d) => ($d->producto_nombre ?? $d->producto?->nombre ?? '—') . ' x' . (float) $d->cantidad
+                . (filled($d->motivo_precio)
+                    ? ' [Precio manual ' . $fmt($d->precio_lista_original ?? $d->precio_venta) . ' → ' . $fmt($d->precio_aplicado ?? $d->precio_venta) . ': ' . $d->motivo_precio . ']'
+                    : ''))->join(', ') }}</td>
             <td class="text-right">{{ $v->descuento > 0 ? $fmt($v->descuento) : '—' }}</td>
             <td class="text-right">{{ $fmt($v->total) }}</td>
         </tr>
@@ -236,6 +239,16 @@
         </tr>
     </tfoot>
 </table>
+@if (($ajustesPrecio['lineas'] ?? 0) > 0)
+<p class="sin-datos">
+    Ajustes de precio: {{ $ajustesPrecio['lineas'] }} {{ $ajustesPrecio['lineas'] === 1 ? 'línea' : 'líneas' }}
+    en {{ $ajustesPrecio['ventas'] }} {{ $ajustesPrecio['ventas'] === 1 ? 'venta' : 'ventas' }}
+    · Debajo de lista: −{{ $fmt($ajustesPrecio['monto_abajo']) }}
+    @if ($ajustesPrecio['monto_arriba'] > 0)
+    · Arriba de lista: +{{ $fmt($ajustesPrecio['monto_arriba']) }}
+    @endif
+</p>
+@endif
 @endif
 
 @endsection

@@ -51,6 +51,9 @@ class VentasExportacion extends ExportacionBase
         if (!empty($this->filtros['producto'])) {
             $r['Producto'] = $this->filtros['producto'];
         }
+        if (filter_var($this->filtros['precio_manual'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $r['Precio manual'] = 'Solo ventas con precio manual';
+        }
         return $r;
     }
 
@@ -59,7 +62,7 @@ class VentasExportacion extends ExportacionBase
         if ($this->porDia) {
             return ['Fecha', 'Ventas', 'Canceladas', 'Efectivo', 'Tarjeta', 'Transferencia', 'Descuentos', 'Total', 'Ticket prom.'];
         }
-        return ['Folio', 'Fecha', 'Hora', 'Cajero', 'Forma pago', 'Estado', 'Subtotal', 'Descuento', 'Total', 'IMEI / Serie'];
+        return ['Folio', 'Fecha', 'Hora', 'Cajero', 'Forma pago', 'Estado', 'Subtotal', 'Descuento', 'Total', 'Precio manual', 'IMEI / Serie'];
     }
 
     private ?array $totalesCache = null;
@@ -135,6 +138,7 @@ class VentasExportacion extends ExportacionBase
             number_format($confirmadas->sum('descuento'), 2),
             number_format($confirmadas->sum('total'), 2),
             '',
+            '',
         ];
 
         return $ventas->map(fn($v) => [
@@ -147,8 +151,29 @@ class VentasExportacion extends ExportacionBase
             number_format((float) $v->subtotal, 2),
             number_format((float) $v->descuento, 2),
             number_format((float) $v->total, 2),
+            $this->etiquetaPrecioManual($v->detalles),
             $this->etiquetaSeries($v->detalles),
         ]);
+    }
+
+    /** Ej. "2 líneas (−150.00)"; la diferencia es contra el precio de lista guardado en la venta. */
+    private function etiquetaPrecioManual(Collection $detalles): string
+    {
+        $manuales = $detalles->filter(fn($d) => filled($d->motivo_precio));
+
+        if ($manuales->isEmpty()) {
+            return '—';
+        }
+
+        $diferencia = $manuales->sum(fn($d) =>
+            ((float) ($d->precio_aplicado ?? $d->precio_venta) - (float) ($d->precio_lista_original ?? $d->precio_venta))
+            * (float) $d->cantidad
+        );
+
+        $lineas = $manuales->count() === 1 ? '1 línea' : $manuales->count() . ' líneas';
+        $signo = $diferencia < 0 ? '−' : '+';
+
+        return "{$lineas} ({$signo}" . number_format(abs($diferencia), 2) . ')';
     }
 
     private function etiquetaSeries(Collection $detalles): string
@@ -199,6 +224,8 @@ class VentasExportacion extends ExportacionBase
                 $q->whereHas('detalles.producto', fn($pq) =>
                     $pq->where('nombre', 'like', '%' . $this->filtros['producto'] . '%')
                        ->orWhere('codigo', 'like', '%' . $this->filtros['producto'] . '%')
-                ));
+                ))
+            ->when(filter_var($this->filtros['precio_manual'] ?? false, FILTER_VALIDATE_BOOLEAN), fn($q) =>
+                $q->whereHas('detalles', fn($dq) => $dq->precioManual()));
     }
 }

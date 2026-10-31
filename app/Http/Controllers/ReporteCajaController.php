@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Exportaciones\CajaExportacion;
 use App\Exportaciones\ServicioExportacion;
 use App\Models\CorteCaja;
-use App\Models\MovimientoCaja;
 use App\Models\Venta;
+use App\Support\AjustesPrecioResumen;
 use App\Support\FiltroCuentaPago;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -165,6 +165,9 @@ class ReporteCajaController extends Controller
         }
 
         $this->agregarTotalesVenta($corte);
+        $corte->setAttribute('ajustes_precio', AjustesPrecioResumen::resumen(
+            Venta::where('corte_id', $corte->id)->where('estado', 'confirmada')
+        ));
 
         $movResumen = $corte->movimientos
             ->groupBy('forma_pago')
@@ -185,43 +188,6 @@ class ReporteCajaController extends Controller
             'corte'       => $corte,
             'mov_resumen' => $movResumen,
         ]);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // 3. MOVIMIENTOS DE UN CORTE  GET /api/reportes/caja/{id}/movimientos
-    //    Opcional si en algún momento lo quieres paginado aparte
-    // ─────────────────────────────────────────────────────────────
-    public function movimientos(Request $request, int $id): JsonResponse
-    {
-        abort_unless(Auth::user()->tienePermiso('reportes.ver'), 403, 'Sin permiso: reportes.ver');
-        $request->validate([
-            'tipo'       => ['nullable', 'in:ingreso,egreso'],
-            'forma_pago' => ['nullable', 'in:efectivo,tarjeta,transferencia'],
-            'por_pagina' => ['nullable', 'integer', 'min:1', 'max:100'],
-        ]);
-
-        $user = Auth::user();
-
-        $corte = CorteCaja::query()
-            ->where('empresa_id', $user->empresa_id)
-            ->where('sucursal_id', $user->sucursal_id)
-            ->findOrFail($id);
-
-        $movimientos = MovimientoCaja::query()
-            ->where('corte_id', $corte->id)
-            ->with(['user:id,name', 'cuentaBancaria:id,nombre,banco', 'terminalPago:id,nombre,banco'])
-            ->when(
-                $request->filled('tipo'),
-                fn ($q) => $q->where('tipo', $request->tipo)
-            )
-            ->when(
-                $request->filled('forma_pago'),
-                fn ($q) => $q->where('forma_pago', $request->forma_pago)
-            )
-            ->orderByDesc('created_at')
-            ->paginate((int) ($request->por_pagina ?? 50));
-
-        return response()->json($movimientos);
     }
 
     // ─────────────────────────────────────────────────────────────

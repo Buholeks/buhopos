@@ -496,6 +496,8 @@
                     </div>
                 </div>
 
+                <AjustesPrecioTarjeta :resumen="corteDetalle.corte.ajustes_precio" />
+
                 <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
                     <!-- VENTAS POR FORMA -->
                     <div
@@ -1040,9 +1042,11 @@
                                                     <span
                                                         v-for="d in v.detalles"
                                                         :key="d.id"
-                                                        class="inline-flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700"
+                                                        class="inline-flex flex-wrap items-center gap-1 rounded-lg border px-2.5 py-1 text-xs text-slate-700"
+                                                        :class="esPrecioManual(d) ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'"
                                                     >
                                                         {{
+                                                            d.producto_nombre ??
                                                             d.producto
                                                                 ?.nombre ??
                                                             "Producto"
@@ -1066,6 +1070,11 @@
                                                                 fmt(d.subtotal)
                                                             }}
                                                         </span>
+                                                        <PrecioLinea
+                                                            v-if="esPrecioManual(d)"
+                                                            :detalle="d"
+                                                            compacto
+                                                        />
                                                     </span>
                                                 </div>
                                             </td>
@@ -1155,6 +1164,9 @@ import { ref, reactive, computed, onMounted } from "vue";
 import axios from "axios";
 import { useCuentasPago } from "@/helpers/cuentasPago";
 import BaseInput from "@/components/ui/BaseInput.vue";
+import PrecioLinea from "@/components/ventas/PrecioLinea.vue";
+import AjustesPrecioTarjeta from "@/components/ventas/AjustesPrecioTarjeta.vue";
+import { esPrecioManual } from "@/helpers/precioLinea";
 import {
     ArrowLeft,
     ChevronLeft,

@@ -6,6 +6,7 @@ use App\Exportaciones\ServicioExportacion;
 use App\Exportaciones\VentasExportacion;
 use App\Models\Venta;
 use App\Models\User;
+use App\Support\AjustesPrecioResumen;
 use App\Support\FiltroCuentaPago;
 use App\Support\VentaPagosResumen;
 use Illuminate\Http\JsonResponse;
@@ -29,6 +30,7 @@ class ReporteVentasController extends Controller
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'folio'       => ['nullable', 'string', 'max:60'],
             'producto'    => ['nullable', 'string', 'max:120'],
+            'precio_manual' => ['nullable', 'boolean'],
             'por_dia'     => ['nullable', 'boolean'],
             'por_pagina'  => ['nullable', 'integer', 'min:1', 'max:200'],
         ]);
@@ -52,7 +54,9 @@ class ReporteVentasController extends Controller
                     $q->whereHas('detalles.producto', fn($pq) =>
                         $pq->where('nombre', 'like', '%' . $request->producto . '%')
                            ->orWhere('codigo', 'like', '%' . $request->producto . '%')
-                    ));
+                    ))
+                ->when($request->boolean('precio_manual'), fn($q) =>
+                    $q->whereHas('detalles', fn($dq) => $dq->precioManual()));
         };
 
         // ── Totales: query limpio SIN with() ni orderBy ───────────
@@ -75,6 +79,7 @@ class ReporteVentasController extends Controller
             Venta::where('empresa_id', $user->empresa_id)
                  ->where('sucursal_id', $user->sucursal_id)
                  ->with(['user:id,name', 'pagos.cuentaBancaria:id,nombre,banco', 'pagos.terminalPago:id,nombre,banco'])
+                 ->withCount(['detalles as precios_manuales_count' => fn($q) => $q->precioManual()])
         )->orderByDesc('fecha')->orderByDesc('id');
 
         // ── Modo agrupado por día ─────────────────────────────────
@@ -180,6 +185,7 @@ class ReporteVentasController extends Controller
             'estado'      => ['nullable', 'in:confirmada,cancelada'],
             'folio'       => ['nullable', 'string', 'max:60'],
             'producto'    => ['nullable', 'string', 'max:120'],
+            'precio_manual' => ['nullable', 'boolean'],
             'por_dia'     => ['nullable', 'boolean'],
             'formato'     => ['required', 'in:excel,pdf'],
         ]);
@@ -231,6 +237,7 @@ class ReporteVentasController extends Controller
             'ticket_prom'   => $confirmadas > 0
                 ? round($row->total / $confirmadas, 2)
                 : 0,
+            'ajustes_precio' => AjustesPrecioResumen::resumen((clone $query)->where('estado', 'confirmada')),
         ];
     }
 

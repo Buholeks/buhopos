@@ -26,10 +26,14 @@
         </p>
 
         <div class="mt-3 border-t border-slate-100 pt-3">
-            <p class="text-xs text-slate-400">¿Primera vez en esta PC? Ejecuta el instalador una sola vez:</p>
-            <a href="/api/etiquetas/qztray/instalador" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-xs font-bold text-slate-600 hover:bg-slate-50">
-                ⬇ Descargar instalador de certificado (.bat)
+            <p class="text-xs text-slate-400">¿Primera vez en este equipo? Ejecuta el instalador de tu sistema una sola vez:</p>
+            <a href="/api/etiquetas/qztray/instalador?plataforma=windows" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-xs font-bold text-slate-600 hover:bg-slate-50">
+                ⬇ Windows (.bat)
             </a>
+            <a href="/api/etiquetas/qztray/instalador?plataforma=macos" class="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-center text-xs font-bold text-slate-600 hover:bg-slate-50">
+                ⬇ macOS (.command)
+            </a>
+            <p class="mt-2 text-xs text-slate-500">En Mac: abre Terminal, escribe <code>bash </code>, arrastra el archivo descargado a la ventana y presiona Enter. El instalador te indicará cuándo cerrar QZ Tray y puede pedir tu contraseña de administrador.</p>
         </div>
     </div>
 </template>

@@ -25,12 +25,21 @@ class EtiquetaController extends Controller
 
     public function qzInstalador(Request $request): \Illuminate\Http\Response
     {
+        $request->validate(['plataforma' => ['nullable', Rule::in(['windows', 'macos'])]]);
         $certUrl = url('/api/etiquetas/qztray/cert');
         $certPath = storage_path('qztray/digital-certificate.txt');
         abort_unless(file_exists($certPath), 404, 'Certificado QZ Tray no encontrado.');
 
         $certData = openssl_x509_parse(file_get_contents($certPath));
         abort_unless($certData, 500, 'No se pudo leer el certificado QZ Tray.');
+
+        if ($request->query('plataforma') === 'macos') {
+            $script = str_replace('{{CERTIFICATE}}', trim(file_get_contents($certPath)), file_get_contents(resource_path('scripts/instalar-qztray-macos.command')));
+
+            return response(str_replace("\r\n", "\n", $script))
+                ->header('Content-Type', 'application/octet-stream')
+                ->header('Content-Disposition', 'attachment; filename="instalar-qztray-buhopos.command"');
+        }
 
         $allowedThumbprint = strtolower(openssl_x509_fingerprint(file_get_contents($certPath), 'sha1'));
         $allowedLine = implode("\t", [

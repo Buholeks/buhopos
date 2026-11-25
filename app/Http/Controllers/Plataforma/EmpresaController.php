@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Empresa;
 use App\Models\Sucursal;
 use App\Models\User;
+use App\Services\EstadoEmpresaService;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,18 +18,38 @@ class EmpresaController extends Controller
     public function index(Request $request): JsonResponse
     {
         $q = trim((string) $request->query('q'));
-        $empresas = Empresa::query()
+        $consulta = Empresa::query()
             ->with(['suscripcion.plan:id,nombre'])
             ->withCount(['sucursales', 'usuarios'])
             ->when($q, fn ($query) => $query->where(fn ($sub) => $sub
                 ->where('nombre', 'like', "%{$q}%")->orWhere('correo', 'like', "%{$q}%")
                 ->orWhere('rfc', 'like', "%{$q}%")))
-            ->orderByDesc('id')->paginate(20);
-        return response()->json($empresas);
+            ->orderByDesc('id');
+        // Evaluar con las mismas reglas de acceso, incluidas gracia y promociones.
+        $estados = (clone $consulta)->get()->mapWithKeys(fn ($empresa) => [
+            $empresa->id => app(EstadoEmpresaService::class)->obtener($empresa) + ['habilitada' => (bool) $empresa->activo],
+        ]);
+        $coincide = fn ($estado, $filtro) => match ($filtro) {
+            'todas', '' => true,
+            'por_vencer' => $estado['por_vencer'],
+            'gracia' => $estado['en_gracia'],
+            'bloqueadas' => ! $estado['acceso_permitido'],
+            'suspendidas' => ! $estado['habilitada'] || $estado['suscripcion'] === 'suspendida',
+            default => $estado['suscripcion'] === $filtro,
+        };
+        $contadores = collect(['todas', 'activa', 'prueba', 'por_vencer', 'vencida', 'gracia', 'sin_suscripcion', 'pendiente', 'suspendidas', 'cancelada', 'bloqueadas'])
+            ->mapWithKeys(fn ($filtro) => [$filtro => $estados->filter(fn ($estado) => $coincide($estado, $filtro))->count()]);
+        $ids = $estados->filter(fn ($estado) => $coincide($estado, (string) $request->query('estado', 'todas')))->keys();
+        $pagina = max(1, min((int) $request->query('page', 1), max(1, (int) ceil($ids->count() / 20))));
+        $items = $consulta->whereIn('id', $ids->forPage($pagina, 20)->all())->get();
+        $items->each(fn ($empresa) => $empresa->setAttribute('estado_resumen', $estados[$empresa->id]));
+        $empresas = new LengthAwarePaginator($items, $ids->count(), 20, $pagina);
+        return response()->json($empresas->toArray() + ['contadores' => $contadores]);
     }
 
     public function show(Empresa $empresa): JsonResponse
     {
+        $empresa->setAttribute('estado_resumen', app(EstadoEmpresaService::class)->obtener($empresa));
         $empresa->setAttribute('suscripcion_gestionada_por_stripe', $empresa->suscripcion?->gestionadaPorStripe() ?? false);
         return response()->json($empresa->load([
             'sucursales' => fn ($q) => $q->orderBy('nombre'),

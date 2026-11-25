@@ -1,4 +1,3 @@
-```vue
 <template>
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <!-- Encabezado -->
@@ -40,6 +39,14 @@
             </div>
         </div>
 
+        <div class="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-3">
+            <button v-for="filtro in filtros" :key="filtro.valor" type="button"
+                class="rounded-full border px-3 py-1 text-xs"
+                :class="estado === filtro.valor ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 text-slate-600'"
+                :aria-pressed="estado === filtro.valor" @click="filtrar(filtro.valor)">
+                {{ filtro.nombre }} ({{ contadores[filtro.valor] || 0 }})
+            </button>
+        </div>
         <!-- Error -->
         <div
             v-if="error"
@@ -158,6 +165,7 @@
                                         {{ empresa.correo || "Sin correo registrado" }}
                                     </p>
 
+                                    <p class="mt-1 text-xs" :class="empresa.activo ? 'text-slate-500' : 'text-rose-700'">{{ empresa.activo ? 'Empresa habilitada' : 'Empresa suspendida' }}</p>
                                     <p
                                         v-if="empresa.rfc"
                                         class="mt-0.5 text-[10px] text-slate-400"
@@ -181,7 +189,7 @@
                                 v-if="empresa.suscripcion?.fecha_vencimiento"
                                 class="mt-0.5 text-xs text-slate-400"
                             >
-                                Vence
+                                {{ empresa.estado_resumen?.vigencia }} ·
                                 {{
                                     formatearFecha(
                                         empresa.suscripcion.fecha_vencimiento,
@@ -193,7 +201,7 @@
                         <!-- Suscripción -->
                         <td class="px-4 py-3">
                             <EstadoBadge
-                                :estado="empresa.suscripcion?.estado"
+                                :estado="empresa.estado_resumen?.suscripcion"
                             />
                         </td>
 
@@ -220,7 +228,7 @@
                             <span
                                 class="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-medium"
                                 :class="
-                                    empresa.activo
+                                    empresa.estado_resumen?.acceso_permitido
                                         ? 'bg-emerald-50 text-emerald-700'
                                         : 'bg-rose-50 text-rose-700'
                                 "
@@ -228,14 +236,15 @@
                                 <span
                                     class="h-1.5 w-1.5 rounded-full"
                                     :class="
-                                        empresa.activo
+                                        empresa.estado_resumen?.acceso_permitido
                                             ? 'bg-emerald-500'
                                             : 'bg-rose-500'
                                     "
                                 />
 
-                                {{ empresa.activo ? "Activo" : "Suspendido" }}
+                                {{ empresa.estado_resumen?.acceso_permitido ? "Permitido" : "Bloqueado" }}
                             </span>
+                            <p class="mt-1 max-w-56 text-xs text-slate-500">{{ empresa.estado_resumen?.motivo }}</p>
                         </td>
 
                         <!-- Acción -->
@@ -297,10 +306,13 @@
             class="flex items-center justify-between border-t border-slate-200 bg-slate-50/60 px-4 py-2.5"
         >
             <p class="text-xs text-slate-500">
-                {{ empresas.length }}
-                {{ empresas.length === 1 ? "empresa encontrada" : "empresas encontradas" }}
+                {{ total }} empresas · Página {{ pagina }} de {{ ultimaPagina }}
             </p>
 
+            <div class="flex items-center gap-2">
+                <button type="button" class="text-xs disabled:opacity-40" :disabled="cargando || pagina <= 1" @click="irPagina(pagina - 1)">Anterior</button>
+                <button type="button" class="text-xs disabled:opacity-40" :disabled="cargando || pagina >= ultimaPagina" @click="irPagina(pagina + 1)">Siguiente</button>
+            </div>
             <button
                 type="button"
                 class="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-slate-600 transition hover:bg-slate-100"
@@ -329,6 +341,19 @@ import EstadoBadge from "../components/EstadoBadge.vue";
 
 const empresas = ref([]);
 const q = ref("");
+const estado = ref("todas");
+const contadores = ref({});
+const pagina = ref(1);
+const ultimaPagina = ref(1);
+const total = ref(0);
+const filtros = [
+    ["todas", "Todas"], ["activa", "Vigentes"], ["prueba", "En prueba"],
+    ["por_vencer", "Vencen en 7 días"], ["vencida", "Vencidas"], ["gracia", "En gracia"],
+    ["sin_suscripcion", "Sin suscripción"], ["pendiente", "Pendientes"],
+    ["suspendidas", "Suspendidas"], ["cancelada", "Canceladas"], ["bloqueadas", "Acceso bloqueado"],
+].map(([valor, nombre]) => ({ valor, nombre }));
+function filtrar(valor) { estado.value = valor; pagina.value = 1; cargar(); }
+function irPagina(valor) { pagina.value = valor; cargar(); }
 const cargando = ref(false);
 const error = ref("");
 
@@ -341,6 +366,7 @@ async function cargar() {
     }
 
     controller = new AbortController();
+    const solicitud = controller;
     cargando.value = true;
     error.value = "";
 
@@ -348,11 +374,18 @@ async function cargar() {
         const { data } = await http.get("/api/plataforma/empresas", {
             params: {
                 q: q.value || undefined,
+                estado: estado.value,
+                page: pagina.value,
             },
             signal: controller.signal,
         });
 
+        if (controller !== solicitud) return;
         empresas.value = data.data || [];
+        contadores.value = data.contadores || {};
+        pagina.value = data.current_page;
+        ultimaPagina.value = data.last_page;
+        total.value = data.total;
     } catch (e) {
         if (
             e?.name === "CanceledError" ||
@@ -365,12 +398,12 @@ async function cargar() {
             e?.response?.data?.message ||
             "No se pudieron cargar las empresas.";
     } finally {
-        cargando.value = false;
-        controller = null;
+        if (controller === solicitud) { cargando.value = false; controller = null; }
     }
 }
 
 function buscar() {
+    pagina.value = 1;
     clearTimeout(timer);
 
     timer = setTimeout(() => {
@@ -379,6 +412,7 @@ function buscar() {
 }
 
 function limpiarBusqueda() {
+    pagina.value = 1;
     q.value = "";
     clearTimeout(timer);
     cargar();
@@ -389,7 +423,7 @@ function formatearFecha(fecha) {
         return "";
     }
 
-    const valor = new Date(`${fecha}T00:00:00`);
+    const valor = new Date(`${fecha.slice(0, 10)}T00:00:00`);
 
     if (Number.isNaN(valor.getTime())) {
         return fecha;
@@ -412,4 +446,3 @@ onBeforeUnmount(() => {
     }
 });
 </script>
-```

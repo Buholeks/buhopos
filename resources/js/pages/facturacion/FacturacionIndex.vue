@@ -1418,8 +1418,11 @@ const accionPrincipal = computed(() => {
     return "Administrar método de pago";
 });
 
-const estadoSuscripcion = computed(
-    () => datos.value?.suscripcion?.estado || "sin suscripción",
+// Una empresa suspendida desde la plataforma queda bloqueada aunque su suscripción siga vigente.
+const estadoSuscripcion = computed(() =>
+    datos.value?.empresa && !datos.value.empresa.activo
+        ? "suspendida"
+        : datos.value?.suscripcion?.estado || "sin suscripción",
 );
 
 const textoEstado = computed(() => {

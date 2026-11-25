@@ -529,12 +529,20 @@ class StripeBillingService
             $periodicidad = $planDelPrecio->stripe_price_anual_id === $priceId ? 'anual' : 'mensual';
         }
         $planVigente = Plan::find($planId);
+        $vencimiento = $fin ? Carbon::createFromTimestamp($fin)->toDateString() : $suscripcion->fecha_vencimiento;
+        if ($estado === 'vencida') {
+            // Stripe adelanta current_period_end al renovar aunque el cobro falle. Si se guardara,
+            // past_due/unpaid daría acceso todo el período impago. La gracia corre desde el
+            // último período pagado, así que mientras siga vencida la fecha nunca avanza.
+            $vencimiento = $suscripcion->fecha_vencimiento
+                ?? ($inicio ? Carbon::createFromTimestamp($inicio)->toDateString() : $vencimiento);
+        }
         $suscripcion->update([
             'stripe_subscription_id' => $objeto->id, 'stripe_status' => $objeto->status,
             'estado' => $estado, 'cancelar_al_final' => (bool) ($objeto->cancel_at_period_end ?? false),
             'modalidad_cobro' => ($objeto->cancel_at_period_end ?? false) ? $suscripcion->modalidad_cobro : 'stripe',
             'fecha_inicio' => $inicio ? Carbon::createFromTimestamp($inicio)->toDateString() : $suscripcion->fecha_inicio,
-            'fecha_vencimiento' => $fin ? Carbon::createFromTimestamp($fin)->toDateString() : $suscripcion->fecha_vencimiento,
+            'fecha_vencimiento' => $vencimiento,
             'cancelada_en' => $estado === 'cancelada' ? now() : null,
             'plan_id' => $planId,
             'periodicidad' => $periodicidad,
@@ -613,9 +621,22 @@ class StripeBillingService
     public function registrarFallo(object $factura): void
     {
         $subscriptionId = $this->subscriptionIdDeFactura($factura);
-        if ($subscriptionId) {
-            Suscripcion::where('stripe_subscription_id', $subscriptionId)->update(['estado' => 'vencida', 'stripe_status' => 'past_due']);
+        // Un alta o un cambio de plan rechazados (pending_if_incomplete) no dejan la suscripción
+        // en past_due: el período vigente ya está pagado y no se debe recortar.
+        if (! $subscriptionId || in_array($factura->billing_reason ?? null, ['subscription_create', 'subscription_update'], true)) {
+            return;
         }
+        // La factura de renovación se emite al terminar el período pagado; webhooks previos
+        // (customer.subscription.updated con el período nuevo) pudieron adelantar la fecha.
+        $emitida = isset($factura->created) ? Carbon::createFromTimestamp($factura->created)->startOfDay() : Carbon::today();
+        Suscripcion::where('stripe_subscription_id', $subscriptionId)
+            ->whereIn('estado', ['activa', 'prueba', 'vencida'])->get()
+            ->each(function (Suscripcion $suscripcion) use ($emitida) {
+                $vencimiento = $suscripcion->fecha_vencimiento && $suscripcion->fecha_vencimiento->lt($emitida)
+                    ? $suscripcion->fecha_vencimiento
+                    : $emitida;
+                $suscripcion->update(['estado' => 'vencida', 'stripe_status' => 'past_due', 'fecha_vencimiento' => $vencimiento]);
+            });
     }
 
     private function subscriptionIdDeFactura(object $factura): ?string

@@ -42,7 +42,7 @@ class FacturacionController extends Controller
         ])->first();
 
         return response()->json([
-            'empresa' => $empresa->only(['id', 'nombre', 'correo', 'stripe_customer_id']),
+            'empresa' => $empresa->only(['id', 'nombre', 'correo', 'stripe_customer_id']) + ['activo' => (bool) $empresa->activo],
             'suscripcion' => $suscripcion,
             'planes' => Plan::where('activo', true)->where('es_prueba', false)->orderBy('precio_mensual')->get(),
             'uso' => $limites->uso($empresa),
@@ -285,7 +285,7 @@ class FacturacionController extends Controller
     public function guardarSucursal(Request $request, LimitesSuscripcionService $limites): JsonResponse
     {
         abort_unless($request->user()->es_super_admin, 403, 'Solo el superadministrador puede gestionar sucursales.');
-        abort_unless($request->user()->empresa->suscripcion?->permiteAcceso(), 402, 'La suscripción debe estar vigente para agregar sucursales.');
+        abort_unless($request->user()->empresa->activo && $request->user()->empresa->suscripcion?->permiteAcceso(), 402, 'La suscripción debe estar vigente para agregar sucursales.');
         $data = $request->validate([
             'nombre' => ['required', 'string', 'max:255'], 'direccion' => ['nullable', 'string', 'max:500'],
             'telefono' => ['nullable', 'string', 'max:30'], 'correo' => ['nullable', 'email', 'max:255'],
@@ -300,7 +300,7 @@ class FacturacionController extends Controller
     {
         $user = $request->user();
         abort_unless($user->es_super_admin && $sucursal->empresa_id === $user->empresa_id, 403);
-        abort_unless($user->empresa->suscripcion?->permiteAcceso(), 402, 'La suscripción debe estar vigente para gestionar sucursales.');
+        abort_unless($user->empresa->activo && $user->empresa->suscripcion?->permiteAcceso(), 402, 'La suscripción debe estar vigente para gestionar sucursales.');
         $data = $request->validate(['activo' => ['required', 'boolean']]);
         $activar = (bool) $data['activo'];
         if ($activar && ! $sucursal->activo) {

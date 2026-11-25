@@ -1,4 +1,4 @@
-<template><span :class="clase" class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize">{{ estado || 'sin suscripción' }}</span></template>
+<template><span :class="clase" class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize">{{ ({ activa: 'Vigente', prueba: 'En prueba', sin_suscripcion: 'Sin suscripción' })[estado] || estado || 'Sin suscripción' }}</span></template>
 <script setup>
 import { computed } from "vue";
 const props = defineProps({ estado: String });

@@ -10,21 +10,31 @@ class VerificarAccesoEmpresa
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->is('api/login', 'api/register', 'api/logout', 'api/me', 'api/facturacion', 'api/facturacion/*', 'api/plataforma/*', 'sanctum/*')) {
+        if ($request->is('api/login', 'api/register', 'api/logout', 'api/plataforma/*', 'sanctum/*')) {
             return $next($request);
         }
 
         $user = auth('web')->user();
         if (! $user) return $next($request);
 
-        $user->loadMissing(['empresa.suscripcion', 'sucursal']);
-
+        // Un usuario desactivado no conserva ningún acceso, ni siquiera a facturación.
         if (! $user->activo) {
             return response()->json(['message' => 'Tu usuario está inactivo.'], 403);
         }
 
+        // /me y facturación siguen disponibles para que la empresa vea su estado y pague.
+        if ($request->is('api/me', 'api/facturacion', 'api/facturacion/*')) {
+            return $next($request);
+        }
+
+        $user->loadMissing(['empresa.suscripcion', 'sucursal']);
+
+        // 402 para que el cliente redirija a facturación, donde puede pagar para reactivarse.
         if (! $user->empresa?->activo) {
-            return response()->json(['message' => 'La empresa está suspendida. Contacta a soporte.'], 403);
+            return response()->json([
+                'message' => 'La empresa está suspendida. Regulariza tu pago o contacta a soporte.',
+                'codigo' => 'EMPRESA_SUSPENDIDA',
+            ], 402);
         }
 
         if (! $user->sucursal?->activo) {

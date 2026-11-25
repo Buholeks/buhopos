@@ -58,7 +58,7 @@
                             </h1>
 
                             <EstadoBadge
-                                :estado="empresa.suscripcion?.estado"
+                                :estado="empresa.estado_resumen?.suscripcion"
                             />
                         </div>
 
@@ -115,6 +115,11 @@
                     </div>
                 </div>
 
+                <div class="border-t px-4 py-3 text-sm" :class="empresa.estado_resumen?.acceso_permitido ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'">
+                    <strong>Acceso {{ empresa.estado_resumen?.acceso_permitido ? 'permitido' : 'bloqueado' }}</strong>
+                    <p>{{ empresa.estado_resumen?.motivo }}</p>
+                    <p class="mt-1 text-xs">{{ empresa.estado_resumen?.vigencia }}. El acceso de cada usuario también depende de que su usuario y sucursal estén habilitados.</p>
+                </div>
                 <!-- Resumen -->
                 <div class="grid border-t border-slate-200 sm:grid-cols-2 lg:grid-cols-5">
                     <div
@@ -1255,8 +1260,8 @@ const sucursalesActivas = computed(() => {
 
 const resumenEmpresa = computed(() => [
     {
-        label: "Estado",
-        value: empresa.value?.activo ? "Activa" : "Suspendida",
+        label: "Empresa",
+        value: empresa.value?.activo ? "Habilitada" : "Suspendida",
         icon: Power,
         iconClass: empresa.value?.activo
             ? "bg-emerald-50 text-emerald-700"

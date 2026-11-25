@@ -50,7 +50,8 @@ class AuthController extends Controller
                 'logo_url' => $empresa->logo ? Storage::disk('public')->url($empresa->logo) : null,
             ]) : null,
             'suscripcion' => $suscripcion,
-            'acceso_operativo' => ! $suscripcion || $suscripcion->permiteAcceso(),
+            // Debe coincidir con VerificarAccesoEmpresa para no mostrar pantallas que el backend rechaza.
+            'acceso_operativo' => (bool) $empresa?->activo && (! $suscripcion || $suscripcion->permiteAcceso()),
         ]);
     }
 
@@ -195,7 +196,8 @@ class AuthController extends Controller
                 'logo_url' => $empresa->logo ? Storage::disk('public')->url($empresa->logo) : null,
             ]) : null,
             'suscripcion' => $suscripcion,
-            'acceso_operativo' => ! $suscripcion || $suscripcion->permiteAcceso(),
+            // Debe coincidir con VerificarAccesoEmpresa para no mostrar pantallas que el backend rechaza.
+            'acceso_operativo' => (bool) $empresa?->activo && (! $suscripcion || $suscripcion->permiteAcceso()),
         ]);
     }
 

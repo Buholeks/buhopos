@@ -2,7 +2,7 @@
   <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div class="border-b border-slate-200 p-4">
       <h2 class="text-sm font-semibold text-slate-900">Mercancia agregada</h2>
-      <p class="mt-1 text-xs text-slate-500">{{ items.length }} partida(s) listas para enviar</p>
+      <p class="mt-1 text-xs text-slate-500">{{ grupos.length }} partida(s) listas para enviar</p>
     </div>
 
     <div class="overflow-auto">
@@ -20,9 +20,9 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-for="(item, idx) in items" :key="idx">
+          <tr v-for="item in grupos" :key="clave(item)">
             <td class="px-3 py-2">
-              <div class="flex w-32 items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <div v-if="!item.series" class="flex w-32 items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
                 <button
                   type="button"
                   class="h-9 w-9 text-slate-600 hover:bg-slate-50 disabled:opacity-40"
@@ -49,10 +49,12 @@
                   +
                 </button>
               </div>
+              <span v-if="item.series" class="font-semibold">{{ item.cantidad }}</span>
             </td>
             <td class="px-3 py-2 text-slate-700">
               {{ item.nombre }}
-              <span v-if="item.serie_identificador" class="block text-xs text-slate-500">
+              <button v-if="item.series" type="button" class="block text-xs font-semibold text-emerald-700" @click="emit('editar-series', item)">Ver / editar IMEI ({{ item.cantidad }})</button>
+              <span v-if="!item.series && item.serie_identificador" class="block text-xs text-slate-500">
                 {{ item.serie_identificador }}
               </span>
             </td>
@@ -62,12 +64,12 @@
             <td class="px-3 py-2 text-right font-semibold text-slate-900">{{ money(item.cantidad * item.precio_costo) }}</td>
             <td class="px-3 py-2 text-right font-semibold text-slate-900">{{ money(item.cantidad * item.precio_venta) }}</td>
             <td class="px-3 py-2 text-right">
-              <button type="button" class="rounded-lg p-2 text-red-600 hover:bg-red-50" @click="emit('eliminar', idx)">
+              <button type="button" class="rounded-lg p-2 text-red-600 hover:bg-red-50" @click="emit('eliminar', item)">
                 <Trash2 class="h-4 w-4" />
               </button>
             </td>
           </tr>
-          <tr v-if="!items.length">
+          <tr v-if="!grupos.length">
             <td colspan="8" class="px-3 py-8 text-center text-sm text-slate-500">Sin partidas agregadas.</td>
           </tr>
         </tbody>
@@ -93,7 +95,19 @@ const props = defineProps({
   items: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(["ajustar-cantidad", "normalizar-cantidad", "eliminar"]);
+const emit = defineEmits(["ajustar-cantidad", "normalizar-cantidad", "eliminar", "editar-series"]);
+
+function clave(item) { return `${Number(item.producto_id)}:${Number(item.variante_id) || 'null'}`; }
+const grupos = computed(() => {
+  const resultado = new Map();
+  for (const item of props.items) {
+    const key = clave(item);
+    if (!item.serie_id) { resultado.set(key, item); continue; }
+    if (!resultado.has(key)) resultado.set(key, { ...item, cantidad: 0, series: true });
+    resultado.get(key).cantidad += Number(item.cantidad);
+  }
+  return [...resultado.values()];
+});
 
 const totalPiezas = computed(() => props.items.reduce((sum, item) => sum + Number(item.cantidad || 0), 0));
 const totalCompra = computed(() => props.items.reduce((sum, item) => sum + Number(item.cantidad || 0) * Number(item.precio_costo || 0), 0));

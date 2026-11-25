@@ -44,12 +44,15 @@
         :items="carrito"
         @ajustar-cantidad="ajustarCantidadCarrito"
         @normalizar-cantidad="normalizarCantidadCarrito"
-        @eliminar="carrito.splice($event, 1)"
+        @eliminar="eliminarGrupo"
+        @editar-series="editarSeries"
       />
 
       <ModalCantidad
         :item="modalItem"
-        :series="seriesModal"
+        :excluidas="seriesExcluidas"
+        :seleccion-inicial="seleccionInicial"
+        :editando="!!grupoEditado"
         :stock-disponible="modalItem ? stockDisponible(modalItem) : 0"
         @confirmar="confirmarModalItem"
         @cerrar="cerrarModalItem"
@@ -212,7 +215,9 @@ const operando = ref(null);
 const exportandoPdf = ref(false);
 const buscadorRef = ref(null);
 const modalItem = ref(null);
-const seriesPorItem = reactive({});
+const grupoEditado = ref(null);
+const seleccionInicial = ref([]);
+const seriesExcluidas = computed(() => carrito.value.filter(row => row.serie_id && itemKey(row) !== grupoEditado.value).map(row => Number(row.serie_id)));
 
 const form = reactive({ destino_sucursal_id: "", notas: "" });
 const filtros = reactive({ buscar: "", estado: "", sucursal_id: "", desde: "", hasta: "" });
@@ -228,10 +233,6 @@ const detalleIdsSeleccionados = computed(() =>
     .filter(([, selected]) => selected)
     .map(([id]) => Number(id))
 );
-const seriesModal = computed(() => {
-  if (!modalItem.value) return [];
-  return seriesPorItem[itemKey(modalItem.value)] ?? [];
-});
 
 watch(
   () => props.modo,
@@ -259,7 +260,7 @@ onMounted(async () => {
 });
 
 function itemKey(item) {
-  return `${item.producto_id}:${item.variante_id ?? "null"}`;
+  return `${Number(item.producto_id)}:${Number(item.variante_id) || "null"}`;
 }
 
 function fmt(value) {
@@ -291,52 +292,50 @@ async function cargarPendientes() {
   pendientesPorRecibir.value = Number(data.por_recibir ?? 0);
 }
 
-async function abrirModalItem(item) {
-  modalItem.value = item;
-  if (item.tiene_series) await cargarSeries(item);
+function abrirModalItem(item) {
+  grupoEditado.value = null;
+  seleccionInicial.value = [];
+  modalItem.value = { ...item, producto_id: Number(item.producto_id), variante_id: Number(item.variante_id) || null };
+}
+
+function editarSeries(item) {
+  grupoEditado.value = itemKey(item);
+  seleccionInicial.value = carrito.value.filter(row => itemKey(row) === grupoEditado.value && row.serie_id)
+    .map(row => ({ id: Number(row.serie_id), identificador: row.serie_identificador }));
+  modalItem.value = { ...item, tiene_series: true };
+}
+
+function eliminarGrupo(item) {
+  carrito.value = carrito.value.filter(row => itemKey(row) !== itemKey(item));
 }
 
 function cerrarModalItem() {
   modalItem.value = null;
+  grupoEditado.value = null;
+  seleccionInicial.value = [];
 }
 
-function confirmarModalItem({ cantidad, serieId }) {
-  if (!modalItem.value) return;
-  agregarItem(modalItem.value, { cantidad, serieId });
+function confirmarModalItem({ cantidad, series }) {
+  const item = modalItem.value;
+  if (!item || !Number.isFinite(cantidad) || cantidad <= 0 || cantidad > stockDisponible(item)) return;
+  if (item.tiene_series) {
+    if (!Number.isInteger(cantidad) || series.length !== cantidad || new Set(series.map(s => Number(s.id))).size !== cantidad) return;
+    if (series.some(s => seriesExcluidas.value.includes(Number(s.id)))) return;
+    if (grupoEditado.value) eliminarGrupo(item);
+    carrito.value.push(...series.map(serie => rowDesdeItem(item, 1, Number(serie.id), serie.identificador)));
+  } else {
+    const existente = carrito.value.find(row => !row.serie_id && itemKey(row) === itemKey(item));
+    if (existente) existente.cantidad = Math.round((Number(existente.cantidad) + cantidad) * 1000) / 1000;
+    else carrito.value.push(rowDesdeItem(item, cantidad));
+  }
   cerrarModalItem();
-}
-
-async function cargarSeries(item) {
-  const key = itemKey(item);
-  const { data } = await http.get("/api/traspasos/series-disponibles", {
-    params: { producto_id: item.producto_id, variante_id: item.variante_id },
-  });
-  seriesPorItem[key] = data.filter((serie) => !carrito.value.some((row) => Number(row.serie_id) === Number(serie.id)));
 }
 
 function stockDisponible(item) {
   const usado = carrito.value
-    .filter((row) => row.producto_id === item.producto_id && row.variante_id === item.variante_id)
+    .filter(row => itemKey(row) === itemKey(item) && itemKey(row) !== grupoEditado.value)
     .reduce((sum, row) => sum + Number(row.cantidad || 0), 0);
   return Math.max(0, Number(item.stock || 0) - usado);
-}
-
-function agregarItem(item, opciones = {}) {
-  if (item.tiene_series) {
-    const key = itemKey(item);
-    const serie = (seriesPorItem[key] ?? []).find((s) => Number(s.id) === Number(opciones.serieId));
-    if (!serie || carrito.value.some((row) => Number(row.serie_id) === Number(serie.id))) return;
-    carrito.value.push(rowDesdeItem(item, 1, serie.id, serie.identificador));
-    cargarSeries(item);
-    return;
-  }
-
-  const cantidad = Number(opciones.cantidad ?? 1);
-  if (cantidad <= 0 || cantidad > stockDisponible(item)) return;
-
-  const existente = carrito.value.find((row) => !row.serie_id && row.producto_id === item.producto_id && row.variante_id === item.variante_id);
-  if (existente) existente.cantidad = Number(existente.cantidad) + cantidad;
-  else carrito.value.push(rowDesdeItem(item, cantidad));
 }
 
 function ajustarCantidadCarrito(item, delta) {

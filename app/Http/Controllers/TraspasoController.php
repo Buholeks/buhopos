@@ -250,6 +250,10 @@ class TraspasoController extends Controller
             'producto_id' => ['required', 'integer', 'exists:productos,id'],
             'variante_id' => ['nullable', 'integer', 'exists:producto_variantes,id'],
             'q' => ['nullable', 'string', 'max:100'],
+            'paginado' => ['sometimes', 'boolean'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'excluir' => ['sometimes', 'array'],
+            'excluir.*' => ['integer', 'min:1'],
         ]);
 
         $user = $request->user();
@@ -260,12 +264,8 @@ class TraspasoController extends Controller
             ->where('sucursal_id', (int) $user->sucursal_id)
             ->where('producto_id', (int) $data['producto_id'])
             ->where('estado', 'disponible')
-            ->when(
-                array_key_exists('variante_id', $data),
-                fn($query) => $data['variante_id'] === null
-                    ? $query->whereNull('variante_id')
-                    : $query->where('variante_id', $data['variante_id'])
-            )
+            ->when(empty($data['variante_id']), fn($query) => $query->whereNull('variante_id'), fn($query) => $query->where('variante_id', $data['variante_id']))
+            ->whereNotIn('id', $data['excluir'] ?? [])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('imei', 'like', "%{$q}%")
@@ -274,17 +274,23 @@ class TraspasoController extends Controller
                 });
             })
             ->select('id', 'imei', 'imei2', 'serie', 'producto_id', 'variante_id')
-            ->orderBy('id')
-            ->limit(30)
-            ->get()
-            ->map(fn($serie) => [
+            ->orderBy('id');
+
+        $mapear = fn($serie) => [
                 'id' => $serie->id,
                 'identificador' => $serie->identificador,
+                'imei' => $serie->imei,
+                'imei2' => $serie->imei2,
+                'serie' => $serie->serie,
                 'producto_id' => $serie->producto_id,
                 'variante_id' => $serie->variante_id,
-            ]);
+            ];
 
-        return response()->json($series);
+        if ($request->boolean('paginado')) {
+            return response()->json($series->simplePaginate(20)->through($mapear));
+        }
+
+        return response()->json($series->limit(30)->get()->map($mapear));
     }
 
     public function store(Request $request): JsonResponse
